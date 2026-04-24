@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobRoomGenerator } from "@/components/jobs/job-room-generator";
-import { groupedPOsByDestination, pendingPOs } from "@/lib/mock-data";
+import { groupedPOsByDestination, pendingPOs } from "@/data/pages/po";
 
 export default function NewJobPage() {
   return (

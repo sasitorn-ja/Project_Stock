@@ -110,7 +110,7 @@ export function POImporter() {
         await migrateLegacyPORegistry();
         await refreshRegistry();
       } catch {
-        setError("เปิดฐานข้อมูล PO ใน browser ไม่สำเร็จ");
+        setError("เชื่อมต่อข้อมูล PO ของระบบไม่สำเร็จ");
       }
     }
 

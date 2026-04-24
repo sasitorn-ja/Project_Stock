@@ -2,7 +2,7 @@ import { AlertTriangle, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobProgress } from "@/components/jobs/job-progress";
-import { activeJob, alerts } from "@/lib/mock-data";
+import { alerts, monitorJob, monitorPOStatuses } from "@/data/pages/job-monitor";
 
 export default function JobMonitorPage() {
   return (
@@ -22,8 +22,8 @@ export default function JobMonitorPage() {
 
       <section className="grid gap-4 md:grid-cols-4">
         {[
-          ["Job", activeJob.id, Truck],
-          ["Status", activeJob.status, Radio],
+          ["Job", monitorJob.id, Truck],
+          ["Status", monitorJob.status, Radio],
           ["Route", "3 Locations", Route],
           ["Alerts", String(alerts.length), AlertTriangle],
         ].map(([label, value, Icon]) => (
@@ -71,15 +71,11 @@ export default function JobMonitorPage() {
           <CardDescription>หลังส่งสินค้า ระบบสรุปว่า PO ไหนส่งครบหรือยังไม่ครบ</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
-          {[
-            ["PO-2026-00081", "ส่งครบ", "success"],
-            ["PO-2026-00082", "ยังไม่ครบ", "warning"],
-            ["PO-2026-00083", "รอส่ง", "secondary"],
-          ].map(([po, status, variant]) => (
-            <div key={po} className="rounded-lg border p-4">
-              <p className="font-semibold">{po}</p>
-              <Badge className="mt-3" variant={variant as "success" | "warning" | "secondary"}>
-                {status}
+          {monitorPOStatuses.map((item) => (
+            <div key={item.po} className="rounded-lg border p-4">
+              <p className="font-semibold">{item.po}</p>
+              <Badge className="mt-3" variant={item.variant as "success" | "warning" | "secondary"}>
+                {item.status}
               </Badge>
             </div>
           ))}

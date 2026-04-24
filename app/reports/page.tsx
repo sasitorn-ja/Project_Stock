@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { reportCards } from "@/data/pages/reports";
 
 export default function ReportsPage() {
   return (
@@ -8,7 +9,7 @@ export default function ReportsPage() {
         <p className="mt-1 text-sm text-muted-foreground">สรุปการโหลดต้นทาง ส่งปลายทาง ความครบถ้วน และ alert</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {["สรุปตาม Job", "โหลด/ส่งตาม Location", "Alert และ GPS"].map((title) => (
+        {reportCards.map((title) => (
           <Card key={title}>
             <CardHeader>
               <CardTitle>{title}</CardTitle>

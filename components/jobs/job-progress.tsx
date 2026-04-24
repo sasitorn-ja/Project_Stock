@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeJob } from "@/lib/mock-data";
+import { monitorJob } from "@/data/pages/job-monitor";
 
 export function JobProgress() {
   return (
@@ -11,7 +11,7 @@ export function JobProgress() {
         <CardDescription>ระบบนับ loaded/delivered แยกตามปลายทาง โดยอ้างอิงรายการ PO ใน Job</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {activeJob.locations.map((location, index) => {
+        {monitorJob.locations.map((location, index) => {
           const required = location.items.reduce((sum, item) => sum + item.required, 0);
           const loaded = location.items.reduce((sum, item) => sum + item.loaded, 0);
           const delivered = location.items.reduce((sum, item) => sum + item.delivered, 0);

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { transportSettings } from "@/data/pages/settings";
 
 export default function SettingsPage() {
   return (
@@ -17,11 +18,11 @@ export default function SettingsPage() {
         <CardContent className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="warehouse">ต้นทางหลัก</Label>
-            <Input id="warehouse" defaultValue="DC Bangna" />
+            <Input id="warehouse" defaultValue={transportSettings.warehouse} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="prefix">GPS Radius Default</Label>
-            <Input id="prefix" defaultValue="150 m" />
+            <Input id="prefix" defaultValue={transportSettings.gpsRadiusDefault} />
           </div>
         </CardContent>
       </Card>

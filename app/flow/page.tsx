@@ -1,36 +1,6 @@
 import { ArrowDown, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { systemFlow } from "@/lib/mock-data";
-
-const adminFlow = [
-  "Login",
-  "ระบบดึง PO เข้ามา",
-  "ดูรายการ PO ที่รอจัดส่ง",
-  "เลือก PO เพื่อสร้าง Job",
-  "ระบบรวม PO ตามปลายทาง",
-  "บันทึก Job",
-  "ระบบสร้างห้องและ QR",
-  "แจก QR ให้คนขับ",
-  "เปิดหน้า monitor",
-  "ดูสถานะ realtime",
-  "ตรวจสอบ alert",
-  "ดูสรุปว่า PO ไหนส่งครบหรือยังไม่ครบ",
-  "ดูสรุปและปิด Job",
-];
-
-const driverFlow = [
-  "เปิดมือถือ",
-  "สแกน QR ห้องงาน",
-  "เข้าโหมดรับต้นทางอัตโนมัติ",
-  "สแกนของขึ้นรถ",
-  "ระบบเช็คกับรายการ PO และนับแยกตาม location",
-  "โหลดครบแล้วเริ่มเดินทาง",
-  "ถึง location และสแกน QR location",
-  "เข้าโหมดส่งอัตโนมัติ",
-  "สแกนของลง",
-  "ระบบเช็คกับ PO ว่าตรงปลายทางไหม",
-  "ส่งครบทุก location แล้วจบงาน",
-];
+import { adminFlow, driverFlow, systemFlow } from "@/data/pages/flow";
 
 function FlowList({ title, items }: { title: string; items: string[] }) {
   return (

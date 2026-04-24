@@ -3,13 +3,7 @@ import { Eye, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { activeJob } from "@/lib/mock-data";
-
-const jobs = [
-  activeJob,
-  { ...activeJob, id: "JOB-2026-0420-002", route: "DC Bangna -> 2 Locations", status: "in_transit", loadedTotal: 80, requiredTotal: 80 },
-  { ...activeJob, id: "JOB-2026-0419-014", route: "DC West -> 4 Locations", status: "closed", loadedTotal: 210, requiredTotal: 210 },
-];
+import { jobs } from "@/data/pages/jobs";
 
 export default function JobsPage() {
   return (

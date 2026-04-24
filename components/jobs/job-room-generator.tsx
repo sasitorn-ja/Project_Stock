@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { groupedPOsByDestination } from "@/lib/mock-data";
+import { groupedPOsByDestination } from "@/data/pages/po";
 import { cn } from "@/lib/utils";
 
 function MiniQr({ value, label }: { value: string; label: string }) {

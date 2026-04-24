@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { activeJob, pendingPOs } from "@/lib/mock-data";
+import { currentGps, driverJob, driverPOs, driverScanChecks } from "@/data/pages/driver";
 
 type Mode = "load" | "deliver";
 
@@ -30,7 +30,7 @@ export function DriverScanner() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle className="text-base">งานปัจจุบัน</CardTitle>
-              <CardDescription>{activeJob.id} / {activeJob.vehicle}</CardDescription>
+              <CardDescription>{driverJob.id} / {driverJob.vehicle}</CardDescription>
             </div>
             <Badge variant={mode === "load" ? "warning" : "success"}>
               {mode === "load" ? "โหลดต้นทาง" : "ส่งปลายทาง"}
@@ -40,7 +40,7 @@ export function DriverScanner() {
         <CardContent className="grid gap-2 text-sm">
           <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
             <span className="text-muted-foreground">คนขับ</span>
-            <span className="min-w-0 break-words text-right font-medium">{activeJob.driver}</span>
+            <span className="min-w-0 break-words text-right font-medium">{driverJob.driver}</span>
           </div>
           <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
             <span className="text-muted-foreground">ปลายทางปัจจุบัน</span>
@@ -58,7 +58,7 @@ export function DriverScanner() {
           <CardDescription>รายการที่ต้องโหลดและส่งในงานนี้</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {pendingPOs.map((po) => (
+          {driverPOs.map((po) => (
             <div key={po.id} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -153,22 +153,22 @@ export function DriverScanner() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3">
-            {[
-              ["อยู่ใน PO ของ Job นี้", true],
-              ["เป็นของ Location ปัจจุบัน", scanResult !== "alert"],
-              ["ยังไม่เคยสแกนซ้ำ", true],
-              ["จำนวนไม่เกินแผน", true],
-              ["อยู่ใน GPS radius", scanResult !== "alert"],
-            ].map(([label, ok]) => (
-              <div key={String(label)} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                <span>{label}</span>
-                {ok ? (
-                  <Badge variant="success"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> ผ่าน</Badge>
-                ) : (
-                  <Badge variant="warning"><AlertTriangle className="mr-1 h-3.5 w-3.5" /> Alert</Badge>
-                )}
-              </div>
-            ))}
+            {driverScanChecks.map((label) => {
+              const ok = label === "เป็นของ Location ปัจจุบัน" || label === "อยู่ใน GPS radius"
+                ? scanResult !== "alert"
+                : true;
+
+              return (
+                <div key={String(label)} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                  <span>{label}</span>
+                  {ok ? (
+                    <Badge variant="success"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> ผ่าน</Badge>
+                  ) : (
+                    <Badge variant="warning"><AlertTriangle className="mr-1 h-3.5 w-3.5" /> Alert</Badge>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="rounded-lg border p-4">
@@ -177,7 +177,7 @@ export function DriverScanner() {
               GPS ปัจจุบัน
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              13.6987,100.5380 / accuracy 18 m
+              {currentGps}
             </p>
           </div>
 

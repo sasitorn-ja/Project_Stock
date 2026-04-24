@@ -1,122 +1,29 @@
-export type PORegistryRecord = {
-  registryKey: string;
-  poSapNo: string;
-  poSapItem: string;
-  firstImportedAt: string;
-  latestImportedAt: string;
-  sourceFileName: string;
-  sourceSheetName: string;
-  rowNumber: number;
-  status: string;
-  vendor: string;
-  poWebNo: string;
-  unitName: string;
-  materialCode: string;
-  materialName: string;
-  orderQty: string;
-  receivedQty: string;
-  totalAmount: string;
-  importCount: number;
-  lifecycle: "active" | "archived";
-  archivedAt?: string;
-};
+import {
+  createPORegistryKey,
+  type NewPORegistryRecord,
+  type PORegistryRecord,
+} from "@/lib/po-registry";
 
-export type NewPORegistryRecord = Omit<
-  PORegistryRecord,
-  "firstImportedAt" | "latestImportedAt" | "importCount" | "lifecycle"
->;
-
-const databaseName = "project-stock-po-line-registry";
-const databaseVersion = 1;
-const poStoreName = "poSapItemRegistry";
 const legacyStorageKey = "project-stock.imported-po-sap-nos";
-const searchableFields = [
-  "poSapNo",
-  "poSapItem",
-  "status",
-  "vendor",
-  "poWebNo",
-  "unitName",
-  "materialCode",
-  "materialName",
-] as const;
 
-function openDatabase() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = window.indexedDB.open(databaseName, databaseVersion);
+async function readResponse<T>(response: Response) {
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
 
-    request.onupgradeneeded = () => {
-      const database = request.result;
-
-      if (!database.objectStoreNames.contains(poStoreName)) {
-        const store = database.createObjectStore(poStoreName, { keyPath: "registryKey" });
-        store.createIndex("poSapNo", "poSapNo");
-        store.createIndex("firstImportedAt", "firstImportedAt");
-        store.createIndex("lifecycle", "lifecycle");
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  return (await response.json()) as T;
 }
 
-function requestToPromise<T>(request: IDBRequest<T>) {
-  return new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function transactionToPromise(transaction: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
-}
-
-export function createPORegistryKey(poSapNo: string, poSapItem: string) {
-  return `${poSapNo.trim()}::${poSapItem.trim()}`;
-}
+export { createPORegistryKey, type NewPORegistryRecord, type PORegistryRecord };
 
 export async function getPORegistryCount() {
-  const database = await openDatabase();
+  const data = await readResponse<{ count: number }>(
+    await fetch("/api/po-registry/count", {
+      cache: "no-store",
+    }),
+  );
 
-  try {
-    const transaction = database.transaction(poStoreName, "readonly");
-    const store = transaction.objectStore(poStoreName);
-
-    return await requestToPromise(store.count());
-  } finally {
-    database.close();
-  }
-}
-
-export async function getAllPORecords() {
-  const database = await openDatabase();
-
-  try {
-    const transaction = database.transaction(poStoreName, "readonly");
-    const store = transaction.objectStore(poStoreName);
-    const records = await requestToPromise<PORegistryRecord[]>(store.getAll());
-
-    return records.sort((firstRecord, secondRecord) =>
-      secondRecord.firstImportedAt.localeCompare(firstRecord.firstImportedAt),
-    );
-  } finally {
-    database.close();
-  }
-}
-
-function recordMatchesQuery(record: PORegistryRecord, query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  return searchableFields.some((field) => record[field].toLowerCase().includes(normalizedQuery));
+  return data.count;
 }
 
 export async function getPORecordsPage({
@@ -128,122 +35,56 @@ export async function getPORecordsPage({
   pageSize: number;
   query?: string;
 }) {
-  const database = await openDatabase();
-  const normalizedQuery = query.trim().toLowerCase();
-  const records: PORegistryRecord[] = [];
-  const skipCount = Math.max(0, (page - 1) * pageSize);
-  let matchedCount = 0;
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    query,
+  });
 
-  try {
-    const transaction = database.transaction(poStoreName, "readonly");
-    const store = transaction.objectStore(poStoreName);
-    const index = store.index("firstImportedAt");
-
-    await new Promise<void>((resolve, reject) => {
-      const request = index.openCursor(null, "prev");
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const cursor = request.result;
-
-        if (!cursor) {
-          resolve();
-          return;
-        }
-
-        const record = cursor.value as PORegistryRecord;
-
-        if (!normalizedQuery || recordMatchesQuery(record, normalizedQuery)) {
-          if (matchedCount >= skipCount && records.length < pageSize) {
-            records.push(record);
-          }
-
-          matchedCount += 1;
-        }
-
-        cursor.continue();
-      };
-    });
-
-    return {
-      records,
-      totalCount: matchedCount,
-    };
-  } finally {
-    database.close();
-  }
+  return readResponse<{
+    records: PORegistryRecord[];
+    totalCount: number;
+  }>(
+    await fetch(`/api/po-registry?${searchParams.toString()}`, {
+      cache: "no-store",
+    }),
+  );
 }
 
 export async function getExistingPORecords(registryKeys: string[]) {
-  const database = await openDatabase();
-  const uniqueKeys = Array.from(new Set(registryKeys));
-  const existingRecords = new Map<string, PORegistryRecord>();
+  const data = await readResponse<{ records: PORegistryRecord[] }>(
+    await fetch("/api/po-registry/existing", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ registryKeys }),
+    }),
+  );
 
-  try {
-    const transaction = database.transaction(poStoreName, "readonly");
-    const store = transaction.objectStore(poStoreName);
-
-    await Promise.all(
-      uniqueKeys.map(async (registryKey) => {
-        const record = await requestToPromise<PORegistryRecord | undefined>(store.get(registryKey));
-
-        if (record) {
-          existingRecords.set(record.registryKey, record);
-        }
-      }),
-    );
-
-    return existingRecords;
-  } finally {
-    database.close();
-  }
+  return new Map(data.records.map((record) => [record.registryKey, record]));
 }
 
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
-  if (!records.length) {
-    return 0;
-  }
+  const data = await readResponse<{ savedCount: number }>(
+    await fetch("/api/po-registry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ records }),
+    }),
+  );
 
-  const database = await openDatabase();
-  const importedAt = new Date().toISOString();
-
-  try {
-    const transaction = database.transaction(poStoreName, "readwrite");
-    const store = transaction.objectStore(poStoreName);
-    const transactionDone = transactionToPromise(transaction);
-
-    records.forEach((record) => {
-      const registryRecord: PORegistryRecord = {
-        ...record,
-        firstImportedAt: importedAt,
-        latestImportedAt: importedAt,
-        importCount: 1,
-        lifecycle: "active",
-      };
-
-      store.put(registryRecord);
-    });
-
-    await transactionDone;
-
-    return records.length;
-  } finally {
-    database.close();
-  }
+  return data.savedCount;
 }
 
 export async function clearPORegistry() {
-  const database = await openDatabase();
-
-  try {
-    const transaction = database.transaction(poStoreName, "readwrite");
-    const store = transaction.objectStore(poStoreName);
-
-    await requestToPromise(store.clear());
-    window.localStorage.removeItem(legacyStorageKey);
-  } finally {
-    database.close();
-  }
+  await readResponse<{ cleared: true }>(
+    await fetch("/api/po-registry", {
+      method: "DELETE",
+    }),
+  );
 }
 
 export async function migrateLegacyPORegistry() {
