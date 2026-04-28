@@ -9,13 +9,11 @@ import {
   X,
   ClipboardList,
   FilePlus2,
-  MapPinned,
   PanelLeftClose,
   PanelLeftOpen,
   FileText,
   Upload,
   QrCode,
-  Settings,
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +35,6 @@ const sections = [
     items: [
       { name: "รายการ Job", href: "/jobs", icon: Truck },
       { name: "รายการสินค้า", href: "/products", icon: Boxes },
-      { name: "Location/GPS", href: "/settings", icon: MapPinned },
       { name: "รายงาน", href: "/reports", icon: BarChart3 },
       { name: "Flow งาน", href: "/flow", icon: ClipboardList },
     ],
@@ -160,21 +157,6 @@ export function Sidebar({
             </div>
           ))}
         </nav>
-
-        <div className="mt-auto border-t border-slate-100 px-2 pt-4 dark:border-slate-800">
-          <Link
-            href="/settings"
-            title={isCollapsed ? "ตั้งค่า" : undefined}
-            onClick={onCloseMobile}
-            className={cn(
-              "flex w-full items-center rounded-lg text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200",
-              isCollapsed ? "gap-3 px-2 py-2.5 lg:justify-center lg:py-3" : "gap-3 px-2 py-2.5",
-            )}
-          >
-            <Settings className="h-5 w-5 shrink-0" />
-            <span className={cn(isCollapsed && "lg:hidden")}>ตั้งค่า</span>
-          </Link>
-        </div>
       </div>
       </aside>
     </>

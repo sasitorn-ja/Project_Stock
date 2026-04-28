@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,13 @@ export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [reloadToken, setReloadToken] = useState(0);
   const pageSize = 20;
+  const normalizedQuery = query.trim();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const currentPage = Math.min(page, totalPages);
   const startIndex = (currentPage - 1) * pageSize;
@@ -27,22 +31,39 @@ export function PORegistryList() {
   useEffect(() => {
     async function loadRecords() {
       setIsLoading(true);
+      setError("");
 
       try {
         const result = await getPORecordsPage({ page: currentPage, pageSize, query });
         setRecords(result.records);
         setTotalCount(result.totalCount);
+      } catch {
+        setRecords([]);
+        setTotalCount(0);
+        setError("โหลดข้อมูล PO ไม่สำเร็จ กรุณาลองรีเฟรชรายการอีกครั้ง");
       } finally {
         setIsLoading(false);
       }
     }
 
     loadRecords();
-  }, [currentPage, query]);
+  }, [currentPage, query, reloadToken]);
 
   useEffect(() => {
     setPage(1);
   }, [query]);
+
+  useEffect(() => {
+    function refreshOnFocus() {
+      setReloadToken((current) => current + 1);
+    }
+
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, []);
 
   function toggleRecord(registryKey: string) {
     setSelectedKeys((currentKeys) =>
@@ -71,6 +92,14 @@ export function PORegistryList() {
     window.location.href = "/jobs/new";
   }
 
+  function refreshRecords() {
+    setReloadToken((current) => current + 1);
+  }
+
+  function clearSearch() {
+    setQuery("");
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -79,7 +108,12 @@ export function PORegistryList() {
             <CardTitle>คิวจากไฟล์ GR</CardTitle>
             <CardDescription>ค้นหาและเลือกรายการที่ต้องนำไปสร้าง Job</CardDescription>
           </div>
-          <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
+              รีเฟรชรายการ
+            </Button>
+            <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -112,6 +146,13 @@ export function PORegistryList() {
         {isLoading ? (
           <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
             กำลังโหลดข้อมูล PO
+          </div>
+        ) : error ? (
+          <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+            <p>{error}</p>
+            <Button type="button" variant="outline" size="sm" onClick={refreshRecords}>
+              ลองโหลดใหม่
+            </Button>
           </div>
         ) : records.length ? (
           <div className="overflow-hidden rounded-md border">
@@ -198,9 +239,40 @@ export function PORegistryList() {
             ) : null}
           </div>
         ) : (
-          <div className="flex items-center gap-3 rounded-md border bg-slate-50 p-6 text-sm text-muted-foreground dark:bg-slate-900">
-            <ClipboardList className="h-5 w-5" />
-            ยังไม่มีข้อมูล PO กรุณานำเข้าไฟล์ GR ก่อน
+          <div className="rounded-md border bg-slate-50 p-6 dark:bg-slate-900">
+            {normalizedQuery ? (
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <ClipboardList className="h-5 w-5" />
+                  <p>
+                    ไม่พบข้อมูล PO ที่ตรงกับคำค้นหา <span className="font-medium text-foreground">{normalizedQuery}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={clearSearch}>
+                    ล้างคำค้นหา
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={refreshRecords}>
+                    รีเฟรชรายการ
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <ClipboardList className="h-5 w-5" />
+                  <p>ยังไม่มีข้อมูลในทะเบียน PO ที่บันทึกแล้ว กรุณานำเข้าไฟล์ GR และยืนยันการบันทึกก่อน</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild type="button" size="sm">
+                    <Link href="/po/import">นำเข้า PO</Link>
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={refreshRecords}>
+                    รีเฟรชรายการ
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
