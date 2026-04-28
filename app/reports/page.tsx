@@ -1,24 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { reportCards } from "@/data/pages/reports";
 
 export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-normal">รายงาน</h2>
-        <p className="mt-1 text-sm text-muted-foreground">สรุปการโหลดต้นทาง ส่งปลายทาง ความครบถ้วน และ alert</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          หน้ารายงานถูกเปลี่ยนเป็นสถานะพักไว้ก่อน จนกว่าจะสรุปข้อมูลจาก Job ปิดงานจริงครบชุด
+        </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {reportCards.map((title) => (
-          <Card key={title}>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>รอข้อมูลจาก Job ที่ปิดงานแล้ว</CardDescription>
-            </CardHeader>
-            <CardContent className="h-32 rounded-b-lg bg-slate-50 dark:bg-slate-900" />
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>รอ data mart ของงานจริง</CardTitle>
+          <CardDescription>ตอนนี้ระบบบันทึก job, scan และ alert จริงแล้ว แต่ยังไม่ได้สร้างสรุปรายงานระยะยาว</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          ใช้หน้า Monitor Realtime เพื่อติดตามงานจริงในระหว่างนี้
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,21 +1,20 @@
 import { CheckCircle2, Circle, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { monitorJob } from "@/data/pages/job-monitor";
+import { type getJob } from "@/lib/job-store";
 
-export function JobProgress() {
+type JobDetail = NonNullable<Awaited<ReturnType<typeof getJob>>>;
+
+export function JobProgress({ job }: { job: JobDetail }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>แผนส่งตาม Location / PO</CardTitle>
-        <CardDescription>ระบบนับ loaded/delivered แยกตามปลายทาง โดยอ้างอิงรายการ PO ใน Job</CardDescription>
+        <CardDescription>ระบบนับ loaded/delivered แยกตามปลายทาง โดยอ้างอิงรายการ PO จริงใน Job</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {monitorJob.locations.map((location, index) => {
-          const required = location.items.reduce((sum, item) => sum + item.required, 0);
-          const loaded = location.items.reduce((sum, item) => sum + item.loaded, 0);
-          const delivered = location.items.reduce((sum, item) => sum + item.delivered, 0);
-          const complete = delivered >= required;
+        {job.destinations.map((location, index) => {
+          const complete = location.delivered >= location.required && location.required > 0;
 
           return (
             <div key={location.id} className="rounded-lg border p-4">
@@ -32,32 +31,33 @@ export function JobProgress() {
                     <p className="mt-1 text-sm text-muted-foreground">{location.address}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
-                      {location.gps} / radius {location.radius}
+                      {location.gps} / radius {location.radiusMeters} m
                     </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
                   <div className="rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
                     <p className="text-xs text-muted-foreground">Plan</p>
-                    <p className="font-semibold">{required}</p>
+                    <p className="font-semibold">{location.required}</p>
                   </div>
                   <div className="rounded-md bg-cyan-50 px-3 py-2 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
                     <p className="text-xs">Loaded</p>
-                    <p className="font-semibold">{loaded}</p>
+                    <p className="font-semibold">{location.loaded}</p>
                   </div>
                   <div className="rounded-md bg-emerald-50 px-3 py-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                     <p className="text-xs">Delivered</p>
-                    <p className="font-semibold">{delivered}</p>
+                    <p className="font-semibold">{location.delivered}</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-md border">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] text-sm">
+                  <table className="w-full min-w-[720px] text-sm">
                     <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                       <tr>
-                        <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">SKU</th>
+                        <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">PO</th>
+                        <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">รหัสวัสดุ</th>
                         <th className="px-3 py-2 font-medium">สินค้า</th>
                         <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ต้องส่ง</th>
                         <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ขึ้นรถ</th>
@@ -66,12 +66,13 @@ export function JobProgress() {
                     </thead>
                     <tbody className="divide-y">
                       {location.items.map((item) => (
-                        <tr key={item.sku}>
-                          <td className="whitespace-nowrap px-3 py-2 align-top font-medium">{item.sku}</td>
-                          <td className="break-words px-3 py-2 align-top">{item.name}</td>
-                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.required}</td>
-                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.loaded}</td>
-                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.delivered}</td>
+                        <tr key={item.registryKey}>
+                          <td className="whitespace-nowrap px-3 py-2 align-top font-medium">{item.poSapNo}</td>
+                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.materialCode || "-"}</td>
+                          <td className="break-words px-3 py-2 align-top">{item.materialName || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.orderQty}</td>
+                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.loadedQty}</td>
+                          <td className="whitespace-nowrap px-3 py-2 align-top">{item.deliveredQty}</td>
                         </tr>
                       ))}
                     </tbody>

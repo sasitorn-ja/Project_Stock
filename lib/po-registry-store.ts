@@ -65,7 +65,9 @@ export async function getPORecordsPage({
   query?: string;
 }) {
   const store = await readStore();
-  const matchedRecords = sortPORecords(store.records).filter((record) => recordMatchesQuery(record, query));
+  const matchedRecords = sortPORecords(store.records).filter(
+    (record) => !record.assignedJobId && record.lifecycle === "active" && recordMatchesQuery(record, query),
+  );
   const safePage = Math.max(1, page);
   const skipCount = (safePage - 1) * pageSize;
 
@@ -80,6 +82,13 @@ export async function getExistingPORecords(registryKeys: string[]) {
   const uniqueKeys = new Set(registryKeys);
 
   return store.records.filter((record) => uniqueKeys.has(record.registryKey));
+}
+
+export async function getPORecordsByKeys(registryKeys: string[]) {
+  const store = await readStore();
+  const uniqueKeys = new Set(registryKeys);
+
+  return sortPORecords(store.records.filter((record) => uniqueKeys.has(record.registryKey)));
 }
 
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
@@ -120,4 +129,40 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
 
 export async function clearPORegistry() {
   await writeStore({ records: [] });
+}
+
+export async function markPORecordsAssigned(registryKeys: string[], jobId: string) {
+  const store = await readStore();
+  const uniqueKeys = new Set(registryKeys);
+  const assignedAt = new Date().toISOString();
+
+  const records = store.records.map((record) =>
+    uniqueKeys.has(record.registryKey)
+      ? {
+          ...record,
+          assignedJobId: jobId,
+          assignedAt,
+        }
+      : record,
+  );
+
+  await writeStore({ records });
+}
+
+export async function markPORecordsCompleted(registryKeys: string[]) {
+  const store = await readStore();
+  const uniqueKeys = new Set(registryKeys);
+  const archivedAt = new Date().toISOString();
+
+  const records = store.records.map((record) =>
+    uniqueKeys.has(record.registryKey)
+      ? {
+          ...record,
+          lifecycle: "archived" as const,
+          archivedAt,
+        }
+      : record,
+  );
+
+  await writeStore({ records });
 }

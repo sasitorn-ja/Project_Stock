@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  BarChart3,
-  Boxes,
   X,
   ClipboardList,
   FilePlus2,
@@ -34,8 +32,6 @@ const sections = [
     title: "MANAGEMENT",
     items: [
       { name: "รายการ Job", href: "/jobs", icon: Truck },
-      { name: "รายการสินค้า", href: "/products", icon: Boxes },
-      { name: "รายงาน", href: "/reports", icon: BarChart3 },
       { name: "Flow งาน", href: "/flow", icon: ClipboardList },
     ],
   },

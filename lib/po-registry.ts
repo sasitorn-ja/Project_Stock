@@ -18,6 +18,8 @@ export type PORegistryRecord = {
   totalAmount: string;
   importCount: number;
   lifecycle: "active" | "archived";
+  assignedJobId?: string;
+  assignedAt?: string;
   archivedAt?: string;
 };
 

@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  if (pathname.startsWith("/driver")) {
+  if (pathname.startsWith("/driver-room")) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-4">{children}</main>

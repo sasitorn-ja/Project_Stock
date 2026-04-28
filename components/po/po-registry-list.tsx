@@ -92,6 +92,19 @@ export function PORegistryList() {
     window.location.href = "/jobs/new";
   }
 
+  async function selectAllMatchingRecords() {
+    try {
+      setIsLoading(true);
+      setError("");
+      const result = await getPORecordsPage({ page: 1, pageSize: Math.max(totalCount, pageSize), query });
+      setSelectedKeys(result.records.map((record) => record.registryKey));
+    } catch {
+      setError("เลือกรายการทั้งหมดไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function refreshRecords() {
     setReloadToken((current) => current + 1);
   }
@@ -131,6 +144,9 @@ export function PORegistryList() {
             <span className="text-sm text-muted-foreground">
               เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
             </span>
+            <Button type="button" variant="outline" size="sm" onClick={selectAllMatchingRecords} disabled={!totalCount || isLoading}>
+              เลือกทั้งหมดตามผลค้นหา
+            </Button>
             <Button
               type="button"
               onClick={createJobFromSelection}
