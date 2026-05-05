@@ -68,6 +68,26 @@ export async function checkInJobOrigin(input: {
   return data.job;
 }
 
+export async function checkInJobDestination(input: {
+  jobId: string;
+  destinationId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}) {
+  const data = await readResponse<{ job: JobRecord }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-destination`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
+  );
+
+  return data.job;
+}
+
 export async function submitJobScan(input: {
   jobId: string;
   code: string;

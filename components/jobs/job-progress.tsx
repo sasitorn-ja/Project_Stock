@@ -1,9 +1,11 @@
 import { CheckCircle2, Circle, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type getJob } from "@/lib/job-store";
+import { type getJob, type getJobArchive } from "@/lib/job-store";
 
-type JobDetail = NonNullable<Awaited<ReturnType<typeof getJob>>>;
+type JobDetail =
+  | NonNullable<Awaited<ReturnType<typeof getJob>>>
+  | NonNullable<Awaited<ReturnType<typeof getJobArchive>>>;
 
 export function JobProgress({ job }: { job: JobDetail }) {
   return (
@@ -32,6 +34,9 @@ export function JobProgress({ job }: { job: JobDetail }) {
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
                       {location.gps} / radius {location.radiusMeters} m
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      GPS ส่งของ: {location.deliveryGps || "ยังไม่เช็กอินปลายทาง"}
                     </p>
                   </div>
                 </div>

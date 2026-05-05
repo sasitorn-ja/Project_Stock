@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PORegistryList } from "@/components/po/po-registry-list";
+import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function PurchaseOrdersPage() {
   return (
@@ -22,6 +23,8 @@ export default function PurchaseOrdersPage() {
           </Button>
         </div>
       </div>
+
+      <StorageWarning />
 
       <PORegistryList />
     </div>

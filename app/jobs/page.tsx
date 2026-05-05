@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Eye, Plus, QrCode } from "lucide-react";
+import { Eye, History, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { listJobs } from "@/lib/job-store";
 
 export default async function JobsPage() {
@@ -15,12 +16,20 @@ export default async function JobsPage() {
           <h2 className="text-2xl font-bold tracking-normal">รายการ Job</h2>
           <p className="mt-1 text-sm text-muted-foreground">งานขนส่งที่สร้างจาก PO จริงและสถานะล่าสุดของแต่ละงาน</p>
         </div>
-        <Button asChild>
-          <Link href="/po">
-            <Plus className="mr-2 h-4 w-4" />
-            เลือก PO เพื่อสร้าง Job
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/jobs/history">
+              <History className="mr-2 h-4 w-4" />
+              ประวัติงาน
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/po">
+              <Plus className="mr-2 h-4 w-4" />
+              เลือก PO เพื่อสร้าง Job
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -72,19 +81,14 @@ export default async function JobsPage() {
                           </Badge>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 align-top">
-                          <div className="flex gap-2">
+                          <div className="space-y-2">
                             <Button asChild variant="outline" size="sm">
                               <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 Monitor
                               </Link>
                             </Button>
-                            <Button asChild variant="outline" size="sm">
-                              <Link href={`/driver-room?jobId=${encodeURIComponent(job.id)}`}>
-                                <QrCode className="mr-2 h-4 w-4" />
-                                Driver
-                              </Link>
-                            </Button>
+                            <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
                           </div>
                         </td>
                       </tr>

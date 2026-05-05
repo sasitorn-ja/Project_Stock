@@ -17,10 +17,18 @@ export type PORegistryRecord = {
   receivedQty: string;
   totalAmount: string;
   importCount: number;
-  lifecycle: "active" | "archived";
+  lifecycle: "active" | "assigned" | "completed";
   assignedJobId?: string;
   assignedAt?: string;
   archivedAt?: string;
+  completedAt?: string;
+  purgeAfterAt?: string;
+};
+
+export type PORegistryArchiveRecord = PORegistryRecord & {
+  archivedFromJobId: string;
+  archivedAt: string;
+  deleteAfterAt: string;
 };
 
 export type NewPORegistryRecord = Omit<

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, Radio, Route, Truck } from "lucide-react";
+import { AlertTriangle, History, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJob, listJobs } from "@/lib/job-store";
 
@@ -29,6 +30,15 @@ export default async function JobMonitorPage({
           <Radio className="mr-1 h-3.5 w-3.5" />
           Live Data
         </Badge>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/jobs/history">
+            <History className="mr-2 h-4 w-4" />
+            ประวัติงาน
+          </Link>
+        </Button>
       </div>
 
       {jobs.length ? (
@@ -61,6 +71,16 @@ export default async function JobMonitorPage({
               </Card>
             ))}
           </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>ช่องทางเข้าหน้าคนขับ</CardTitle>
+              <CardDescription>เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} />
+            </CardContent>
+          </Card>
 
           <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} />

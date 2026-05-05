@@ -1,4 +1,5 @@
 import { POImporter } from "@/components/po/po-importer";
+import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function POImportPage() {
   return (
@@ -9,6 +10,8 @@ export default function POImportPage() {
           อัปโหลดไฟล์ GR .xlsx เพื่อเพิ่มรายการใหม่เข้าสู่คิวรอจัดส่ง
         </p>
       </div>
+
+      <StorageWarning />
 
       <POImporter />
     </div>

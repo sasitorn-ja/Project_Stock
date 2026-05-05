@@ -166,7 +166,7 @@ export function JobCreator() {
         <Card>
           <CardHeader>
             <CardTitle>รายละเอียดงานขนส่ง</CardTitle>
-            <CardDescription>กำหนดผู้รับผิดชอบงานจริงก่อนบันทึกเข้าระบบ</CardDescription>
+            <CardDescription>กำหนดผู้รับผิดชอบงานจริงก่อนบันทึกเข้าระบบ โดยปลายทางของงานจะอ้างอิงจาก PO ที่เลือกไว้เท่านั้น</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2">
@@ -197,6 +197,7 @@ export function JobCreator() {
                   <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
                   สรุปปลายทาง
                 </div>
+                <p className="mt-2 text-muted-foreground">ปลายทางทั้งหมดด้านล่างถูกสร้างมาจากรายการ PO ที่ admin เลือกเข้า job นี้</p>
                 <div className="mt-3 space-y-2">
                   {groupedDestinations.map((destination) => (
                     <div key={destination.id} className="flex items-center justify-between gap-3 rounded-md border bg-white px-3 py-2 dark:bg-slate-950">

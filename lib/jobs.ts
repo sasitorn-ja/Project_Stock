@@ -26,6 +26,8 @@ export type JobDestinationRecord = {
   address: string;
   gps: string;
   radiusMeters: number;
+  deliveryGps: string;
+  deliveryCheckedInAt?: string;
 };
 
 export type JobAlertRecord = {
@@ -64,6 +66,13 @@ export type JobRecord = {
   destinations: JobDestinationRecord[];
   alerts: JobAlertRecord[];
   scanLogs: JobScanLogRecord[];
+  completedAt?: string;
+  purgeAfterAt?: string;
+};
+
+export type JobArchiveRecord = JobRecord & {
+  archivedAt: string;
+  deleteAfterAt: string;
 };
 
 export function slugifyDestination(value: string) {
@@ -117,11 +126,24 @@ export function buildJobDestinations(items: JobItemRecord[]) {
         address: item.destinationName,
         gps: "-",
         radiusMeters: 150,
+        deliveryGps: "",
       });
     }
   });
 
   return Array.from(destinationMap.values());
+}
+
+export function normalizeJobDestination(destination: Partial<JobDestinationRecord>): JobDestinationRecord {
+  return {
+    id: String(destination.id ?? ""),
+    name: String(destination.name ?? ""),
+    address: String(destination.address ?? ""),
+    gps: String(destination.gps ?? "-"),
+    radiusMeters: Number(destination.radiusMeters ?? 150),
+    deliveryGps: String(destination.deliveryGps ?? ""),
+    deliveryCheckedInAt: destination.deliveryCheckedInAt ? String(destination.deliveryCheckedInAt) : undefined,
+  };
 }
 
 export function buildJobId(now = new Date()) {
@@ -130,8 +152,9 @@ export function buildJobId(now = new Date()) {
   const day = String(now.getDate()).padStart(2, "0");
   const hours = String(now.getHours()).padStart(2, "0");
   const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
 
-  return `JOB-${year}${month}${day}-${hours}${minutes}`;
+  return `JOB-${year}${month}${day}-${hours}${minutes}${seconds}`;
 }
 
 export function formatTime(value: string) {
@@ -206,3 +229,17 @@ export function summarizeJob(job: JobRecord) {
     poStatuses,
   };
 }
+
+export type JobSummaryRecord = ReturnType<typeof summarizeJob>;
+
+export function summarizeJobArchive(job: JobArchiveRecord) {
+  const summary = summarizeJob(job);
+
+  return {
+    ...summary,
+    archivedAt: job.archivedAt,
+    deleteAfterAt: job.deleteAfterAt,
+  };
+}
+
+export type JobArchiveSummaryRecord = ReturnType<typeof summarizeJobArchive>;

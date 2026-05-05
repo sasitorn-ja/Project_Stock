@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JobCreator } from "@/components/jobs/job-creator";
+import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function NewJobPage() {
   return (
@@ -20,6 +21,8 @@ export default function NewJobPage() {
           </Link>
         </Button>
       </div>
+
+      <StorageWarning />
 
       <JobCreator />
     </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  History,
   X,
   ClipboardList,
   FilePlus2,
@@ -32,6 +33,7 @@ const sections = [
     title: "MANAGEMENT",
     items: [
       { name: "รายการ Job", href: "/jobs", icon: Truck },
+      { name: "ประวัติงาน", href: "/jobs/history", icon: History },
       { name: "Flow งาน", href: "/flow", icon: ClipboardList },
     ],
   },
@@ -128,7 +130,7 @@ export function Sidebar({
                 {section.items.map((item) => {
                   const isActive =
                     pathname === item.href ||
-                    (item.href !== "/" && item.href !== "/po" && pathname.startsWith(item.href));
+                    (item.href !== "/" && item.href !== "/po" && item.href !== "/jobs" && pathname.startsWith(item.href));
                   return (
                     <Link
                       key={item.href}

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
+import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobRecord, type ScanMode } from "@/lib/jobs";
 
 const driverScanChecks = [
@@ -17,6 +17,20 @@ const driverScanChecks = [
   "จำนวนไม่เกินแผน",
   "อยู่ในลำดับ flow ที่ถูกต้อง",
 ];
+
+async function requestCurrentPosition() {
+  if (!("geolocation" in navigator)) {
+    throw new Error("อุปกรณ์นี้ไม่รองรับการดึง GPS");
+  }
+
+  return new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+    });
+  });
+}
 
 export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
@@ -29,8 +43,9 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
-  const [deviceGps, setDeviceGps] = useState("");
-  const [isFetchingGps, setIsFetchingGps] = useState(false);
+  const [latestGps, setLatestGps] = useState("");
+  const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
+  const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
 
   useEffect(() => {
     async function loadJobs() {
@@ -46,12 +61,20 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         if (nextSelectedJobId) {
           const nextJob = await getJob(nextSelectedJobId);
           setJob(nextJob);
-          setCurrentLocation(nextJob?.destinations[0]?.id ?? "");
+          setCurrentLocation((current) => {
+            if (current && nextJob?.destinations.some((destination) => destination.id === current)) {
+              return current;
+            }
+
+            return nextJob?.destinations[0]?.id ?? "";
+          });
         } else {
           setJob(null);
+          setCurrentLocation("");
         }
       } catch {
         setMessage("โหลดข้อมูลห้องคนขับไม่สำเร็จ");
+        setScanResult("alert");
       } finally {
         setIsLoading(false);
       }
@@ -65,37 +88,29 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     [currentLocation, job],
   );
   const isDedicatedDriverMode = Boolean(initialJobId);
+  const hasOriginCheckIn = Boolean(job?.originCheckedInAt && job.originGps);
+  const isOriginGpsRequired = Boolean(job) && !hasOriginCheckIn;
+  const hasDestinationCheckIn = Boolean(currentDestination?.deliveryCheckedInAt && currentDestination.deliveryGps);
+  const isDestinationGpsRequired = mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
+  const isScanBlocked = isOriginGpsRequired || isDestinationGpsRequired;
 
-  async function captureDeviceGps() {
+  async function captureOriginGps() {
     if (!job) {
       setMessage("ยังไม่มี Job ให้เช็กอิน GPS");
       setScanResult("alert");
       return;
     }
 
-    if (!("geolocation" in navigator)) {
-      setMessage("อุปกรณ์นี้ไม่รองรับการดึง GPS");
-      setScanResult("alert");
-      return;
-    }
-
-    setIsFetchingGps(true);
+    setIsFetchingOriginGps(true);
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        });
-      });
-
+      const position = await requestCurrentPosition();
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       const accuracy = position.coords.accuracy;
       const gpsText = `${latitude.toFixed(6)},${longitude.toFixed(6)} / accuracy ${Math.round(accuracy)} m`;
 
-      setDeviceGps(gpsText);
+      setLatestGps(gpsText);
       const nextJob = await checkInJobOrigin({
         jobId: job.id,
         latitude,
@@ -106,11 +121,47 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       setJob(nextJob);
       setMessage("ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
       setScanResult("ok");
-    } catch {
-      setMessage("ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาอนุญาตตำแหน่งและลองใหม่");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
       setScanResult("alert");
     } finally {
-      setIsFetchingGps(false);
+      setIsFetchingOriginGps(false);
+    }
+  }
+
+  async function captureDestinationGps() {
+    if (!job || !currentDestination) {
+      setMessage("ยังไม่ได้เลือกปลายทางสำหรับเช็กอิน GPS");
+      setScanResult("alert");
+      return;
+    }
+
+    setIsFetchingDestinationGps(true);
+
+    try {
+      const position = await requestCurrentPosition();
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      const gpsText = `${latitude.toFixed(6)},${longitude.toFixed(6)} / accuracy ${Math.round(accuracy)} m`;
+
+      setLatestGps(gpsText);
+      const nextJob = await checkInJobDestination({
+        jobId: job.id,
+        destinationId: currentDestination.id,
+        latitude,
+        longitude,
+        accuracy,
+      });
+
+      setJob(nextJob);
+      setMessage(`เช็กอิน GPS ปลายทาง ${currentDestination.name} เรียบร้อยแล้ว`);
+      setScanResult("ok");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ดึง GPS ปลายทางไม่สำเร็จ กรุณาลองใหม่");
+      setScanResult("alert");
+    } finally {
+      setIsFetchingDestinationGps(false);
     }
   }
 
@@ -194,6 +245,14 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                 <span className="text-muted-foreground">ปลายทางปัจจุบัน</span>
                 <span className="min-w-0 break-words text-right font-medium">{currentDestination?.name || "-"}</span>
               </div>
+              {mode === "deliver" && currentDestination ? (
+                <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
+                  <span className="text-muted-foreground">GPS ปลายทางจริง</span>
+                  <span className="min-w-0 break-words text-right font-medium">
+                    {currentDestination.deliveryGps || "ยังไม่เช็กอินปลายทางนี้"}
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </CardContent>
@@ -219,12 +278,18 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                       <div>
                         <p className="font-semibold">{destination.name}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{destination.id}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          GPS ส่งของ: {destination.deliveryGps || "ยังไม่เช็กอิน"}
+                        </p>
                       </div>
                       <Badge variant="secondary">{items.reduce((sum, item) => sum + item.orderQty, 0)} pcs</Badge>
                     </div>
                     <div className="mt-3 space-y-2">
                       {items.map((item) => (
-                        <div key={item.registryKey} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm dark:bg-slate-900">
+                        <div
+                          key={item.registryKey}
+                          className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm dark:bg-slate-900"
+                        >
                           <span className="min-w-0 break-words">
                             {item.materialCode || item.registryKey} - {item.materialName || "-"}
                           </span>
@@ -267,41 +332,66 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               <MapPin className="h-4 w-4" />
               GPS จากอุปกรณ์
             </div>
-            <p className="mt-2">ระบบจะใช้พิกัดจากมือถือเครื่องนี้เท่านั้น ไม่รับการพิมพ์ตำแหน่งเอง</p>
+            <p className="mt-2">ระบบจะใช้พิกัดจากมือถือเครื่องนี้เท่านั้น ไม่รับการพิมพ์ตำแหน่งเอง และต้องเช็กอินตามขั้นตอนก่อนสแกน</p>
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button type="button" variant="outline" onClick={captureDeviceGps} disabled={!job || isFetchingGps}>
-                {isFetchingGps ? "กำลังดึง GPS" : "ดึง GPS ปัจจุบัน"}
+              <Button type="button" variant="outline" onClick={captureOriginGps} disabled={!job || isFetchingOriginGps}>
+                {isFetchingOriginGps ? "กำลังดึง GPS ต้นทาง" : "เช็กอิน GPS ต้นทาง"}
               </Button>
-              <span className="text-xs text-cyan-900 dark:text-cyan-100">{deviceGps || job?.originGps || "ยังไม่มีพิกัดจากอุปกรณ์"}</span>
+              <span className="text-xs text-cyan-900 dark:text-cyan-100">{latestGps || job?.originGps || "ยังไม่มีพิกัดจากอุปกรณ์"}</span>
             </div>
+            {isOriginGpsRequired ? (
+              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                ต้องเช็กอิน GPS ต้นทางก่อน ระบบจึงจะเปิดให้สแกนขึ้นรถหรือส่งปลายทาง
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Button type="button" variant={mode === "load" ? "default" : "outline"} onClick={() => setMode("load")}>
+            <Button type="button" variant={mode === "load" ? "default" : "outline"} onClick={() => setMode("load")} disabled={isOriginGpsRequired}>
               <Truck className="mr-2 h-4 w-4" />
               โหมดขึ้นรถ
             </Button>
-            <Button type="button" variant={mode === "deliver" ? "default" : "outline"} onClick={() => setMode("deliver")}>
+            <Button type="button" variant={mode === "deliver" ? "default" : "outline"} onClick={() => setMode("deliver")} disabled={isOriginGpsRequired}>
               <QrCode className="mr-2 h-4 w-4" />
               โหมดส่งปลายทาง
             </Button>
           </div>
 
           {mode === "deliver" && job?.destinations.length ? (
-            <div className="space-y-2">
-              <Label htmlFor="destination-selector">เลือกปลายทางปัจจุบัน</Label>
-              <select
-                id="destination-selector"
-                value={currentLocation}
-                onChange={(event) => setCurrentLocation(event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="space-y-2">
+                <Label htmlFor="destination-selector">เลือกปลายทางปัจจุบัน</Label>
+                <select
+                  id="destination-selector"
+                  value={currentLocation}
+                  onChange={(event) => setCurrentLocation(event.target.value)}
+                  disabled={isOriginGpsRequired}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {job.destinations.map((destination) => (
+                    <option key={destination.id} value={destination.id}>
+                      {destination.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-900">
+                <p className="font-medium">สถานะ GPS ปลายทาง</p>
+                <p className="mt-1 text-muted-foreground">{currentDestination?.deliveryGps || "ยังไม่เช็กอินปลายทางนี้"}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={captureDestinationGps}
+                disabled={!job || !currentDestination || isOriginGpsRequired || isFetchingDestinationGps}
               >
-                {job.destinations.map((destination) => (
-                  <option key={destination.id} value={destination.id}>
-                    {destination.name}
-                  </option>
-                ))}
-              </select>
+                {isFetchingDestinationGps ? "กำลังเช็กอิน GPS ปลายทาง" : "เช็กอิน GPS ปลายทางนี้"}
+              </Button>
+              {isDestinationGpsRequired ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                  ต้องเช็กอิน GPS ของปลายทาง {currentDestination?.name} ก่อน จึงจะสแกนส่งของได้
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -321,18 +411,25 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               id="scan-code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
+              disabled={isScanBlocked}
               placeholder="เช่น material code, PO SAP No. หรือ registry key"
             />
           </div>
 
-          <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting}>
+          <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked}>
             บันทึกการสแกน
           </Button>
 
           {job?.items.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {job.items.slice(0, 6).map((item) => (
-                <Button key={item.registryKey} type="button" variant="outline" onClick={() => setCode(item.materialCode || item.registryKey)}>
+                <Button
+                  key={item.registryKey}
+                  type="button"
+                  variant="outline"
+                  disabled={isScanBlocked}
+                  onClick={() => setCode(item.materialCode || item.registryKey)}
+                >
                   ใช้ {item.materialCode || item.registryKey}
                 </Button>
               ))}
@@ -355,9 +452,13 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                 <div key={label} className="flex items-center justify-between rounded-lg border p-3 text-sm">
                   <span>{label}</span>
                   {ok ? (
-                    <Badge variant="success"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> ผ่าน</Badge>
+                    <Badge variant="success">
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> ผ่าน
+                    </Badge>
                   ) : (
-                    <Badge variant="warning"><AlertTriangle className="mr-1 h-3.5 w-3.5" /> Alert</Badge>
+                    <Badge variant="warning">
+                      <AlertTriangle className="mr-1 h-3.5 w-3.5" /> Alert
+                    </Badge>
                   )}
                 </div>
               );
@@ -372,33 +473,34 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             <p className="mt-2 text-sm text-muted-foreground">
               {currentDestination ? `${currentDestination.name} / radius ${currentDestination.radiusMeters} m` : "ยังไม่ได้เลือกปลายทาง"}
             </p>
+            {mode === "deliver" && currentDestination ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                สถานะเช็กอินปลายทาง: {currentDestination.deliveryCheckedInAt ? "พร้อมส่ง" : "ยังไม่เช็กอิน"}
+              </p>
+            ) : null}
           </div>
 
           {message ? (
             scanResult === "alert" ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              <div className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                 {message}
               </div>
             ) : (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <div className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
                 {message}
               </div>
             )
           ) : null}
 
-          {job ? (
-            !isDedicatedDriverMode ? (
-              <Button asChild variant="outline">
-                <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>เปิด Monitor ของ Job นี้</Link>
-              </Button>
-            ) : null
-          ) : null}
+          {job ? !isDedicatedDriverMode ? (
+            <Button asChild variant="outline">
+              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>เปิด Monitor ของ Job นี้</Link>
+            </Button>
+          ) : null : null}
         </CardContent>
       </Card>
 
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div>
-      ) : null}
+      {isLoading ? <div className="text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
     </div>
   );
 }

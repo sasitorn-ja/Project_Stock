@@ -130,8 +130,8 @@ export function PORegistryList() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative lg:max-w-md lg:flex-1">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-md xl:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
@@ -140,18 +140,27 @@ export function PORegistryList() {
               className="pl-9"
             />
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="text-sm text-muted-foreground">
-              เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
-            </span>
-            <Button type="button" variant="outline" size="sm" onClick={selectAllMatchingRecords} disabled={!totalCount || isLoading}>
-              เลือกทั้งหมดตามผลค้นหา
-            </Button>
+          <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-fit">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:justify-end">
+              <span className="text-sm text-muted-foreground sm:whitespace-nowrap">
+                เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={selectAllMatchingRecords}
+                disabled={!totalCount || isLoading}
+                className="sm:whitespace-nowrap"
+              >
+                เลือกทั้งหมดตามผลค้นหา
+              </Button>
+            </div>
             <Button
               type="button"
               onClick={createJobFromSelection}
               disabled={!selectedKeys.length}
-              className="h-auto min-h-10 whitespace-normal"
+              className="h-auto min-h-10 w-full whitespace-normal sm:w-auto sm:self-end"
             >
               <FilePlus2 className="mr-2 h-4 w-4" />
               สร้าง Job จากรายการที่เลือก
