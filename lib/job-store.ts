@@ -572,7 +572,7 @@ async function listJobsFromDatabase() {
   return withPostgresClient(async (client) => {
     const result = await client.query(`
       SELECT *
-      FROM jobs
+      FROM delivery_jobs
       WHERE completed_at IS NULL
       ORDER BY created_at DESC
     `);
@@ -593,7 +593,7 @@ async function listJobArchivesFromDatabase(filters: {
   return withPostgresClient(async (client) => {
     const result = await client.query(`
       SELECT *
-      FROM job_archives
+      FROM delivery_job_history
       ORDER BY archived_at DESC
     `);
 
@@ -611,8 +611,8 @@ async function getJobFromDatabase(jobId: string) {
     const result = await client.query(
       `
         SELECT *
-        FROM jobs
-        WHERE id = $1
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
           AND completed_at IS NULL
       `,
       [jobId],
@@ -630,8 +630,8 @@ async function getJobArchiveFromDatabase(jobId: string) {
     const result = await client.query(
       `
         SELECT *
-        FROM job_archives
-        WHERE job_id = $1
+        FROM delivery_job_history
+        WHERE delivery_job_id = $1
       `,
       [jobId],
     );
@@ -655,8 +655,8 @@ async function createJobInDatabase(input: {
     const recordsResult = await client.query(
       `
         SELECT *
-        FROM po_registry
-        WHERE registry_key = ANY($1::text[])
+        FROM purchase_order_queue
+        WHERE line_registry_key = ANY($1::text[])
         FOR UPDATE
       `,
       [input.registryKeys],
@@ -671,7 +671,7 @@ async function createJobInDatabase(input: {
     const nowDate = new Date();
     const now = nowDate.toISOString();
     const sequenceResult = await client.query<{ value: string }>(`
-      SELECT LPAD(nextval('job_sequence')::text, 6, '0') AS value
+      SELECT LPAD(nextval('delivery_job_sequence')::text, 6, '0') AS value
     `);
     const sequence = sequenceResult.rows[0]?.value ?? "000001";
     const jobId = `${buildJobId(nowDate)}-${sequence}`;
@@ -698,33 +698,33 @@ async function createJobInDatabase(input: {
 
     await client.query(
       `
-        UPDATE po_registry
+        UPDATE purchase_order_queue
         SET
-          lifecycle = 'assigned',
-          assigned_job_id = $2,
-          assigned_at = $3::timestamptz
-        WHERE registry_key = ANY($1::text[])
+          record_state = 'assigned',
+          assigned_delivery_job_id = $2,
+          assigned_to_job_at = $3::timestamptz
+        WHERE line_registry_key = ANY($1::text[])
       `,
       [job.poRegistryKeys, job.id, now],
     );
 
     await client.query(
       `
-        INSERT INTO jobs (
-          id,
+        INSERT INTO delivery_jobs (
+          delivery_job_id,
           created_at,
           updated_at,
-          status,
-          driver,
-          vehicle,
-          origin,
-          origin_gps,
-          note,
-          po_registry_keys,
-          items,
-          destinations,
-          alerts,
-          scan_logs
+          job_status,
+          driver_name,
+          vehicle_plate,
+          origin_location_name,
+          origin_check_in_coordinates,
+          job_note,
+          selected_line_registry_keys,
+          job_items_json,
+          delivery_destinations_json,
+          job_alerts_json,
+          scan_events_json
         )
         VALUES (
           $1,
@@ -744,20 +744,20 @@ async function createJobInDatabase(input: {
         )
       `,
       [
-        payload.id,
+        payload.delivery_job_id,
         payload.created_at,
         payload.updated_at,
-        payload.status,
-        payload.driver,
-        payload.vehicle,
-        payload.origin,
-        payload.origin_gps,
-        payload.note,
-        payload.po_registry_keys,
-        JSON.stringify(payload.items),
-        JSON.stringify(payload.destinations),
-        JSON.stringify(payload.alerts),
-        JSON.stringify(payload.scan_logs),
+        payload.job_status,
+        payload.driver_name,
+        payload.vehicle_plate,
+        payload.origin_location_name,
+        payload.origin_check_in_coordinates,
+        payload.job_note,
+        payload.selected_line_registry_keys,
+        JSON.stringify(payload.job_items_json),
+        JSON.stringify(payload.delivery_destinations_json),
+        JSON.stringify(payload.job_alerts_json),
+        JSON.stringify(payload.scan_events_json),
       ],
     );
 
@@ -777,8 +777,8 @@ async function checkInJobOriginInDatabase(input: {
     const result = await client.query(
       `
         SELECT *
-        FROM jobs
-        WHERE id = $1
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
         FOR UPDATE
       `,
       [input.jobId],
@@ -793,12 +793,12 @@ async function checkInJobOriginInDatabase(input: {
 
     await client.query(
       `
-        UPDATE jobs
+        UPDATE delivery_jobs
         SET
-          origin_gps = $2,
+          origin_check_in_coordinates = $2,
           origin_checked_in_at = $3::timestamptz,
           updated_at = $4::timestamptz
-        WHERE id = $1
+        WHERE delivery_job_id = $1
       `,
       [job.id, job.originGps, job.originCheckedInAt ?? null, job.updatedAt],
     );
@@ -820,8 +820,8 @@ async function checkInJobDestinationInDatabase(input: {
     const result = await client.query(
       `
         SELECT *
-        FROM jobs
-        WHERE id = $1
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
         FOR UPDATE
       `,
       [input.jobId],
@@ -836,11 +836,11 @@ async function checkInJobDestinationInDatabase(input: {
 
     await client.query(
       `
-        UPDATE jobs
+        UPDATE delivery_jobs
         SET
-          destinations = $2::jsonb,
+          delivery_destinations_json = $2::jsonb,
           updated_at = $3::timestamptz
-        WHERE id = $1
+        WHERE delivery_job_id = $1
       `,
       [job.id, JSON.stringify(job.destinations), job.updatedAt],
     );
@@ -861,8 +861,8 @@ async function registerJobScanInDatabase(input: {
     const result = await client.query(
       `
         SELECT *
-        FROM jobs
-        WHERE id = $1
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
         FOR UPDATE
       `,
       [input.jobId],
@@ -878,7 +878,7 @@ async function registerJobScanInDatabase(input: {
     const allJobsResult = await client.query(
       `
         SELECT *
-        FROM jobs
+        FROM delivery_jobs
         WHERE completed_at IS NULL
       `,
     );
@@ -893,8 +893,8 @@ async function registerJobScanInDatabase(input: {
       const poRecordsResult = await client.query(
         `
           SELECT *
-          FROM po_registry
-          WHERE registry_key = ANY($1::text[])
+          FROM purchase_order_queue
+          WHERE line_registry_key = ANY($1::text[])
           FOR UPDATE
         `,
         [response.job.poRegistryKeys],
@@ -912,22 +912,22 @@ async function registerJobScanInDatabase(input: {
 
       await client.query(
         `
-          INSERT INTO job_archives (
-            job_id,
+          INSERT INTO delivery_job_history (
+            delivery_job_id,
             created_at,
             updated_at,
-            status,
-            driver,
-            vehicle,
-            origin,
-            origin_gps,
+            job_status,
+            driver_name,
+            vehicle_plate,
+            origin_location_name,
+            origin_check_in_coordinates,
             origin_checked_in_at,
-            note,
-            po_registry_keys,
-            items,
-            destinations,
-            alerts,
-            scan_logs,
+            job_note,
+            selected_line_registry_keys,
+            job_items_json,
+            delivery_destinations_json,
+            job_alerts_json,
+            scan_events_json,
             completed_at,
             archived_at,
             delete_after_at
@@ -952,42 +952,42 @@ async function registerJobScanInDatabase(input: {
             $17::timestamptz,
             $18::timestamptz
           )
-          ON CONFLICT (job_id) DO UPDATE
+          ON CONFLICT (delivery_job_id) DO UPDATE
           SET
             created_at = EXCLUDED.created_at,
             updated_at = EXCLUDED.updated_at,
-            status = EXCLUDED.status,
-            driver = EXCLUDED.driver,
-            vehicle = EXCLUDED.vehicle,
-            origin = EXCLUDED.origin,
-            origin_gps = EXCLUDED.origin_gps,
+            job_status = EXCLUDED.job_status,
+            driver_name = EXCLUDED.driver_name,
+            vehicle_plate = EXCLUDED.vehicle_plate,
+            origin_location_name = EXCLUDED.origin_location_name,
+            origin_check_in_coordinates = EXCLUDED.origin_check_in_coordinates,
             origin_checked_in_at = EXCLUDED.origin_checked_in_at,
-            note = EXCLUDED.note,
-            po_registry_keys = EXCLUDED.po_registry_keys,
-            items = EXCLUDED.items,
-            destinations = EXCLUDED.destinations,
-            alerts = EXCLUDED.alerts,
-            scan_logs = EXCLUDED.scan_logs,
+            job_note = EXCLUDED.job_note,
+            selected_line_registry_keys = EXCLUDED.selected_line_registry_keys,
+            job_items_json = EXCLUDED.job_items_json,
+            delivery_destinations_json = EXCLUDED.delivery_destinations_json,
+            job_alerts_json = EXCLUDED.job_alerts_json,
+            scan_events_json = EXCLUDED.scan_events_json,
             completed_at = EXCLUDED.completed_at,
             archived_at = EXCLUDED.archived_at,
             delete_after_at = EXCLUDED.delete_after_at
         `,
         [
-          archivePayload.job_id,
+          archivePayload.delivery_job_id,
           archivePayload.created_at,
           archivePayload.updated_at,
-          archivePayload.status,
-          archivePayload.driver,
-          archivePayload.vehicle,
-          archivePayload.origin,
-          archivePayload.origin_gps,
+          archivePayload.job_status,
+          archivePayload.driver_name,
+          archivePayload.vehicle_plate,
+          archivePayload.origin_location_name,
+          archivePayload.origin_check_in_coordinates,
           archivePayload.origin_checked_in_at,
-          archivePayload.note,
-          archivePayload.po_registry_keys,
-          JSON.stringify(archivePayload.items),
-          JSON.stringify(archivePayload.destinations),
-          JSON.stringify(archivePayload.alerts),
-          JSON.stringify(archivePayload.scan_logs),
+          archivePayload.job_note,
+          archivePayload.selected_line_registry_keys,
+          JSON.stringify(archivePayload.job_items_json),
+          JSON.stringify(archivePayload.delivery_destinations_json),
+          JSON.stringify(archivePayload.job_alerts_json),
+          JSON.stringify(archivePayload.scan_events_json),
           archivePayload.completed_at,
           archivePayload.archived_at,
           archivePayload.delete_after_at,
@@ -1000,109 +1000,109 @@ async function registerJobScanInDatabase(input: {
             WITH incoming AS (
               SELECT *
               FROM json_to_recordset($1::json) AS data(
-                archived_from_job_id TEXT,
-                registry_key TEXT,
-                po_sap_no TEXT,
-                po_sap_item TEXT,
+                archived_from_delivery_job_id TEXT,
+                line_registry_key TEXT,
+                purchase_order_number TEXT,
+                purchase_order_item_number TEXT,
                 first_imported_at TIMESTAMPTZ,
-                latest_imported_at TIMESTAMPTZ,
-                source_file_name TEXT,
-                source_sheet_name TEXT,
-                row_number INTEGER,
-                status TEXT,
-                vendor TEXT,
-                po_web_no TEXT,
-                unit_name TEXT,
+                last_imported_at TIMESTAMPTZ,
+                import_file_name TEXT,
+                import_sheet_name TEXT,
+                import_row_number INTEGER,
+                document_status TEXT,
+                vendor_name TEXT,
+                web_order_number TEXT,
+                business_unit_name TEXT,
                 material_code TEXT,
                 material_name TEXT,
-                order_qty TEXT,
-                received_qty TEXT,
-                total_amount TEXT,
+                ordered_quantity_text TEXT,
+                received_quantity_text TEXT,
+                total_amount_text TEXT,
                 import_count INTEGER,
-                lifecycle TEXT,
-                assigned_job_id TEXT,
-                assigned_at TIMESTAMPTZ,
+                record_state TEXT,
+                assigned_delivery_job_id TEXT,
+                assigned_to_job_at TIMESTAMPTZ,
                 archived_at TIMESTAMPTZ,
                 completed_at TIMESTAMPTZ,
                 delete_after_at TIMESTAMPTZ
               )
             )
-            INSERT INTO po_registry_archives (
-              archived_from_job_id,
-              registry_key,
-              po_sap_no,
-              po_sap_item,
+            INSERT INTO purchase_order_history (
+              archived_from_delivery_job_id,
+              line_registry_key,
+              purchase_order_number,
+              purchase_order_item_number,
               first_imported_at,
-              latest_imported_at,
-              source_file_name,
-              source_sheet_name,
-              row_number,
-              status,
-              vendor,
-              po_web_no,
-              unit_name,
+              last_imported_at,
+              import_file_name,
+              import_sheet_name,
+              import_row_number,
+              document_status,
+              vendor_name,
+              web_order_number,
+              business_unit_name,
               material_code,
               material_name,
-              order_qty,
-              received_qty,
-              total_amount,
+              ordered_quantity_text,
+              received_quantity_text,
+              total_amount_text,
               import_count,
-              lifecycle,
-              assigned_job_id,
-              assigned_at,
+              record_state,
+              assigned_delivery_job_id,
+              assigned_to_job_at,
               archived_at,
               completed_at,
               delete_after_at
             )
             SELECT
-              archived_from_job_id,
-              registry_key,
-              po_sap_no,
-              po_sap_item,
+              archived_from_delivery_job_id,
+              line_registry_key,
+              purchase_order_number,
+              purchase_order_item_number,
               first_imported_at,
-              latest_imported_at,
-              source_file_name,
-              source_sheet_name,
-              row_number,
-              status,
-              vendor,
-              po_web_no,
-              unit_name,
+              last_imported_at,
+              import_file_name,
+              import_sheet_name,
+              import_row_number,
+              document_status,
+              vendor_name,
+              web_order_number,
+              business_unit_name,
               material_code,
               material_name,
-              order_qty,
-              received_qty,
-              total_amount,
+              ordered_quantity_text,
+              received_quantity_text,
+              total_amount_text,
               import_count,
-              lifecycle,
-              assigned_job_id,
-              assigned_at,
+              record_state,
+              assigned_delivery_job_id,
+              assigned_to_job_at,
               archived_at,
               completed_at,
               delete_after_at
             FROM incoming
-            ON CONFLICT (archived_from_job_id, registry_key) DO UPDATE
+            ON CONFLICT (archived_from_delivery_job_id, line_registry_key) DO UPDATE
             SET
-              po_sap_no = EXCLUDED.po_sap_no,
-              po_sap_item = EXCLUDED.po_sap_item,
+              purchase_order_number = EXCLUDED.purchase_order_number,
+              purchase_order_item_number = EXCLUDED.purchase_order_item_number,
               first_imported_at = EXCLUDED.first_imported_at,
-              latest_imported_at = EXCLUDED.latest_imported_at,
-              source_file_name = EXCLUDED.source_file_name,
-              source_sheet_name = EXCLUDED.source_sheet_name,
-              row_number = EXCLUDED.row_number,
-              status = EXCLUDED.status,
-              vendor = EXCLUDED.vendor,
-              po_web_no = EXCLUDED.po_web_no,
-              unit_name = EXCLUDED.unit_name,
+              last_imported_at = EXCLUDED.last_imported_at,
+              import_file_name = EXCLUDED.import_file_name,
+              import_sheet_name = EXCLUDED.import_sheet_name,
+              import_row_number = EXCLUDED.import_row_number,
+              document_status = EXCLUDED.document_status,
+              vendor_name = EXCLUDED.vendor_name,
+              web_order_number = EXCLUDED.web_order_number,
+              business_unit_name = EXCLUDED.business_unit_name,
               material_code = EXCLUDED.material_code,
               material_name = EXCLUDED.material_name,
-              order_qty = EXCLUDED.order_qty,
-              received_qty = EXCLUDED.received_qty,
-              total_amount = EXCLUDED.total_amount,
+              ordered_quantity_text = EXCLUDED.ordered_quantity_text,
+              received_quantity_text = EXCLUDED.received_quantity_text,
+              total_amount_text = EXCLUDED.total_amount_text,
               import_count = EXCLUDED.import_count,
-              lifecycle = EXCLUDED.lifecycle,
-              assigned_job_id = EXCLUDED.assigned_job_id,
-              assigned_at = EXCLUDED.assigned_at,
+              record_state = EXCLUDED.record_state,
+              assigned_delivery_job_id = EXCLUDED.assigned_delivery_job_id,
+              assigned_to_job_at = EXCLUDED.assigned_to_job_at,
               archived_at = EXCLUDED.archived_at,
               completed_at = EXCLUDED.completed_at,
               delete_after_at = EXCLUDED.delete_after_at
@@ -1113,16 +1113,16 @@ async function registerJobScanInDatabase(input: {
 
       await client.query(
         `
-          DELETE FROM jobs
-          WHERE id = $1
+          DELETE FROM delivery_jobs
+          WHERE delivery_job_id = $1
         `,
         [response.job.id],
       );
 
       await client.query(
         `
-          DELETE FROM po_registry
-          WHERE registry_key = ANY($1::text[])
+          DELETE FROM purchase_order_queue
+          WHERE line_registry_key = ANY($1::text[])
         `,
         [response.job.poRegistryKeys],
       );
@@ -1131,28 +1131,28 @@ async function registerJobScanInDatabase(input: {
 
       await client.query(
         `
-          UPDATE jobs
+          UPDATE delivery_jobs
           SET
             updated_at = $2::timestamptz,
-            status = $3,
-            items = $4::jsonb,
-            destinations = $5::jsonb,
-            alerts = $6::jsonb,
-            scan_logs = $7::jsonb,
+            job_status = $3,
+            job_items_json = $4::jsonb,
+            delivery_destinations_json = $5::jsonb,
+            job_alerts_json = $6::jsonb,
+            scan_events_json = $7::jsonb,
             completed_at = $8::timestamptz,
-            purge_after_at = $9::timestamptz
-          WHERE id = $1
+            cleanup_after_at = $9::timestamptz
+          WHERE delivery_job_id = $1
         `,
         [
-          payload.id,
+          payload.delivery_job_id,
           payload.updated_at,
-          payload.status,
-          JSON.stringify(payload.items),
-          JSON.stringify(payload.destinations),
-          JSON.stringify(payload.alerts),
-          JSON.stringify(payload.scan_logs),
+          payload.job_status,
+          JSON.stringify(payload.job_items_json),
+          JSON.stringify(payload.delivery_destinations_json),
+          JSON.stringify(payload.job_alerts_json),
+          JSON.stringify(payload.scan_events_json),
           payload.completed_at,
-          payload.purge_after_at,
+          payload.cleanup_after_at,
         ],
       );
     }

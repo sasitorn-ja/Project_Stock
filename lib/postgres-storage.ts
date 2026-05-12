@@ -40,126 +40,126 @@ function getPool() {
 
 async function createSchema(client: PoolClient) {
   await client.query(`
-    CREATE SEQUENCE IF NOT EXISTS job_sequence;
+    CREATE SEQUENCE IF NOT EXISTS delivery_job_sequence;
 
-    CREATE TABLE IF NOT EXISTS po_registry (
-      registry_key TEXT PRIMARY KEY,
-      po_sap_no TEXT NOT NULL,
-      po_sap_item TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS purchase_order_queue (
+      line_registry_key TEXT PRIMARY KEY,
+      purchase_order_number TEXT NOT NULL,
+      purchase_order_item_number TEXT NOT NULL,
       first_imported_at TIMESTAMPTZ NOT NULL,
-      latest_imported_at TIMESTAMPTZ NOT NULL,
-      source_file_name TEXT NOT NULL DEFAULT '',
-      source_sheet_name TEXT NOT NULL DEFAULT '',
-      row_number INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT '',
-      vendor TEXT NOT NULL DEFAULT '',
-      po_web_no TEXT NOT NULL DEFAULT '',
-      unit_name TEXT NOT NULL DEFAULT '',
+      last_imported_at TIMESTAMPTZ NOT NULL,
+      import_file_name TEXT NOT NULL DEFAULT '',
+      import_sheet_name TEXT NOT NULL DEFAULT '',
+      import_row_number INTEGER NOT NULL DEFAULT 0,
+      document_status TEXT NOT NULL DEFAULT '',
+      vendor_name TEXT NOT NULL DEFAULT '',
+      web_order_number TEXT NOT NULL DEFAULT '',
+      business_unit_name TEXT NOT NULL DEFAULT '',
       material_code TEXT NOT NULL DEFAULT '',
       material_name TEXT NOT NULL DEFAULT '',
-      order_qty TEXT NOT NULL DEFAULT '',
-      received_qty TEXT NOT NULL DEFAULT '',
-      total_amount TEXT NOT NULL DEFAULT '',
+      ordered_quantity_text TEXT NOT NULL DEFAULT '',
+      received_quantity_text TEXT NOT NULL DEFAULT '',
+      total_amount_text TEXT NOT NULL DEFAULT '',
       import_count INTEGER NOT NULL DEFAULT 1,
-      lifecycle TEXT NOT NULL DEFAULT 'active',
-      assigned_job_id TEXT,
-      assigned_at TIMESTAMPTZ,
+      record_state TEXT NOT NULL DEFAULT 'active',
+      assigned_delivery_job_id TEXT,
+      assigned_to_job_at TIMESTAMPTZ,
       archived_at TIMESTAMPTZ,
       completed_at TIMESTAMPTZ,
-      purge_after_at TIMESTAMPTZ
+      cleanup_after_at TIMESTAMPTZ
     );
 
-    CREATE TABLE IF NOT EXISTS jobs (
-      id TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS delivery_jobs (
+      delivery_job_id TEXT PRIMARY KEY,
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
-      status TEXT NOT NULL,
-      driver TEXT NOT NULL DEFAULT '',
-      vehicle TEXT NOT NULL DEFAULT '',
-      origin TEXT NOT NULL DEFAULT '',
-      origin_gps TEXT NOT NULL DEFAULT '',
+      job_status TEXT NOT NULL,
+      driver_name TEXT NOT NULL DEFAULT '',
+      vehicle_plate TEXT NOT NULL DEFAULT '',
+      origin_location_name TEXT NOT NULL DEFAULT '',
+      origin_check_in_coordinates TEXT NOT NULL DEFAULT '',
       origin_checked_in_at TIMESTAMPTZ,
-      note TEXT NOT NULL DEFAULT '',
-      po_registry_keys TEXT[] NOT NULL DEFAULT '{}',
-      items JSONB NOT NULL DEFAULT '[]'::jsonb,
-      destinations JSONB NOT NULL DEFAULT '[]'::jsonb,
-      alerts JSONB NOT NULL DEFAULT '[]'::jsonb,
-      scan_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+      job_note TEXT NOT NULL DEFAULT '',
+      selected_line_registry_keys TEXT[] NOT NULL DEFAULT '{}',
+      job_items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      delivery_destinations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      job_alerts_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      scan_events_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       completed_at TIMESTAMPTZ,
-      purge_after_at TIMESTAMPTZ
+      cleanup_after_at TIMESTAMPTZ
     );
 
-    CREATE TABLE IF NOT EXISTS job_archives (
-      job_id TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS delivery_job_history (
+      delivery_job_id TEXT PRIMARY KEY,
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
-      status TEXT NOT NULL,
-      driver TEXT NOT NULL DEFAULT '',
-      vehicle TEXT NOT NULL DEFAULT '',
-      origin TEXT NOT NULL DEFAULT '',
-      origin_gps TEXT NOT NULL DEFAULT '',
+      job_status TEXT NOT NULL,
+      driver_name TEXT NOT NULL DEFAULT '',
+      vehicle_plate TEXT NOT NULL DEFAULT '',
+      origin_location_name TEXT NOT NULL DEFAULT '',
+      origin_check_in_coordinates TEXT NOT NULL DEFAULT '',
       origin_checked_in_at TIMESTAMPTZ,
-      note TEXT NOT NULL DEFAULT '',
-      po_registry_keys TEXT[] NOT NULL DEFAULT '{}',
-      items JSONB NOT NULL DEFAULT '[]'::jsonb,
-      destinations JSONB NOT NULL DEFAULT '[]'::jsonb,
-      alerts JSONB NOT NULL DEFAULT '[]'::jsonb,
-      scan_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+      job_note TEXT NOT NULL DEFAULT '',
+      selected_line_registry_keys TEXT[] NOT NULL DEFAULT '{}',
+      job_items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      delivery_destinations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      job_alerts_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      scan_events_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       completed_at TIMESTAMPTZ,
       archived_at TIMESTAMPTZ NOT NULL,
       delete_after_at TIMESTAMPTZ NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS po_registry_archives (
-      archived_from_job_id TEXT NOT NULL,
-      registry_key TEXT NOT NULL,
-      po_sap_no TEXT NOT NULL,
-      po_sap_item TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS purchase_order_history (
+      archived_from_delivery_job_id TEXT NOT NULL,
+      line_registry_key TEXT NOT NULL,
+      purchase_order_number TEXT NOT NULL,
+      purchase_order_item_number TEXT NOT NULL,
       first_imported_at TIMESTAMPTZ NOT NULL,
-      latest_imported_at TIMESTAMPTZ NOT NULL,
-      source_file_name TEXT NOT NULL DEFAULT '',
-      source_sheet_name TEXT NOT NULL DEFAULT '',
-      row_number INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT '',
-      vendor TEXT NOT NULL DEFAULT '',
-      po_web_no TEXT NOT NULL DEFAULT '',
-      unit_name TEXT NOT NULL DEFAULT '',
+      last_imported_at TIMESTAMPTZ NOT NULL,
+      import_file_name TEXT NOT NULL DEFAULT '',
+      import_sheet_name TEXT NOT NULL DEFAULT '',
+      import_row_number INTEGER NOT NULL DEFAULT 0,
+      document_status TEXT NOT NULL DEFAULT '',
+      vendor_name TEXT NOT NULL DEFAULT '',
+      web_order_number TEXT NOT NULL DEFAULT '',
+      business_unit_name TEXT NOT NULL DEFAULT '',
       material_code TEXT NOT NULL DEFAULT '',
       material_name TEXT NOT NULL DEFAULT '',
-      order_qty TEXT NOT NULL DEFAULT '',
-      received_qty TEXT NOT NULL DEFAULT '',
-      total_amount TEXT NOT NULL DEFAULT '',
+      ordered_quantity_text TEXT NOT NULL DEFAULT '',
+      received_quantity_text TEXT NOT NULL DEFAULT '',
+      total_amount_text TEXT NOT NULL DEFAULT '',
       import_count INTEGER NOT NULL DEFAULT 1,
-      lifecycle TEXT NOT NULL DEFAULT 'completed',
-      assigned_job_id TEXT,
-      assigned_at TIMESTAMPTZ,
+      record_state TEXT NOT NULL DEFAULT 'completed',
+      assigned_delivery_job_id TEXT,
+      assigned_to_job_at TIMESTAMPTZ,
       archived_at TIMESTAMPTZ NOT NULL,
       completed_at TIMESTAMPTZ,
       delete_after_at TIMESTAMPTZ NOT NULL,
-      PRIMARY KEY (archived_from_job_id, registry_key)
+      PRIMARY KEY (archived_from_delivery_job_id, line_registry_key)
     );
 
-    CREATE INDEX IF NOT EXISTS po_registry_active_idx
-      ON po_registry (lifecycle, assigned_job_id, first_imported_at DESC);
-    CREATE INDEX IF NOT EXISTS po_registry_lookup_idx
-      ON po_registry (po_sap_no, po_sap_item);
-    CREATE INDEX IF NOT EXISTS po_registry_material_idx
-      ON po_registry (material_code);
-    CREATE INDEX IF NOT EXISTS po_registry_purge_idx
-      ON po_registry (purge_after_at);
+    CREATE INDEX IF NOT EXISTS purchase_order_queue_active_idx
+      ON purchase_order_queue (record_state, assigned_delivery_job_id, first_imported_at DESC);
+    CREATE INDEX IF NOT EXISTS purchase_order_queue_lookup_idx
+      ON purchase_order_queue (purchase_order_number, purchase_order_item_number);
+    CREATE INDEX IF NOT EXISTS purchase_order_queue_material_idx
+      ON purchase_order_queue (material_code);
+    CREATE INDEX IF NOT EXISTS purchase_order_queue_cleanup_idx
+      ON purchase_order_queue (cleanup_after_at);
 
-    CREATE INDEX IF NOT EXISTS jobs_status_created_idx
-      ON jobs (status, created_at DESC);
-    CREATE INDEX IF NOT EXISTS jobs_purge_idx
-      ON jobs (purge_after_at);
-    CREATE INDEX IF NOT EXISTS job_archives_archived_idx
-      ON job_archives (archived_at DESC);
-    CREATE INDEX IF NOT EXISTS job_archives_delete_idx
-      ON job_archives (delete_after_at);
-    CREATE INDEX IF NOT EXISTS po_registry_archives_job_idx
-      ON po_registry_archives (archived_from_job_id, archived_at DESC);
-    CREATE INDEX IF NOT EXISTS po_registry_archives_delete_idx
-      ON po_registry_archives (delete_after_at);
+    CREATE INDEX IF NOT EXISTS delivery_jobs_status_created_idx
+      ON delivery_jobs (job_status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS delivery_jobs_cleanup_idx
+      ON delivery_jobs (cleanup_after_at);
+    CREATE INDEX IF NOT EXISTS delivery_job_history_archived_idx
+      ON delivery_job_history (archived_at DESC);
+    CREATE INDEX IF NOT EXISTS delivery_job_history_delete_idx
+      ON delivery_job_history (delete_after_at);
+    CREATE INDEX IF NOT EXISTS purchase_order_history_job_idx
+      ON purchase_order_history (archived_from_delivery_job_id, archived_at DESC);
+    CREATE INDEX IF NOT EXISTS purchase_order_history_delete_idx
+      ON purchase_order_history (delete_after_at);
   `);
 }
 
@@ -223,25 +223,25 @@ export async function cleanupExpiredSharedData() {
 
   await withPostgresTransaction(async (client) => {
     await client.query(`
-      DELETE FROM po_registry_archives
+      DELETE FROM purchase_order_history
       WHERE delete_after_at <= NOW()
     `);
 
     await client.query(`
-      DELETE FROM job_archives
+      DELETE FROM delivery_job_history
       WHERE delete_after_at <= NOW()
     `);
 
     await client.query(`
-      DELETE FROM jobs
-      WHERE purge_after_at IS NOT NULL
-        AND purge_after_at <= NOW()
+      DELETE FROM delivery_jobs
+      WHERE cleanup_after_at IS NOT NULL
+        AND cleanup_after_at <= NOW()
     `);
 
     await client.query(`
-      DELETE FROM po_registry
-      WHERE purge_after_at IS NOT NULL
-        AND purge_after_at <= NOW()
+      DELETE FROM purchase_order_queue
+      WHERE cleanup_after_at IS NOT NULL
+        AND cleanup_after_at <= NOW()
     `);
   });
 }

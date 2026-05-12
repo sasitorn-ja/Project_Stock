@@ -27,12 +27,12 @@ const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "po-registry.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "po-registry-archives.json");
 const searchableColumns = [
-  "po_sap_no",
-  "po_sap_item",
-  "status",
-  "vendor",
-  "po_web_no",
-  "unit_name",
+  "purchase_order_number",
+  "purchase_order_item_number",
+  "document_status",
+  "vendor_name",
+  "web_order_number",
+  "business_unit_name",
   "material_code",
   "material_name",
 ] as const;
@@ -159,7 +159,7 @@ async function getPORegistryCountFromDatabase() {
   return withPostgresClient(async (client) => {
     const result = await client.query<{ count: string }>(`
       SELECT COUNT(*)::text AS count
-      FROM po_registry
+      FROM purchase_order_queue
     `);
 
     return Number(result.rows[0]?.count ?? "0");
@@ -182,15 +182,15 @@ async function getPORecordsPageFromDatabase({
     const skipCount = (safePage - 1) * pageSize;
     const search = buildSearchFilter(query);
     const baseWhere = `
-      assigned_job_id IS NULL
-      AND lifecycle = 'active'
+      assigned_delivery_job_id IS NULL
+      AND record_state = 'active'
       ${search.clause}
     `;
 
     const countResult = await client.query<{ count: string }>(
       `
         SELECT COUNT(*)::text AS count
-        FROM po_registry
+        FROM purchase_order_queue
         WHERE ${baseWhere}
       `,
       search.params,
@@ -199,7 +199,7 @@ async function getPORecordsPageFromDatabase({
     const rowsResult = await client.query(
       `
         SELECT *
-        FROM po_registry
+        FROM purchase_order_queue
         WHERE ${baseWhere}
         ORDER BY first_imported_at DESC
         LIMIT $${search.params.length + 1}
@@ -226,8 +226,8 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
     const result = await client.query(
       `
         SELECT *
-        FROM po_registry
-        WHERE registry_key = ANY($1::text[])
+        FROM purchase_order_queue
+        WHERE line_registry_key = ANY($1::text[])
       `,
       [registryKeys],
     );
@@ -247,8 +247,8 @@ async function getPORecordsByKeysFromDatabase(registryKeys: string[]) {
     const result = await client.query(
       `
         SELECT *
-        FROM po_registry
-        WHERE registry_key = ANY($1::text[])
+        FROM purchase_order_queue
+        WHERE line_registry_key = ANY($1::text[])
         ORDER BY first_imported_at DESC
       `,
       [registryKeys],
@@ -277,86 +277,86 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
         WITH incoming AS (
           SELECT *
           FROM json_to_recordset($1::json) AS data(
-            registry_key TEXT,
-            po_sap_no TEXT,
-            po_sap_item TEXT,
+            line_registry_key TEXT,
+            purchase_order_number TEXT,
+            purchase_order_item_number TEXT,
             first_imported_at TIMESTAMPTZ,
-            latest_imported_at TIMESTAMPTZ,
-            source_file_name TEXT,
-            source_sheet_name TEXT,
-            row_number INTEGER,
-            status TEXT,
-            vendor TEXT,
-            po_web_no TEXT,
-            unit_name TEXT,
+            last_imported_at TIMESTAMPTZ,
+            import_file_name TEXT,
+            import_sheet_name TEXT,
+            import_row_number INTEGER,
+            document_status TEXT,
+            vendor_name TEXT,
+            web_order_number TEXT,
+            business_unit_name TEXT,
             material_code TEXT,
             material_name TEXT,
-            order_qty TEXT,
-            received_qty TEXT,
-            total_amount TEXT,
+            ordered_quantity_text TEXT,
+            received_quantity_text TEXT,
+            total_amount_text TEXT,
             import_count INTEGER,
-            lifecycle TEXT,
-            assigned_job_id TEXT,
-            assigned_at TIMESTAMPTZ,
+            record_state TEXT,
+            assigned_delivery_job_id TEXT,
+            assigned_to_job_at TIMESTAMPTZ,
             archived_at TIMESTAMPTZ,
             completed_at TIMESTAMPTZ,
-            purge_after_at TIMESTAMPTZ
+            cleanup_after_at TIMESTAMPTZ
           )
         )
-        INSERT INTO po_registry (
-          registry_key,
-          po_sap_no,
-          po_sap_item,
+        INSERT INTO purchase_order_queue (
+          line_registry_key,
+          purchase_order_number,
+          purchase_order_item_number,
           first_imported_at,
-          latest_imported_at,
-          source_file_name,
-          source_sheet_name,
-          row_number,
-          status,
-          vendor,
-          po_web_no,
-          unit_name,
+          last_imported_at,
+          import_file_name,
+          import_sheet_name,
+          import_row_number,
+          document_status,
+          vendor_name,
+          web_order_number,
+          business_unit_name,
           material_code,
           material_name,
-          order_qty,
-          received_qty,
-          total_amount,
+          ordered_quantity_text,
+          received_quantity_text,
+          total_amount_text,
           import_count,
-          lifecycle,
-          assigned_job_id,
-          assigned_at,
+          record_state,
+          assigned_delivery_job_id,
+          assigned_to_job_at,
           archived_at,
           completed_at,
-          purge_after_at
+          cleanup_after_at
         )
         SELECT
-          registry_key,
-          po_sap_no,
-          po_sap_item,
+          line_registry_key,
+          purchase_order_number,
+          purchase_order_item_number,
           first_imported_at,
-          latest_imported_at,
-          source_file_name,
-          source_sheet_name,
-          row_number,
-          status,
-          vendor,
-          po_web_no,
-          unit_name,
+          last_imported_at,
+          import_file_name,
+          import_sheet_name,
+          import_row_number,
+          document_status,
+          vendor_name,
+          web_order_number,
+          business_unit_name,
           material_code,
           material_name,
-          order_qty,
-          received_qty,
-          total_amount,
+          ordered_quantity_text,
+          received_quantity_text,
+          total_amount_text,
           import_count,
-          lifecycle,
-          assigned_job_id,
-          assigned_at,
+          record_state,
+          assigned_delivery_job_id,
+          assigned_to_job_at,
           archived_at,
           completed_at,
-          purge_after_at
+          cleanup_after_at
         FROM incoming
-        ON CONFLICT (registry_key) DO NOTHING
-        RETURNING registry_key
+        ON CONFLICT (line_registry_key) DO NOTHING
+        RETURNING line_registry_key
       `,
       [JSON.stringify(payload)],
     );
@@ -369,7 +369,7 @@ async function clearPORegistryInDatabase() {
   assertWritableStorage();
 
   await withPostgresTransaction(async (client) => {
-    await client.query("TRUNCATE TABLE po_registry");
+    await client.query("TRUNCATE TABLE purchase_order_queue");
   });
 }
 
@@ -383,12 +383,12 @@ async function markPORecordsAssignedInDatabase(registryKeys: string[], jobId: st
   await withPostgresTransaction(async (client) => {
     await client.query(
       `
-        UPDATE po_registry
+        UPDATE purchase_order_queue
         SET
-          lifecycle = 'assigned',
-          assigned_job_id = $2,
-          assigned_at = NOW()
-        WHERE registry_key = ANY($1::text[])
+          record_state = 'assigned',
+          assigned_delivery_job_id = $2,
+          assigned_to_job_at = NOW()
+        WHERE line_registry_key = ANY($1::text[])
       `,
       [registryKeys, jobId],
     );
@@ -405,13 +405,13 @@ async function markPORecordsCompletedInDatabase(registryKeys: string[]) {
   await withPostgresTransaction(async (client) => {
     await client.query(
       `
-        UPDATE po_registry
+        UPDATE purchase_order_queue
         SET
-          lifecycle = 'completed',
+          record_state = 'completed',
           archived_at = NOW(),
           completed_at = NOW(),
-          purge_after_at = NOW() + INTERVAL '100 days'
-        WHERE registry_key = ANY($1::text[])
+          cleanup_after_at = NOW() + INTERVAL '100 days'
+        WHERE line_registry_key = ANY($1::text[])
       `,
       [registryKeys],
     );
