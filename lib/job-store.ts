@@ -303,7 +303,7 @@ function formatWrongJobMessage(input: {
   poSapItem: string;
   materialCode: string;
   registryKey: string;
-  matchedBy: "registryKey" | "materialCode" | "poSapNo";
+  matchedBy: "registryKey" | "materialCode" | "poWebNo" | "poSapNo";
 }) {
   const details = [
     `ไม่พบเลข PO หรือรหัส ${input.code} ในรายการของ Job นี้`,
@@ -328,11 +328,59 @@ function formatUnknownJobMessage(code: string, jobId: string) {
   ].join("\n");
 }
 
+function buildScanCodeCandidates(code: string) {
+  const candidates = new Set<string>();
+  const trimmedCode = code.trim();
+
+  if (!trimmedCode) {
+    return candidates;
+  }
+
+  function addCandidate(value: string) {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (normalizedValue) {
+      candidates.add(normalizedValue);
+    }
+  }
+
+  addCandidate(trimmedCode);
+
+  try {
+    const parsedUrl = new URL(trimmedCode);
+    parsedUrl.searchParams.forEach((value) => addCandidate(value));
+    parsedUrl.pathname
+      .split("/")
+      .map((part) => decodeURIComponent(part))
+      .forEach(addCandidate);
+  } catch {
+    // Scanned QR/Barcode values are usually plain text, so non-URL values are expected.
+  }
+
+  const tokenMatches = trimmedCode.match(/[A-Za-z0-9ก-๙][A-Za-z0-9ก-๙:_-]*/g) ?? [];
+  tokenMatches.forEach((token) => {
+    addCandidate(token);
+
+    if (token.includes(":") && !token.includes("::")) {
+      token.split(":").forEach(addCandidate);
+    }
+  });
+
+  return candidates;
+}
+
+function itemMatchesScanCode(item: JobRecord["items"][number], scanCodeCandidates: Set<string>) {
+  return [item.registryKey, item.materialCode, item.poSapNo, item.poWebNo]
+    .filter(Boolean)
+    .some((value) => scanCodeCandidates.has(value.toLowerCase()));
+}
+
 function findMatchingItemInJobs(jobs: JobRecord[], currentJobId: string, code: string) {
-  const normalizedCode = code.trim().toLowerCase();
+  const scanCodeCandidates = buildScanCodeCandidates(code);
   const matchFields = [
     { field: "registryKey" as const, score: 3 },
     { field: "materialCode" as const, score: 2 },
+    { field: "poWebNo" as const, score: 2 },
     { field: "poSapNo" as const, score: 1 },
   ];
 
@@ -340,7 +388,7 @@ function findMatchingItemInJobs(jobs: JobRecord[], currentJobId: string, code: s
     .filter((job) => job.id !== currentJobId)
     .flatMap((job) =>
       job.items.flatMap((item) => {
-        const match = matchFields.find(({ field }) => item[field].toLowerCase() === normalizedCode);
+        const match = matchFields.find(({ field }) => scanCodeCandidates.has(item[field].toLowerCase()));
 
         if (!match) {
           return [];
@@ -436,12 +484,8 @@ function applyJobScan(
   }
 
   const normalizedCode = code.toLowerCase();
-  const matchingItems = job.items.filter(
-    (item) =>
-      item.registryKey.toLowerCase() === normalizedCode ||
-      item.materialCode.toLowerCase() === normalizedCode ||
-      item.poSapNo.toLowerCase() === normalizedCode,
-  );
+  const scanCodeCandidates = buildScanCodeCandidates(normalizedCode);
+  const matchingItems = job.items.filter((item) => itemMatchesScanCode(item, scanCodeCandidates));
 
   if (!matchingItems.length) {
     const otherJobMatch = findMatchingItemInJobs(input.otherActiveJobs ?? [], job.id, code);
@@ -474,10 +518,17 @@ function applyJobScan(
     return { job, result: "alert" as const, message: alert.message };
   }
 
-  const item =
+  const destinationItems =
     input.mode === "deliver" && input.destinationId
-      ? matchingItems.find((currentItem) => currentItem.destinationId === input.destinationId) ?? matchingItems[0]
-      : matchingItems[0];
+      ? matchingItems.filter((currentItem) => currentItem.destinationId === input.destinationId)
+      : [];
+  const scannableItems = destinationItems.length ? destinationItems : matchingItems;
+  const item =
+    scannableItems.find((currentItem) =>
+      input.mode === "load"
+        ? currentItem.loadedQty < currentItem.orderQty
+        : currentItem.loadedQty > currentItem.deliveredQty && currentItem.deliveredQty < currentItem.orderQty,
+    ) ?? scannableItems[0];
 
   if (input.mode === "deliver" && input.destinationId && item.destinationId !== input.destinationId) {
     const selectedDestination = job.destinations.find((currentDestination) => currentDestination.id === input.destinationId);

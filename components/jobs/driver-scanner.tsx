@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import Link from "next/link";
 import { Camera, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,14 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobRecord, type ScanMode } from "@/lib/jobs";
-
-type BarcodeDetectorShape = {
-  detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
-};
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorShape;
 
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
@@ -36,6 +30,7 @@ async function requestCurrentPosition() {
 export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const scanLockRef = useRef(false);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [selectedJobId, setSelectedJobId] = useState(initialJobId ?? "");
@@ -232,64 +227,75 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       return;
     }
 
-    const BarcodeDetector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
-
-    if (!BarcodeDetector) {
-      setCameraMessage("เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector กรุณาคีย์รหัสแทน");
+    if (!videoRef.current) {
+      setCameraMessage("ยังไม่พร้อมเปิดกล้อง กรุณาลองใหม่");
       return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
+      scanLockRef.current = false;
+      setIsCameraScanning(true);
+      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มีเลข PO/รหัสสินค้า");
+
+      const hints = new Map<DecodeHintType, unknown>();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.CODE_93,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.ITF,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+      ]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+
+      const reader = new BrowserMultiFormatReader(hints, {
+        delayBetweenScanAttempts: 250,
+        delayBetweenScanSuccess: 800,
+        tryPlayVideoTimeout: 8000,
       });
 
-      streamRef.current = stream;
-      scanLockRef.current = false;
+      scannerControlsRef.current = await reader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        },
+        videoRef.current,
+        (result) => {
+          const scannedCode = result?.getText()?.trim();
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+          if (!scannedCode || scanLockRef.current) {
+            return;
+          }
 
-      setIsCameraScanning(true);
-      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode");
-      void scanCameraLoop(new BarcodeDetector({
-        formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e"],
-      }));
-    } catch {
-      setCameraMessage("เปิดกล้องไม่ได้ กรุณาอนุญาตสิทธิ์กล้อง หรือใช้การคีย์รหัสแทน");
-    }
-  }
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    scanLockRef.current = false;
-    setIsCameraScanning(false);
-  }
-
-  async function scanCameraLoop(detector: BarcodeDetectorShape) {
-    while (streamRef.current && videoRef.current) {
-      try {
-        const codes = await detector.detect(videoRef.current);
-        const scannedCode = codes[0]?.rawValue?.trim();
-
-        if (scannedCode && !scanLockRef.current) {
           scanLockRef.current = true;
           setCode(scannedCode);
           setCameraMessage(`พบรหัส ${scannedCode} กำลังบันทึก`);
           stopCamera();
-          await submitScannedCode(scannedCode);
-          break;
-        }
-      } catch {
-        setCameraMessage("กำลังค้นหารหัสจากภาพกล้อง");
-      }
+          void submitScannedCode(scannedCode);
+        },
+      );
 
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
+      streamRef.current = videoRef.current.srcObject instanceof MediaStream ? videoRef.current.srcObject : null;
+    } catch {
+      setCameraMessage("เปิดกล้องไม่ได้ กรุณาอนุญาตสิทธิ์กล้อง หรือใช้การคีย์รหัสแทน");
+      setIsCameraScanning(false);
     }
+  }
+
+  function stopCamera() {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    scanLockRef.current = false;
+    setIsCameraScanning(false);
   }
 
   return (
@@ -481,7 +487,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="scan-code">รหัสสินค้า / PO / registry key</Label>
+              <Label htmlFor="scan-code">เลข PO / Barcode / QR / registry key</Label>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   id="scan-code"
