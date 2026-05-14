@@ -1,27 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { Camera, Keyboard, ScanLine, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type BarcodeDetectorShape = {
-  detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
-};
-
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorShape;
-
 export function MobileScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scanLockRef = useRef(false);
   const [isScanning, setIsScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [lastCode, setLastCode] = useState("");
-  const [message, setMessage] = useState("พร้อมสแกน QR Code รับสินค้าเข้าคลัง");
+  const [message, setMessage] = useState("พร้อมสแกน QR Code / Barcode รับสินค้าเข้าคลัง");
 
   useEffect(() => {
     return () => stopCamera();
@@ -33,58 +29,76 @@ export function MobileScanner() {
       return;
     }
 
+    if (!videoRef.current) {
+      setMessage("ยังไม่พร้อมเปิดกล้อง กรุณาลองใหม่");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      scanLockRef.current = false;
       setIsScanning(true);
-      setMessage("เล็งกรอบไปที่ Barcode หรือ QR Code");
-      void scanLoop();
+      setMessage("เล็งกรอบไปที่ QR Code หรือ Barcode (Code 128, EAN, UPC ฯลฯ)");
+
+      const hints = new Map<DecodeHintType, unknown>();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.CODE_93,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.ITF,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+      ]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+
+      const reader = new BrowserMultiFormatReader(hints, {
+        delayBetweenScanAttempts: 300,
+        delayBetweenScanSuccess: 800,
+        tryPlayVideoTimeout: 8000,
+      });
+
+      scannerControlsRef.current = await reader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        },
+        videoRef.current,
+        (result) => {
+          const scannedCode = result?.getText()?.trim();
+
+          if (!scannedCode || scanLockRef.current) {
+            return;
+          }
+
+          scanLockRef.current = true;
+          setLastCode(scannedCode);
+          setManualCode(scannedCode);
+          setMessage(`พบรหัส: ${scannedCode} — พร้อมบันทึกรับเข้า`);
+          stopCamera();
+        },
+      );
+
+      streamRef.current =
+        videoRef.current.srcObject instanceof MediaStream ? videoRef.current.srcObject : null;
     } catch {
       setMessage("เปิดกล้องไม่ได้ กรุณาอนุญาตสิทธิ์กล้องหรือใช้การคีย์แทน");
+      setIsScanning(false);
     }
   }
 
   function stopCamera() {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    scanLockRef.current = false;
     setIsScanning(false);
-  }
-
-  async function scanLoop() {
-    const BarcodeDetector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor })
-      .BarcodeDetector;
-
-    if (!BarcodeDetector) {
-      setMessage("เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector ใช้การคีย์รหัสแทนได้");
-      return;
-    }
-
-    const detector = new BarcodeDetector({
-      formats: ["qr_code", "code_128", "ean_13", "ean_8", "upc_a", "upc_e"],
-    });
-
-    while (streamRef.current && videoRef.current) {
-      try {
-        const codes = await detector.detect(videoRef.current);
-        if (codes[0]?.rawValue) {
-          setLastCode(codes[0].rawValue);
-          setManualCode(codes[0].rawValue);
-          setMessage("พบรหัสสินค้าแล้ว พร้อมบันทึกรับเข้า");
-          stopCamera();
-          break;
-        }
-      } catch {
-        setMessage("กำลังค้นหารหัสจากภาพกล้อง");
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-    }
   }
 
   return (
@@ -96,8 +110,10 @@ export function MobileScanner() {
               <ScanLine className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>สแกน QR รับสินค้า</CardTitle>
-              <CardDescription>ใช้กล้องมือถือสแกน QR Code หรือ Barcode ของสินค้าเข้าคลัง</CardDescription>
+              <CardTitle>สแกน QR / Barcode รับสินค้า</CardTitle>
+              <CardDescription>
+                รองรับ QR Code, Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF ทุก browser
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -105,7 +121,7 @@ export function MobileScanner() {
           <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-slate-950">
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="h-36 w-64 max-w-[78%] rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)]" />
+              <div className="h-40 w-72 max-w-[80%] rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)]" />
             </div>
             {!isScanning && (
               <div className="absolute inset-0 grid place-items-center text-center text-slate-200">
@@ -126,7 +142,9 @@ export function MobileScanner() {
               หยุดกล้อง
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">{message}</p>
+          {isScanning && (
+            <p className="text-sm text-muted-foreground">{message}</p>
+          )}
         </CardContent>
       </Card>
 

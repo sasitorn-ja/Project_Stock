@@ -448,10 +448,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           <CardDescription>เลือกโหมดให้ตรงกับงานที่ทำอยู่ แล้วสแกนหรือกรอกรหัส</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 p-3 sm:p-5 lg:grid-cols-[minmax(280px,420px)_1fr] lg:items-start">
-          <div className="relative aspect-video max-h-[260px] overflow-hidden rounded-lg border bg-slate-950 lg:max-h-[220px]">
+          <div className="relative aspect-video max-h-[280px] overflow-hidden rounded-lg border bg-slate-950 lg:max-h-[260px]">
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="h-20 w-40 max-w-[72%] rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)] sm:h-24 sm:w-48" />
+              <div className="h-32 w-64 max-w-[80%] rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)] sm:h-36 sm:w-72" />
             </div>
             {!isCameraScanning ? (
               <div className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200">
@@ -465,14 +465,34 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant={mode === "load" ? "default" : "outline"} onClick={() => setMode("load")} disabled={isOriginGpsRequired}>
-                <Truck className="mr-2 h-4 w-4" />
-                ขึ้นรถ
-              </Button>
-              <Button type="button" variant={mode === "deliver" ? "default" : "outline"} onClick={() => setMode("deliver")} disabled={isOriginGpsRequired}>
-                <QrCode className="mr-2 h-4 w-4" />
-                ส่งปลายทาง
-              </Button>
+              <button
+                type="button"
+                onClick={() => setMode("load")}
+                disabled={isOriginGpsRequired}
+                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                  mode === "load"
+                    ? "border-amber-500 bg-amber-500 text-white shadow-sm"
+                    : "border-[#d8dde6] bg-white text-slate-600 hover:border-amber-400 hover:bg-amber-50"
+                }`}
+              >
+                <Truck className="h-5 w-5" />
+                <span>ขึ้นรถ</span>
+                <span className="text-[10px] font-normal opacity-80">โหลดสินค้าที่คลัง</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("deliver")}
+                disabled={isOriginGpsRequired}
+                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                  mode === "deliver"
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                    : "border-[#d8dde6] bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
+                }`}
+              >
+                <QrCode className="h-5 w-5" />
+                <span>ส่งปลายทาง</span>
+                <span className="text-[10px] font-normal opacity-80">ส่งของให้ลูกค้า</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
