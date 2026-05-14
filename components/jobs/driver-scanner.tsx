@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import Link from "next/link";
 import { Camera, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobRecord, type ScanMode } from "@/lib/jobs";
+import { createScanHints, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
 
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
@@ -97,12 +97,20 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const isOriginGpsRequired = Boolean(job) && !hasOriginCheckIn;
   const hasDestinationCheckIn = Boolean(currentDestination?.deliveryCheckedInAt && currentDestination.deliveryGps);
   const isDestinationGpsRequired = mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
-  const isScanBlocked = isOriginGpsRequired || isDestinationGpsRequired;
   const requiredTotal = job?.items.reduce((sum, item) => sum + item.orderQty, 0) ?? 0;
   const loadedTotal = job?.items.reduce((sum, item) => sum + item.loadedQty, 0) ?? 0;
   const deliveredTotal = job?.items.reduce((sum, item) => sum + item.deliveredQty, 0) ?? 0;
+  const hasLoadedItems = loadedTotal > 0;
+  const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || !hasLoadedItems);
+  const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
   const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้อง Job";
-  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : isDestinationGpsRequired ? 2 : 3;
+  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !hasLoadedItems ? 2 : isDestinationGpsRequired ? 2 : 3;
+
+  useEffect(() => {
+    if (mode === "deliver" && isDeliverModeLocked) {
+      setMode("load");
+    }
+  }, [isDeliverModeLocked, mode]);
 
   async function captureOriginGps() {
     if (!job) {
@@ -142,6 +150,12 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   async function captureDestinationGps() {
     if (!job || !currentDestination) {
       setMessage("ยังไม่ได้เลือกปลายทางสำหรับเช็กอิน GPS");
+      setScanResult("alert");
+      return;
+    }
+
+    if (isDeliverModeLocked) {
+      setMessage("ต้องเช็กอินต้นทางและสแกนขึ้นรถอย่างน้อย 1 รายการก่อน จึงจะเปิดปลายทางได้");
       setScanResult("alert");
       return;
     }
@@ -190,6 +204,12 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       return;
     }
 
+    if (mode === "deliver" && isDeliverModeLocked) {
+      setMessage("ต้องสแกนขึ้นรถที่ต้นทางก่อน จึงจะบันทึกส่งปลายทางได้");
+      setScanResult("alert");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -218,7 +238,13 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
   async function startCamera() {
     if (isScanBlocked) {
-      setCameraMessage("ต้องเช็กอิน GPS ตามขั้นตอนก่อนเปิดกล้องสแกน");
+      setCameraMessage(
+        isOriginGpsRequired
+          ? "ต้องเช็กอิน GPS ต้นทางก่อนเปิดกล้อง"
+          : mode === "deliver" && isDeliverModeLocked
+            ? "ต้องสแกนขึ้นรถที่ต้นทางก่อนเปิดปลายทาง"
+            : "ต้องเช็กอิน GPS ปลายทางก่อนเปิดกล้อง",
+      );
       return;
     }
 
@@ -241,6 +267,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           facingMode: { ideal: "environment" },
           width: { ideal: 1920 },
           height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
         },
         audio: false,
       });
@@ -253,27 +280,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มีเลข PO/รหัสสินค้า");
 
       // Step 2: attach ZXing decoder to the live stream
-      const hints = new Map<DecodeHintType, unknown>();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.CODE_93,
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.ITF,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.CODABAR,
-        BarcodeFormat.DATA_MATRIX,
-        BarcodeFormat.PDF_417,
-        BarcodeFormat.AZTEC,
-      ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-
-      const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 150,
+      const reader = new BrowserMultiFormatReader(createScanHints(), {
+        delayBetweenScanAttempts: 100,
         delayBetweenScanSuccess: 800,
+        tryPlayVideoTimeout: 8000,
       });
 
       scannerControlsRef.current = await reader.decodeFromStream(
@@ -369,7 +379,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         <CardContent className="grid gap-2 p-3 sm:gap-3 sm:p-5 md:grid-cols-3">
           {[
             ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
-            ["2", "เลือกโหมดงาน", mode === "load" ? "ขึ้นรถ" : "ส่งปลายทาง"],
+            ["2", "สแกนขึ้นรถ", hasLoadedItems ? "มีรายการขึ้นรถแล้ว" : "ยังไม่เปิดปลายทาง"],
             ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
           ].map(([step, label, status]) => (
             <div
@@ -407,12 +417,15 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           </div>
 
           <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
-            <p className="text-sm font-medium">ปลายทางปัจจุบัน</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">ปลายทางปัจจุบัน</p>
+              {isDeliverModeLocked ? <Badge variant="outline">ล็อกอยู่</Badge> : null}
+            </div>
             {job?.destinations.length ? (
               <select
                 value={currentLocation}
                 onChange={(event) => setCurrentLocation(event.target.value)}
-                disabled={isOriginGpsRequired}
+                disabled={isDeliverModeLocked}
                 className="mt-2 h-10 w-full rounded-md border border-[#cfd6df] bg-white px-3 text-sm text-slate-900"
               >
                 {job.destinations.map((destination) => (
@@ -432,16 +445,18 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               variant="outline"
               className="mt-3 w-full"
               onClick={captureDestinationGps}
-              disabled={!job || !currentDestination || isOriginGpsRequired || isFetchingDestinationGps}
+              disabled={!job || !currentDestination || isDeliverModeLocked || isFetchingDestinationGps}
             >
               {isFetchingDestinationGps ? "กำลังดึง GPS" : hasDestinationCheckIn ? "เช็กอินปลายทางใหม่" : "เช็กอินปลายทาง"}
             </Button>
           </div>
 
-          {(isOriginGpsRequired || isDestinationGpsRequired) && job ? (
+          {(isOriginGpsRequired || isDeliverModeLocked || isDestinationGpsRequired) && job ? (
             <div className="md:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {isOriginGpsRequired
                 ? "ต้องเช็กอิน GPS ต้นทางก่อน จึงจะเปิดให้สแกนสินค้า"
+                : isDeliverModeLocked
+                  ? "ต้องสแกนขึ้นรถที่ต้นทางก่อนอย่างน้อย 1 รายการ ระบบจึงจะเปิดส่วนปลายทาง"
                 : `ต้องเช็กอิน GPS ปลายทาง ${currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้`}
             </div>
           ) : null}
@@ -463,11 +478,11 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardHeader>
         <CardContent className="space-y-3 p-3 sm:p-5">
           {/* Video — full card width, no column constraint */}
-          <div className="relative w-full overflow-hidden rounded-lg border bg-slate-950" style={{ aspectRatio: "16/9", minHeight: "220px" }}>
+          <div className="relative w-full overflow-hidden rounded-lg border bg-slate-950" style={{ aspectRatio: "4/3", minHeight: "320px" }}>
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-40 w-[70%] max-w-sm rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.40)] sm:h-48 sm:w-[65%]">
+              <div className="relative h-[72%] w-[90%] max-w-3xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)] sm:h-[70%] sm:w-[86%]">
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
@@ -483,7 +498,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                 <div>
                   <Camera className="mx-auto mb-2 h-10 w-10" />
                   <p className="text-sm">{cameraMessage}</p>
-                  <p className="mt-1 text-xs text-slate-400">รองรับ QR · Code 128 · Code 39 · EAN · UPC · ITF · Codabar · Data Matrix</p>
+                  <p className="mt-1 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
                 </div>
               </div>
             )}
@@ -509,7 +524,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             <button
               type="button"
               onClick={() => setMode("load")}
-              disabled={isOriginGpsRequired}
+              disabled={!job || isOriginGpsRequired}
               className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
                 mode === "load"
                   ? "border-amber-500 bg-amber-500 text-white shadow-sm"
@@ -524,8 +539,15 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             </button>
             <button
               type="button"
-              onClick={() => setMode("deliver")}
-              disabled={isOriginGpsRequired}
+              onClick={() => {
+                if (isDeliverModeLocked) {
+                  setMessage("ต้องเช็กอินต้นทางและสแกนขึ้นรถก่อน จึงจะเลือกโหมดส่งปลายทางได้");
+                  setScanResult("alert");
+                  return;
+                }
+                setMode("deliver");
+              }}
+              disabled={!job || isDeliverModeLocked}
               className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
                 mode === "deliver"
                   ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
@@ -555,7 +577,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                 id="scan-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
-                disabled={isScanBlocked}
+                disabled={!job || isScanBlocked}
                 placeholder="สแกนหรือกรอกรหัส"
               />
                 <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">

@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { Camera, Keyboard, ScanLine, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createScanHints, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
 
 export function MobileScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -37,24 +37,10 @@ export function MobileScanner() {
     try {
       scanLockRef.current = false;
       setIsScanning(true);
-      setMessage("เล็งกรอบไปที่ QR Code หรือ Barcode (Code 128, EAN, UPC ฯลฯ)");
+      setMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ให้เต็มกรอบ");
 
-      const hints = new Map<DecodeHintType, unknown>();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.CODE_93,
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.ITF,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-      ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-
-      const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 300,
+      const reader = new BrowserMultiFormatReader(createScanHints(), {
+        delayBetweenScanAttempts: 100,
         delayBetweenScanSuccess: 800,
         tryPlayVideoTimeout: 8000,
       });
@@ -63,8 +49,9 @@ export function MobileScanner() {
         {
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
           },
           audio: false,
         },
@@ -112,7 +99,7 @@ export function MobileScanner() {
             <div>
               <CardTitle>สแกน QR / Barcode รับสินค้า</CardTitle>
               <CardDescription>
-                รองรับ QR Code, Code 128, Code 39, EAN-13, EAN-8, UPC-A, UPC-E, ITF ทุก browser
+                รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}
               </CardDescription>
             </div>
           </div>
@@ -121,7 +108,7 @@ export function MobileScanner() {
           <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-slate-950">
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="h-40 w-72 max-w-[80%] rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)]" />
+              <div className="h-[72%] w-[90%] max-w-3xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]" />
             </div>
             {!isScanning && (
               <div className="absolute inset-0 grid place-items-center text-center text-slate-200">
