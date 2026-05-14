@@ -32,9 +32,9 @@ export function JobDriverAccessCard({
 
   return (
     <div className="space-y-2">
-      <div className={compact ? "flex flex-wrap gap-2" : "flex flex-col gap-2 sm:flex-row"}>
+      <div className={compact ? "flex flex-col gap-2 sm:flex-row sm:flex-wrap" : "flex flex-col gap-2 sm:flex-row"}>
         <Button asChild variant="outline" size={compact ? "sm" : "default"}>
-          <Link href={driverRoomPath}>
+          <Link href={driverRoomPath} className={compact ? "w-full sm:w-auto" : undefined}>
             <ExternalLink className="mr-2 h-4 w-4" />
             เปิด Driver Room
           </Link>
@@ -44,6 +44,7 @@ export function JobDriverAccessCard({
           variant="outline"
           size={compact ? "sm" : "default"}
           onClick={() => setIsQrVisible((currentValue) => !currentValue)}
+          className={compact ? "w-full sm:w-auto" : undefined}
         >
           <QrCode className="mr-2 h-4 w-4" />
           {isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}
@@ -51,7 +52,7 @@ export function JobDriverAccessCard({
       </div>
 
       {isQrVisible ? (
-        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-cyan-950 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100">
+        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-cyan-950 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100 sm:p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <div className="rounded-lg bg-white p-3 shadow-sm">
               <QRCode value={driverRoomUrl} size={144} />

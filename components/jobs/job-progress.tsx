@@ -57,7 +57,7 @@ export function JobProgress({ job }: { job: JobDetail }) {
               </div>
 
               <div className="mt-4 overflow-hidden rounded-md border">
-                <div className="overflow-x-auto">
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[720px] text-sm">
                     <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                       <tr>
@@ -82,6 +82,31 @@ export function JobProgress({ job }: { job: JobDetail }) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="divide-y md:hidden">
+                  {location.items.map((item) => (
+                    <div key={item.registryKey} className="space-y-2 p-3 text-sm">
+                      <div>
+                        <p className="break-words font-semibold">{item.poSapNo}</p>
+                        <p className="mt-0.5 break-words text-xs text-muted-foreground">{item.materialCode || "-"}</p>
+                      </div>
+                      <p className="break-words text-muted-foreground">{item.materialName || "-"}</p>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="rounded-md bg-slate-50 px-2 py-2">
+                          <p className="text-muted-foreground">ต้องส่ง</p>
+                          <p className="font-semibold text-slate-950">{item.orderQty}</p>
+                        </div>
+                        <div className="rounded-md bg-cyan-50 px-2 py-2 text-cyan-700">
+                          <p>ขึ้นรถ</p>
+                          <p className="font-semibold">{item.loadedQty}</p>
+                        </div>
+                        <div className="rounded-md bg-emerald-50 px-2 py-2 text-emerald-700">
+                          <p>ลงของ</p>
+                          <p className="font-semibold">{item.deliveredQty}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

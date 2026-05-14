@@ -291,7 +291,7 @@ export function PORegistryList() {
           </div>
         ) : records.length ? (
           <div className="overflow-hidden rounded-md border">
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[1120px] text-sm">
                 <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                   <tr>
@@ -352,6 +352,61 @@ export function PORegistryList() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="divide-y md:hidden">
+              {records.map((record) => (
+                <div key={record.registryKey} className="space-y-3 p-3">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`เลือก PO ${record.poSapNo} item ${record.poSapItem}`}
+                      checked={selectedKeySet.has(record.registryKey)}
+                      onChange={() => toggleRecord(record.registryKey)}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem} / {record.status || "-"}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="ลบรายการนี้"
+                          onClick={() => deleteRecord(record)}
+                          disabled={isLoading}
+                          className="h-8 w-8 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Vendor</p>
+                          <p className="break-words">{record.vendor || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">วัสดุ</p>
+                          <p className="break-words font-medium">{record.materialCode || "-"}</p>
+                          <p className="mt-0.5 break-words text-muted-foreground">{record.materialName || "-"}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">PO Web No.</p>
+                            <p className="break-words">{record.poWebNo || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">จำนวน</p>
+                            <p>{record.orderQty || "-"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             {totalCount > pageSize ? (
               <div className="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">

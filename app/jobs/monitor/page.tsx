@@ -22,13 +22,13 @@ export default async function JobMonitorPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h2 className="text-2xl font-bold tracking-normal">Monitor Realtime</h2>
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold tracking-normal sm:text-2xl">Monitor Realtime</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             ดูสถานะโหลดต้นทาง ส่งปลายทาง และ alert ของ Job ที่สร้างจากข้อมูลจริง
           </p>
         </div>
-        <Badge variant="success" className="w-fit">
+        <Badge variant="success" className="w-fit shrink-0">
           <Radio className="mr-1 h-3.5 w-3.5" />
           Live Data
         </Badge>
@@ -57,7 +57,7 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid gap-4 md:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
               ["Status", job.status, Radio],
@@ -68,7 +68,7 @@ export default async function JobMonitorPage({
                 <CardContent className="flex items-center justify-between p-5">
                   <div>
                     <p className="text-sm text-muted-foreground">{String(label)}</p>
-                    <p className="mt-2 text-lg font-semibold">{String(value)}</p>
+                    <p className="mt-2 break-words text-base font-semibold sm:text-lg">{String(value)}</p>
                   </div>
                   <Icon className="h-5 w-5 text-cyan-700 dark:text-cyan-300" />
                 </CardContent>

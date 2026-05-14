@@ -14,7 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname.startsWith("/driver-room")) {
     return (
       <div className="min-h-screen bg-[#f5f6f8] text-slate-900">
-        <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-4">{children}</main>
+        <main className="mx-auto min-h-screen w-full max-w-3xl px-3 py-3 sm:px-4 sm:py-4">{children}</main>
       </div>
     );
   }
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onMenuClick={() => setIsMobileOpen((value) => !value)}
           onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
         />
-        <main className="w-full px-4 py-4 md:px-5">{children}</main>
+        <main className="w-full min-w-0 px-3 py-3 sm:px-4 sm:py-4 md:px-5">{children}</main>
       </div>
     </div>
   );

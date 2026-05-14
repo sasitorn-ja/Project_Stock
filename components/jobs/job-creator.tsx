@@ -154,7 +154,7 @@ export function JobCreator() {
                   <Badge variant="secondary">{groupedDestinations.length.toLocaleString("th-TH")} ปลายทาง</Badge>
                 </div>
                 <div className="overflow-hidden rounded-md border">
-                  <div className="overflow-x-auto">
+                  <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[980px] text-sm">
                       <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                         <tr>
@@ -179,6 +179,30 @@ export function JobCreator() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                  <div className="divide-y md:hidden">
+                    {records.map((record) => (
+                      <div key={record.registryKey} className="space-y-3 p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem}</p>
+                          </div>
+                          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                            {record.orderQty || "-"} ชิ้น
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">ปลายทาง</p>
+                          <p className="break-words">{record.unitName || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">วัสดุ</p>
+                          <p className="break-words font-medium">{record.materialCode || "-"}</p>
+                          <p className="mt-0.5 break-words text-muted-foreground">{record.materialName || "-"}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </>
