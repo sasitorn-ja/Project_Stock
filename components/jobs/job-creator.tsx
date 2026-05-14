@@ -33,6 +33,7 @@ export function JobCreator() {
   const [origin, setOrigin] = useState("DC Bangna");
   const [note, setNote] = useState("");
   const [destinationDrafts, setDestinationDrafts] = useState<Record<string, { name: string; address: string }>>({});
+  const [scanQuantities, setScanQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
     async function loadSelectedRecords() {
@@ -49,7 +50,11 @@ export function JobCreator() {
         }
 
         const existingRecords = await getExistingPORecords(selectedKeys);
-        setRecords(selectedKeys.map((key) => existingRecords.get(key)).filter(Boolean) as PORegistryRecord[]);
+        const nextRecords = selectedKeys.map((key) => existingRecords.get(key)).filter(Boolean) as PORegistryRecord[];
+        setRecords(nextRecords);
+        setScanQuantities((currentQuantities) =>
+          Object.fromEntries(nextRecords.map((record) => [record.registryKey, currentQuantities[record.registryKey] ?? 1])),
+        );
       } catch {
         setError("โหลดรายการ PO ที่เลือกไม่สำเร็จ กรุณากลับไปเลือกใหม่");
       } finally {
@@ -117,6 +122,9 @@ export function JobCreator() {
         origin,
         note,
         registryKeys: records.map((record) => record.registryKey),
+        itemScanQuantities: Object.fromEntries(
+          records.map((record) => [record.registryKey, Math.max(1, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
+        ),
         destinationOverrides: groupedDestinations.map((destination) => ({
           id: destination.id,
           name: destinationDrafts[destination.id]?.name ?? destination.name,
@@ -163,7 +171,8 @@ export function JobCreator() {
                           <th className="px-4 py-3 font-medium">ปลายทาง</th>
                           <th className="px-4 py-3 font-medium">รหัสวัสดุ</th>
                           <th className="px-4 py-3 font-medium">ชื่อวัสดุ</th>
-                          <th className="px-4 py-3 font-medium">จำนวน</th>
+                          <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">จำนวนในไฟล์</th>
+                          <th className="w-40 whitespace-nowrap px-4 py-3 font-medium">จำนวนที่ต้องสแกน</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -175,6 +184,20 @@ export function JobCreator() {
                             <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
                             <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
                             <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
+                            <td className="px-4 py-3 align-top">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={scanQuantities[record.registryKey] ?? 1}
+                                onChange={(event) =>
+                                  setScanQuantities((currentQuantities) => ({
+                                    ...currentQuantities,
+                                    [record.registryKey]: Math.max(1, Math.ceil(Number(event.target.value) || 1)),
+                                  }))
+                                }
+                                className="h-9 w-28"
+                              />
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -189,12 +212,31 @@ export function JobCreator() {
                             <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem}</p>
                           </div>
                           <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                            {record.orderQty || "-"} ชิ้น
+                            สแกน {scanQuantities[record.registryKey] ?? 1} รอบ
                           </span>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">ปลายทาง</p>
                           <p className="break-words">{record.unitName || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อในไฟล์</p>
+                          <p>{record.orderQty || "-"}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`scan-qty-${record.registryKey}`}>จำนวนที่ต้องสแกน</Label>
+                          <Input
+                            id={`scan-qty-${record.registryKey}`}
+                            type="number"
+                            min="1"
+                            value={scanQuantities[record.registryKey] ?? 1}
+                            onChange={(event) =>
+                              setScanQuantities((currentQuantities) => ({
+                                ...currentQuantities,
+                                [record.registryKey]: Math.max(1, Math.ceil(Number(event.target.value) || 1)),
+                              }))
+                            }
+                          />
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">วัสดุ</p>
@@ -273,7 +315,7 @@ export function JobCreator() {
                           <p className="mt-1 text-xs text-muted-foreground">รหัสปลายทาง: {destination.id}</p>
                         </div>
                         <span className="shrink-0 text-muted-foreground">
-                          {destination.poCount.toLocaleString("th-TH")} รายการ / {destination.totalQty.toLocaleString("th-TH")} ชิ้น
+                          {destination.poCount.toLocaleString("th-TH")} line / จำนวนในไฟล์ {destination.totalQty.toLocaleString("th-TH")}
                         </span>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">

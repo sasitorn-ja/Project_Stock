@@ -361,8 +361,8 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
         <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
           <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-2 py-2 sm:px-3 sm:py-3">
-            <p className="text-xs text-slate-500">ต้องโหลด</p>
-            <p className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">{requiredTotal.toLocaleString("th-TH")} ชิ้น</p>
+            <p className="text-xs text-slate-500">ต้องสแกน</p>
+            <p className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">{requiredTotal.toLocaleString("th-TH")} รอบ</p>
           </div>
           <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-2 py-2 sm:px-3 sm:py-3">
             <p className="text-xs text-slate-500">ขึ้นรถแล้ว</p>
@@ -631,7 +631,9 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                           <span className="min-w-0 break-words">{item.materialCode || item.registryKey}</span>
                           <span className="shrink-0 font-semibold">{item.deliveredQty}/{item.loadedQty}/{item.orderQty}</span>
                         </div>
-                        <p className="mt-1 break-words text-xs text-slate-500">{item.materialName || "-"}</p>
+                        <p className="mt-1 break-words text-xs text-slate-500">
+                          {item.materialName || "-"} / จำนวนในไฟล์ {item.sourceOrderQty || String(item.orderQty || "-")}
+                        </p>
                       </div>
                     ))}
                   </div>

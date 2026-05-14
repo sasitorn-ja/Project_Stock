@@ -9,6 +9,7 @@ import {
   formatTime,
   getJobItemLabel,
   normalizeJobDestination,
+  normalizeScanQty,
   summarizeJob,
   summarizeJobArchive,
   type JobAlertRecord,
@@ -18,7 +19,7 @@ import {
   type ScanMode,
 } from "@/lib/jobs";
 import { cleanupExpiredSharedData, hasSharedDatabase, withPostgresClient, withPostgresTransaction } from "@/lib/postgres-storage";
-import { archivePORecordsForCompletedJob, getPORecordsByKeys, markPORecordsAssigned } from "@/lib/po-registry-store";
+import { archivePORecordsForCompletedJob, getPORecordsByKeys, markPORecordsAssigned, releasePORecordsFromJob } from "@/lib/po-registry-store";
 import { formatGpsText } from "@/lib/reverse-geocode";
 import {
   mapDatabaseJob,
@@ -711,6 +712,54 @@ async function getJobArchiveFromDatabase(jobId: string) {
   });
 }
 
+async function deleteJobFromDatabase(jobId: string) {
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [jobId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      return false;
+    }
+
+    const job = mapDatabaseJob(row);
+
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'active',
+          assigned_delivery_job_id = NULL,
+          assigned_to_job_at = NULL
+        WHERE line_registry_key = ANY($1::text[])
+          AND assigned_delivery_job_id = $2
+          AND record_state = 'assigned'
+      `,
+      [job.poRegistryKeys, job.id],
+    );
+
+    await client.query(
+      `
+        DELETE FROM delivery_jobs
+        WHERE delivery_job_id = $1
+      `,
+      [job.id],
+    );
+
+    return true;
+  });
+}
+
 async function createJobInDatabase(input: {
   roomName?: string;
   driver: string;
@@ -718,6 +767,7 @@ async function createJobInDatabase(input: {
   origin: string;
   note?: string;
   registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   assertWritableStorage();
@@ -747,7 +797,7 @@ async function createJobInDatabase(input: {
     `);
     const sequence = sequenceResult.rows[0]?.value ?? "000001";
     const jobId = `${buildJobId(nowDate)}-${sequence}`;
-    const baseItems = buildJobItems(availableRecords);
+    const baseItems = buildJobItems(availableRecords, input.itemScanQuantities);
     const baseDestinations = buildJobDestinations(baseItems);
     const { items, destinations } = applyDestinationOverrides(
       baseItems,
@@ -883,6 +933,57 @@ async function checkInJobOriginInDatabase(input: {
         WHERE delivery_job_id = $1
       `,
       [job.id, job.originGps, job.originCheckedInAt ?? null, job.updatedAt],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function updateJobItemScanQuantityInDatabase(input: {
+  jobId: string;
+  registryKey: string;
+  scanQty: number;
+}) {
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    const item = job.items.find((currentItem) => currentItem.registryKey === input.registryKey);
+
+    if (!item) {
+      throw new Error("ไม่พบรายการที่ต้องการแก้ใน Job นี้");
+    }
+
+    item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 1));
+    job.updatedAt = new Date().toISOString();
+    updateJobStatus(job);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          updated_at = $2::timestamptz,
+          job_status = $3,
+          job_items_json = $4::jsonb
+        WHERE delivery_job_id = $1
+      `,
+      [job.id, job.updatedAt, job.status, JSON.stringify(job.items)],
     );
 
     return summarizeJob(job);
@@ -1275,6 +1376,28 @@ export async function getJob(jobId: string) {
   return job ? summarizeJob(job) : null;
 }
 
+export async function deleteJob(jobId: string) {
+  if (hasSharedDatabase()) {
+    return deleteJobFromDatabase(jobId);
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === jobId && currentJob.status !== "completed");
+
+  if (!job) {
+    return false;
+  }
+
+  await releasePORecordsFromJob(job.poRegistryKeys, job.id);
+
+  await writeStore({
+    jobs: store.jobs.filter((currentJob) => currentJob.id !== job.id),
+  });
+
+  return true;
+}
+
 export async function listJobArchives(filters: {
   query?: string;
   dateFrom?: string;
@@ -1310,6 +1433,7 @@ export async function createJob(input: {
   origin: string;
   note?: string;
   registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   if (hasSharedDatabase()) {
@@ -1329,7 +1453,7 @@ export async function createJob(input: {
   const baseId = buildJobId(new Date());
   const duplicateCount = store.jobs.filter((job) => job.id.startsWith(baseId)).length;
   const jobId = duplicateCount ? `${baseId}-${duplicateCount + 1}` : baseId;
-  const baseItems = buildJobItems(availableRecords);
+  const baseItems = buildJobItems(availableRecords, input.itemScanQuantities);
   const baseDestinations = buildJobDestinations(baseItems);
   const { items, destinations } = applyDestinationOverrides(
     baseItems,
@@ -1359,6 +1483,38 @@ export async function createJob(input: {
   await writeStore({
     jobs: [...store.jobs, job],
   });
+
+  return summarizeJob(job);
+}
+
+export async function updateJobItemScanQuantity(input: {
+  jobId: string;
+  registryKey: string;
+  scanQty: number;
+}) {
+  if (hasSharedDatabase()) {
+    return updateJobItemScanQuantityInDatabase(input);
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === input.jobId && currentJob.status !== "completed");
+
+  if (!job) {
+    throw new Error("ไม่พบ Job ที่เลือก");
+  }
+
+  const item = job.items.find((currentItem) => currentItem.registryKey === input.registryKey);
+
+  if (!item) {
+    throw new Error("ไม่พบรายการที่ต้องการแก้ใน Job นี้");
+  }
+
+  item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 1));
+  job.updatedAt = new Date().toISOString();
+  updateJobStatus(job);
+
+  await writeStore({ jobs: store.jobs });
 
   return summarizeJob(job);
 }

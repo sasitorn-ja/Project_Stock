@@ -1,0 +1,56 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { deleteJob } from "@/lib/job-db";
+
+export function JobDeleteButton({
+  jobId,
+  label = "ลบ Job",
+  redirectTo,
+}: {
+  jobId: string;
+  label?: string;
+  redirectTo?: string;
+}) {
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `ต้องการลบ Job ${jobId} ใช่ไหม?\n\nระบบจะลบห้องงานนี้และคืน PO กลับไปหน้า PO รอจัดส่ง`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setMessage("");
+
+    try {
+      await deleteJob(jobId);
+      if (redirectTo) {
+        router.push(redirectTo);
+      }
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ลบ Job ไม่สำเร็จ");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting} className="w-full gap-2 sm:w-auto">
+        <Trash2 className="h-4 w-4" />
+        {isDeleting ? "กำลังลบ" : label}
+      </Button>
+      {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
+    </div>
+  );
+}

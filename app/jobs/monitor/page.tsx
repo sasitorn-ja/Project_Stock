@@ -3,6 +3,7 @@ import { AlertTriangle, History, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJob, listJobs } from "@/lib/job-store";
@@ -78,8 +79,13 @@ export default async function JobMonitorPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>ช่องทางเข้าหน้าคนขับ</CardTitle>
-              <CardDescription>เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ</CardDescription>
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <CardTitle>ช่องทางเข้าหน้าคนขับ</CardTitle>
+                  <CardDescription>เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ</CardDescription>
+                </div>
+                <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
+              </div>
             </CardHeader>
             <CardContent>
               <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} />
@@ -87,7 +93,7 @@ export default async function JobMonitorPage({
           </Card>
 
           <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <JobProgress job={job} />
+            <JobProgress job={job} editableScanQty />
             <Card>
               <CardHeader>
                 <CardTitle>Alert Queue</CardTitle>
@@ -119,7 +125,7 @@ export default async function JobMonitorPage({
           <Card>
             <CardHeader>
               <CardTitle>สรุป PO ใน Job</CardTitle>
-              <CardDescription>ระบบสรุปจากจำนวนที่ส่งจริงของแต่ละ PO</CardDescription>
+              <CardDescription>ระบบสรุปตามจำนวนรอบสแกน/กล่องที่ Admin ยืนยัน แยกจากจำนวนสั่งซื้อและราคาในไฟล์</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
               {job.poStatuses.map((item) => (

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       origin?: string;
       note?: string;
       registryKeys?: string[];
+      itemScanQuantities?: Record<string, number>;
       destinationOverrides?: {
         id?: string;
         name?: string;
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       origin: body.origin ?? "",
       note: body.note ?? "",
       registryKeys: Array.isArray(body.registryKeys) ? body.registryKeys : [],
+      itemScanQuantities: body.itemScanQuantities ?? {},
       destinationOverrides: Array.isArray(body.destinationOverrides)
         ? body.destinationOverrides
             .filter((destination) => destination.id?.trim())

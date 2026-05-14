@@ -3,6 +3,7 @@ import { Eye, History, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { listJobs } from "@/lib/job-store";
 
@@ -49,8 +50,8 @@ export default async function JobsPage() {
                       <th className="w-56 whitespace-nowrap px-4 py-3 font-medium">ห้อง Job</th>
                       <th className="px-4 py-3 font-medium">Route / PO</th>
                       <th className="w-40 whitespace-nowrap px-4 py-3 font-medium">Driver</th>
-                      <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">Loaded</th>
-                      <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">Delivered</th>
+                      <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">ขึ้นรถ</th>
+                      <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">ส่งแล้ว</th>
                       <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">Status</th>
                       <th className="w-44 whitespace-nowrap px-4 py-3 font-medium">Action</th>
                     </tr>
@@ -94,6 +95,7 @@ export default async function JobsPage() {
                               </Link>
                             </Button>
                             <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
+                            <JobDeleteButton jobId={job.id} />
                           </div>
                         </td>
                       </tr>
@@ -128,8 +130,8 @@ export default async function JobsPage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Progress</p>
-                        <p>ขึ้นรถ {job.loadedTotal}/{job.requiredTotal}</p>
-                        <p>ส่งแล้ว {job.deliveredTotal}/{job.requiredTotal}</p>
+                        <p>ขึ้นรถ {job.loadedTotal}/{job.requiredTotal} รอบ</p>
+                        <p>ส่งแล้ว {job.deliveredTotal}/{job.requiredTotal} รอบ</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -140,6 +142,7 @@ export default async function JobsPage() {
                         </Link>
                       </Button>
                       <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
+                      <JobDeleteButton jobId={job.id} />
                     </div>
                   </div>
                 ))}

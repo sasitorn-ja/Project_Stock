@@ -13,6 +13,8 @@ export type JobItemRecord = {
   unitName: string;
   materialCode: string;
   materialName: string;
+  sourceOrderQty?: string;
+  sourceTotalAmount?: string;
   orderQty: number;
   loadedQty: number;
   deliveredQty: number;
@@ -100,7 +102,14 @@ export function parseQty(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function buildJobItems(records: PORegistryRecord[]) {
+export function normalizeScanQty(value: unknown, minimum = 1) {
+  const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(/,/g, "").trim());
+  const safeMinimum = Math.max(1, Math.ceil(minimum));
+
+  return Number.isFinite(parsed) && parsed > 0 ? Math.max(safeMinimum, Math.ceil(parsed)) : safeMinimum;
+}
+
+export function buildJobItems(records: PORegistryRecord[], scanQuantities: Record<string, number> = {}) {
   return records.map((record) => {
     const destinationName = record.unitName.trim() || "ไม่ระบุปลายทาง";
     const destinationId = slugifyDestination(destinationName);
@@ -114,7 +123,9 @@ export function buildJobItems(records: PORegistryRecord[]) {
       unitName: record.unitName,
       materialCode: record.materialCode,
       materialName: record.materialName,
-      orderQty: parseQty(record.orderQty),
+      sourceOrderQty: record.orderQty,
+      sourceTotalAmount: record.totalAmount,
+      orderQty: normalizeScanQty(scanQuantities[record.registryKey], 1),
       loadedQty: 0,
       deliveredQty: 0,
       destinationId,

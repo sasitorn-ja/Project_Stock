@@ -36,6 +36,7 @@ export async function createJob(input: {
   origin: string;
   note?: string;
   registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
   destinationOverrides?: {
     id: string;
     name?: string;
@@ -54,6 +55,35 @@ export async function createJob(input: {
   );
 
   return data.job;
+}
+
+export async function updateJobItemScanQuantity(input: {
+  jobId: string;
+  registryKey: string;
+  scanQty: number;
+}) {
+  const data = await readResponse<{ job: JobRecord }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        registryKey: input.registryKey,
+        scanQty: input.scanQty,
+      }),
+    }),
+  );
+
+  return data.job;
+}
+
+export async function deleteJob(jobId: string) {
+  await readResponse<{ ok: true }>(
+    await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+      method: "DELETE",
+    }),
+  );
 }
 
 export async function checkInJobOrigin(input: {

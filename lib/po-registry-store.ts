@@ -510,6 +510,30 @@ async function markPORecordsAssignedInDatabase(registryKeys: string[], jobId: st
   });
 }
 
+async function releasePORecordsFromJobInDatabase(registryKeys: string[], jobId: string) {
+  if (!registryKeys.length || !jobId.trim()) {
+    return;
+  }
+
+  assertWritableStorage();
+
+  await withPostgresTransaction(async (client) => {
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'active',
+          assigned_delivery_job_id = NULL,
+          assigned_to_job_at = NULL
+        WHERE line_registry_key = ANY($1::text[])
+          AND assigned_delivery_job_id = $2
+          AND record_state = 'assigned'
+      `,
+      [registryKeys, jobId],
+    );
+  });
+}
+
 async function markPORecordsCompletedInDatabase(registryKeys: string[]) {
   if (!registryKeys.length) {
     return;
@@ -710,6 +734,33 @@ export async function markPORecordsAssigned(registryKeys: string[], jobId: strin
           lifecycle: "assigned" as const,
           assignedJobId: jobId,
           assignedAt,
+        }
+      : record,
+  );
+
+  await writeStore({ records });
+}
+
+export async function releasePORecordsFromJob(registryKeys: string[], jobId: string) {
+  if (hasSharedDatabase()) {
+    return releasePORecordsFromJobInDatabase(registryKeys, jobId);
+  }
+
+  if (!registryKeys.length || !jobId.trim()) {
+    return;
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const uniqueKeys = new Set(registryKeys);
+
+  const records = store.records.map((record) =>
+    uniqueKeys.has(record.registryKey) && record.assignedJobId === jobId && record.lifecycle === "assigned"
+      ? {
+          ...record,
+          lifecycle: "active" as const,
+          assignedJobId: undefined,
+          assignedAt: undefined,
         }
       : record,
   );
