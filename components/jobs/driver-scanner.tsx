@@ -234,9 +234,25 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
     try {
       scanLockRef.current = false;
+
+      // Step 1: acquire camera stream independently (more reliable than decodeFromConstraints)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
       setIsCameraScanning(true);
       setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มีเลข PO/รหัสสินค้า");
 
+      // Step 2: attach ZXing decoder to the live stream
       const hints = new Map<DecodeHintType, unknown>();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [
         BarcodeFormat.QR_CODE,
@@ -248,44 +264,42 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         BarcodeFormat.ITF,
         BarcodeFormat.UPC_A,
         BarcodeFormat.UPC_E,
+        BarcodeFormat.CODABAR,
+        BarcodeFormat.DATA_MATRIX,
+        BarcodeFormat.PDF_417,
+        BarcodeFormat.AZTEC,
       ]);
       hints.set(DecodeHintType.TRY_HARDER, true);
 
       const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 250,
+        delayBetweenScanAttempts: 150,
         delayBetweenScanSuccess: 800,
-        tryPlayVideoTimeout: 8000,
       });
 
-      scannerControlsRef.current = await reader.decodeFromConstraints(
-        {
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: false,
-        },
+      scannerControlsRef.current = await reader.decodeFromStream(
+        stream,
         videoRef.current,
-        (result) => {
-          const scannedCode = result?.getText()?.trim();
+        (result, error) => {
+          // error here is NotFoundException (normal when no barcode visible) — ignore it
+          if (!result || scanLockRef.current) return;
 
-          if (!scannedCode || scanLockRef.current) {
-            return;
-          }
+          const scannedCode = result.getText().trim();
+          if (!scannedCode) return;
 
           scanLockRef.current = true;
           setCode(scannedCode);
-          setCameraMessage(`พบรหัส ${scannedCode} กำลังบันทึก`);
+          setCameraMessage(`พบรหัส ${scannedCode} — กำลังบันทึก`);
           stopCamera();
           void submitScannedCode(scannedCode);
         },
       );
-
-      streamRef.current = videoRef.current.srcObject instanceof MediaStream ? videoRef.current.srcObject : null;
-    } catch {
-      setCameraMessage("เปิดกล้องไม่ได้ กรุณาอนุญาตสิทธิ์กล้อง หรือใช้การคีย์รหัสแทน");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCameraMessage(`เปิดกล้องไม่ได้ (${msg}) — กรุณาอนุญาตสิทธิ์กล้อง หรือคีย์รหัสแทน`);
       setIsCameraScanning(false);
+      // clean up stream if it was partially acquired
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
   }
 
@@ -447,88 +461,115 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           </CardTitle>
           <CardDescription>เลือกโหมดให้ตรงกับงานที่ทำอยู่ แล้วสแกนหรือกรอกรหัส</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 p-3 sm:p-5 lg:grid-cols-[minmax(280px,420px)_1fr] lg:items-start">
-          <div className="relative aspect-video max-h-[280px] overflow-hidden rounded-lg border bg-slate-950 lg:max-h-[260px]">
+        <CardContent className="space-y-3 p-3 sm:p-5">
+          {/* Video — full card width, no column constraint */}
+          <div className="relative w-full overflow-hidden rounded-lg border bg-slate-950" style={{ aspectRatio: "16/9", minHeight: "220px" }}>
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="h-32 w-64 max-w-[80%] rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)] sm:h-36 sm:w-72" />
+              <div className="relative h-40 w-[70%] max-w-sm rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.40)] sm:h-48 sm:w-[65%]">
+                {/* Animated scan line when camera is on */}
+                {isCameraScanning && (
+                  <div
+                    className="absolute left-0 right-0 h-0.5 bg-cyan-400 opacity-80"
+                    style={{ animation: "scanLine 2s linear infinite", top: "50%" }}
+                  />
+                )}
+              </div>
             </div>
-            {!isCameraScanning ? (
+            {/* Overlay shown when camera is off */}
+            {!isCameraScanning && (
               <div className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200">
                 <div>
-                  <Camera className="mx-auto mb-2 h-8 w-8" />
-                  <p className="text-xs">{cameraMessage}</p>
+                  <Camera className="mx-auto mb-2 h-10 w-10" />
+                  <p className="text-sm">{cameraMessage}</p>
+                  <p className="mt-1 text-xs text-slate-400">รองรับ QR · Code 128 · Code 39 · EAN · UPC · ITF · Codabar · Data Matrix</p>
                 </div>
               </div>
-            ) : null}
+            )}
+            {/* Live camera message */}
+            {isCameraScanning && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cyan-200">{cameraMessage}</span>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("load")}
-                disabled={isOriginGpsRequired}
-                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
-                  mode === "load"
-                    ? "border-amber-500 bg-amber-500 text-white shadow-sm"
-                    : "border-[#d8dde6] bg-white text-slate-600 hover:border-amber-400 hover:bg-amber-50"
-                }`}
-              >
-                <Truck className="h-5 w-5" />
-                <span>ขึ้นรถ</span>
-                <span className="text-[10px] font-normal opacity-80">โหลดสินค้าที่คลัง</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("deliver")}
-                disabled={isOriginGpsRequired}
-                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
-                  mode === "deliver"
-                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
-                    : "border-[#d8dde6] bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
-                }`}
-              >
-                <QrCode className="h-5 w-5" />
-                <span>ส่งปลายทาง</span>
-                <span className="text-[10px] font-normal opacity-80">ส่งของให้ลูกค้า</span>
-              </button>
-            </div>
+          {/* Scan line animation keyframes */}
+          <style>{`
+            @keyframes scanLine {
+              0%   { top: 10%; }
+              50%  { top: 90%; }
+              100% { top: 10%; }
+            }
+          `}</style>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" onClick={startCamera} disabled={!job || isCameraScanning || isScanBlocked}>
-                <Camera className="mr-2 h-4 w-4" />
-                เปิดกล้อง
-              </Button>
-              <Button type="button" variant="outline" onClick={stopCamera} disabled={!isCameraScanning}>
-                <Square className="mr-2 h-4 w-4" />
-                หยุด
-              </Button>
-            </div>
+          {/* Controls — mode buttons + camera buttons + input */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]">
+            <button
+              type="button"
+              onClick={() => setMode("load")}
+              disabled={isOriginGpsRequired}
+              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                mode === "load"
+                  ? "border-amber-500 bg-amber-500 text-white shadow-sm"
+                  : "border-[#d8dde6] bg-white text-slate-600 hover:border-amber-400 hover:bg-amber-50"
+              }`}
+            >
+              <Truck className="h-5 w-5 shrink-0" />
+              <div className="text-left">
+                <div>ขึ้นรถ</div>
+                <div className="text-[10px] font-normal opacity-75">โหลดสินค้าที่คลัง</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("deliver")}
+              disabled={isOriginGpsRequired}
+              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                mode === "deliver"
+                  ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  : "border-[#d8dde6] bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
+              }`}
+            >
+              <QrCode className="h-5 w-5 shrink-0" />
+              <div className="text-left">
+                <div>ส่งปลายทาง</div>
+                <div className="text-[10px] font-normal opacity-75">ส่งของให้ลูกค้า</div>
+              </div>
+            </button>
+            <Button type="button" onClick={startCamera} disabled={!job || isCameraScanning || isScanBlocked} className="gap-2">
+              <Camera className="h-4 w-4" />
+              เปิดกล้อง
+            </Button>
+            <Button type="button" variant="outline" onClick={stopCamera} disabled={!isCameraScanning} className="gap-2">
+              <Square className="h-4 w-4" />
+              หยุด
+            </Button>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="scan-code">เลข PO / Barcode / QR / registry key</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  id="scan-code"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  disabled={isScanBlocked}
-                  placeholder="สแกนหรือกรอกรหัส"
-                />
+          <div className="space-y-2">
+            <Label htmlFor="scan-code">เลข PO / Barcode / QR / registry key</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="scan-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                disabled={isScanBlocked}
+                placeholder="สแกนหรือกรอกรหัส"
+              />
                 <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">
                   {isSubmitting ? "กำลังบันทึก" : "บันทึก"}
                 </Button>
               </div>
-            </div>
           </div>
 
           {message ? (
             <div
               className={
                 scanResult === "alert"
-                  ? "whitespace-pre-line rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 lg:col-span-2"
-                  : "whitespace-pre-line rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 lg:col-span-2"
+                  ? "whitespace-pre-line rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                  : "whitespace-pre-line rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
               }
             >
               {message}
