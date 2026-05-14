@@ -54,6 +54,8 @@ type ImportPreview = {
   missingItemCount: number;
   duplicateInFileCount: number;
   skippedExistingCount: number;
+  skippedQueuedCount: number;
+  skippedInJobCount: number;
   newPOs: POImportRecord[];
 };
 
@@ -206,6 +208,14 @@ export function POImporter() {
         missingItemCount: rowsMissingItem.length,
         duplicateInFileCount,
         skippedExistingCount: uniqueRecords.filter((record) => existingRecords.has(record.registryKey)).length,
+        skippedQueuedCount: uniqueRecords.filter((record) => {
+          const existingRecord = existingRecords.get(record.registryKey);
+          return existingRecord && !existingRecord.assignedJobId && existingRecord.lifecycle === "active";
+        }).length,
+        skippedInJobCount: uniqueRecords.filter((record) => {
+          const existingRecord = existingRecords.get(record.registryKey);
+          return existingRecord && (Boolean(existingRecord.assignedJobId) || existingRecord.lifecycle !== "active");
+        }).length,
         newPOs: uniqueRecords.filter((record) => !existingRecords.has(record.registryKey)),
       });
     } catch {
@@ -270,7 +280,7 @@ export function POImporter() {
           </div>
           <div className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
             <Database className="h-4 w-4" />
-            ทะเบียน {registryCount.toLocaleString("th-TH")} รายการ
+            คิวรอจัดส่ง {registryCount.toLocaleString("th-TH")} รายการ
           </div>
         </div>
 
@@ -315,6 +325,19 @@ export function POImporter() {
               </div>
             </div>
 
+            {preview.skippedExistingCount ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-muted-foreground">อยู่ในคิวรอจัดส่งแล้ว</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{preview.skippedQueuedCount.toLocaleString("th-TH")}</p>
+                </div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs text-amber-800">ถูกสร้าง Job แล้ว / ไม่อยู่ในคิว</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-700">{preview.skippedInJobCount.toLocaleString("th-TH")}</p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex flex-col justify-between gap-3 rounded-md border bg-slate-50 p-4 dark:bg-slate-900 md:flex-row md:items-center">
               <div className="flex items-start gap-3">
                 <FileSpreadsheet className="mt-1 h-5 w-5 text-primary" />
@@ -324,7 +347,7 @@ export function POImporter() {
                     {(preview.newPOs.length + preview.skippedExistingCount).toLocaleString("th-TH")} รายการ
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    ระบบเช็คซ้ำหลังบ้านด้วย PO SAP No. + PO SAP Item และแสดงเฉพาะรายการใหม่ที่จะเพิ่ม
+                    ระบบเช็คซ้ำหลังบ้านด้วย PO SAP No. + PO SAP Item และแสดงเฉพาะรายการใหม่ที่จะเพิ่ม รายการที่ถูกสร้าง Job แล้วจะไม่ถูกนำกลับเข้าคิว
                     {preview.missingPOCount
                       ? `, ข้ามแถวที่ไม่มี PO SAP No. ${preview.missingPOCount.toLocaleString("th-TH")} แถว`
                       : ""}

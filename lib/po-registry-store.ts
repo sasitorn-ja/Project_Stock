@@ -176,6 +176,8 @@ async function getPORegistryCountFromDatabase() {
     const result = await client.query<{ count: string }>(`
       SELECT COUNT(*)::text AS count
       FROM purchase_order_queue
+      WHERE assigned_delivery_job_id IS NULL
+        AND record_state = 'active'
     `);
 
     return Number(result.rows[0]?.count ?? "0");
@@ -243,6 +245,46 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
       `
         SELECT *
         FROM purchase_order_queue
+        WHERE line_registry_key = ANY($1::text[])
+          AND (
+            (assigned_delivery_job_id IS NULL AND record_state = 'active')
+            OR record_state = 'completed'
+            OR EXISTS (
+              SELECT 1
+              FROM delivery_jobs job,
+                jsonb_array_elements(job.job_items_json) AS item(value)
+              WHERE job.delivery_job_id = purchase_order_queue.assigned_delivery_job_id
+                AND item.value->>'registryKey' = purchase_order_queue.line_registry_key
+                AND COALESCE((item.value->>'deliveredQty')::numeric, 0) > 0
+            )
+          )
+        UNION ALL
+        SELECT
+          line_registry_key,
+          purchase_order_number,
+          purchase_order_item_number,
+          first_imported_at,
+          last_imported_at,
+          import_file_name,
+          import_sheet_name,
+          import_row_number,
+          document_status,
+          vendor_name,
+          web_order_number,
+          business_unit_name,
+          material_code,
+          material_name,
+          ordered_quantity_text,
+          received_quantity_text,
+          total_amount_text,
+          import_count,
+          record_state,
+          assigned_delivery_job_id,
+          assigned_to_job_at,
+          archived_at,
+          completed_at,
+          delete_after_at AS cleanup_after_at
+        FROM purchase_order_history
         WHERE line_registry_key = ANY($1::text[])
       `,
       [registryKeys],
@@ -371,7 +413,38 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
           completed_at,
           cleanup_after_at
         FROM incoming
-        ON CONFLICT (line_registry_key) DO NOTHING
+        ON CONFLICT (line_registry_key) DO UPDATE
+        SET
+          last_imported_at = EXCLUDED.last_imported_at,
+          import_file_name = EXCLUDED.import_file_name,
+          import_sheet_name = EXCLUDED.import_sheet_name,
+          import_row_number = EXCLUDED.import_row_number,
+          document_status = EXCLUDED.document_status,
+          vendor_name = EXCLUDED.vendor_name,
+          web_order_number = EXCLUDED.web_order_number,
+          business_unit_name = EXCLUDED.business_unit_name,
+          material_code = EXCLUDED.material_code,
+          material_name = EXCLUDED.material_name,
+          ordered_quantity_text = EXCLUDED.ordered_quantity_text,
+          received_quantity_text = EXCLUDED.received_quantity_text,
+          total_amount_text = EXCLUDED.total_amount_text,
+          import_count = purchase_order_queue.import_count + 1,
+          record_state = 'active',
+          assigned_delivery_job_id = NULL,
+          assigned_to_job_at = NULL,
+          archived_at = NULL,
+          completed_at = NULL,
+          cleanup_after_at = NULL
+        WHERE purchase_order_queue.record_state <> 'completed'
+          AND purchase_order_queue.assigned_delivery_job_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM delivery_jobs job,
+              jsonb_array_elements(job.job_items_json) AS item(value)
+            WHERE job.delivery_job_id = purchase_order_queue.assigned_delivery_job_id
+              AND item.value->>'registryKey' = purchase_order_queue.line_registry_key
+              AND COALESCE((item.value->>'deliveredQty')::numeric, 0) > 0
+          )
         RETURNING line_registry_key
       `,
       [JSON.stringify(payload)],
@@ -466,7 +539,7 @@ export async function getPORegistryCount() {
   }
 
   const store = await readStore();
-  return store.records.length;
+  return store.records.filter((record) => !record.assignedJobId && record.lifecycle === "active").length;
 }
 
 export async function getPORecordsPage({
@@ -503,7 +576,11 @@ export async function getExistingPORecords(registryKeys: string[]) {
   const store = await readStore();
   const uniqueKeys = new Set(registryKeys);
 
-  return store.records.filter((record) => uniqueKeys.has(record.registryKey));
+  return store.records.filter(
+    (record) =>
+      uniqueKeys.has(record.registryKey) &&
+      ((!record.assignedJobId && record.lifecycle === "active") || record.lifecycle === "completed"),
+  );
 }
 
 export async function getPORecordsByKeys(registryKeys: string[]) {
@@ -529,28 +606,57 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
   assertWritableStorage();
 
   const store = await readStore();
-  const existingKeys = new Set(store.records.map((record) => record.registryKey));
-  const newRecords: PORegistryRecord[] = [];
   const importedAt = new Date().toISOString();
+  const incomingRecords = new Map(records.map((record) => [record.registryKey, record]));
+  const existingRecords = new Map(store.records.map((record) => [record.registryKey, record]));
+  let changedCount = 0;
 
-  records.forEach((record) => {
-    if (existingKeys.has(record.registryKey)) {
-      return;
+  const restoredRecords = store.records.map((record) => {
+    const incomingRecord = incomingRecords.get(record.registryKey);
+
+    if (!incomingRecord || !record.assignedJobId || record.lifecycle === "completed") {
+      return record;
     }
 
-    newRecords.push(createStoredPORegistryRecord(record, importedAt));
-    existingKeys.add(record.registryKey);
+    changedCount += 1;
+
+    return {
+      ...record,
+      ...incomingRecord,
+      latestImportedAt: importedAt,
+      importCount: record.importCount + 1,
+      lifecycle: "active" as const,
+      assignedJobId: undefined,
+      assignedAt: undefined,
+      archivedAt: undefined,
+      completedAt: undefined,
+      purgeAfterAt: undefined,
+    };
   });
 
-  if (!newRecords.length) {
+  const newRecords = records
+    .filter((record) => {
+      const existingRecord = existingRecords.get(record.registryKey);
+
+      if (!existingRecord) {
+        return true;
+      }
+
+      return false;
+    })
+    .map((record) => createStoredPORegistryRecord(record, importedAt));
+
+  changedCount += newRecords.length;
+
+  if (!changedCount) {
     return 0;
   }
 
   await writeStore({
-    records: [...store.records, ...newRecords],
+    records: [...restoredRecords, ...newRecords],
   });
 
-  return newRecords.length;
+  return changedCount;
 }
 
 export async function clearPORegistry() {
