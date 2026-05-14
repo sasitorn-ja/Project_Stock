@@ -7,6 +7,8 @@ import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJob, listJobs } from "@/lib/job-store";
 
+export const dynamic = "force-dynamic";
+
 export default async function JobMonitorPage({
   searchParams,
 }: {
@@ -45,7 +47,9 @@ export default async function JobMonitorPage({
         <div className="flex flex-wrap gap-2">
           {jobs.map((currentJob) => (
             <Button key={currentJob.id} asChild variant={currentJob.id === fallbackJobId ? "default" : "outline"} size="sm">
-              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(currentJob.id)}`}>{currentJob.id}</Link>
+              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(currentJob.id)}`}>
+                {currentJob.roomName?.trim() || currentJob.id}
+              </Link>
             </Button>
           ))}
         </div>
@@ -55,7 +59,7 @@ export default async function JobMonitorPage({
         <>
           <section className="grid gap-4 md:grid-cols-4">
             {[
-              ["Job", job.id, Truck],
+              ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
               ["Status", job.status, Radio],
               ["Route", `${job.destinations.length} Locations`, Route],
               ["Alerts", String(job.alerts.length), AlertTriangle],

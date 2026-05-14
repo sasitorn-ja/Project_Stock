@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobArchive, listJobArchives } from "@/lib/job-store";
 
+export const dynamic = "force-dynamic";
+
 export default async function JobHistoryPage({
   searchParams,
 }: {
@@ -76,7 +78,7 @@ export default async function JobHistoryPage({
               <Link
                 href={`/jobs/history?jobId=${encodeURIComponent(currentJob.id)}&query=${encodeURIComponent(query)}&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`}
               >
-                {currentJob.id}
+                {currentJob.roomName?.trim() || currentJob.id}
               </Link>
             </Button>
           ))}
@@ -93,7 +95,7 @@ export default async function JobHistoryPage({
         <>
           <section className="grid gap-4 md:grid-cols-4">
             {[
-              ["Job", job.id, Truck],
+              ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", job.status, History],
               ["Archived", new Date(job.archivedAt).toLocaleString("th-TH"), CalendarClock],
               ["ลบอัตโนมัติ", new Date(job.deleteAfterAt).toLocaleDateString("th-TH"), CalendarClock],

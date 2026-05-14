@@ -13,7 +13,7 @@ import {
   mapDatabasePORecord,
   serializePORegistryRecordForDatabase,
 } from "@/lib/shared-storage-payloads";
-import { assertWritableStorage } from "@/lib/storage-config";
+import { assertWritableStorage, canUseLocalFileStorage } from "@/lib/storage-config";
 
 type PORegistryStore = {
   records: PORegistryRecord[];
@@ -54,6 +54,10 @@ function buildSearchFilter(query: string, startIndex = 1) {
 }
 
 async function ensureStoreFile() {
+  if (!canUseLocalFileStorage()) {
+    return false;
+  }
+
   await mkdir(dataDirectoryPath, { recursive: true });
 
   try {
@@ -61,9 +65,15 @@ async function ensureStoreFile() {
   } catch {
     await writeStore({ records: [] });
   }
+
+  return true;
 }
 
 async function ensureArchiveStoreFile() {
+  if (!canUseLocalFileStorage()) {
+    return false;
+  }
+
   await mkdir(dataDirectoryPath, { recursive: true });
 
   try {
@@ -71,10 +81,14 @@ async function ensureArchiveStoreFile() {
   } catch {
     await writeArchiveStore({ records: [] });
   }
+
+  return true;
 }
 
 async function readStore() {
-  await ensureStoreFile();
+  if (!(await ensureStoreFile())) {
+    return { records: [] };
+  }
 
   const fileContents = await readFile(dataFilePath, "utf8");
 
@@ -94,7 +108,9 @@ function isExpiredArchiveRecord(record: PORegistryArchiveRecord) {
 }
 
 async function readArchiveStore() {
-  await ensureArchiveStoreFile();
+  if (!(await ensureArchiveStoreFile())) {
+    return { records: [] };
+  }
 
   const fileContents = await readFile(archiveDataFilePath, "utf8");
 
@@ -369,7 +385,33 @@ async function clearPORegistryInDatabase() {
   assertWritableStorage();
 
   await withPostgresTransaction(async (client) => {
-    await client.query("TRUNCATE TABLE purchase_order_queue");
+    await client.query(`
+      DELETE FROM purchase_order_queue
+      WHERE assigned_delivery_job_id IS NULL
+      AND record_state = 'active'
+    `);
+  });
+}
+
+async function deletePORecordsInDatabase(registryKeys: string[]) {
+  if (!registryKeys.length) {
+    return 0;
+  }
+
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        DELETE FROM purchase_order_queue
+        WHERE line_registry_key = ANY($1::text[])
+        AND assigned_delivery_job_id IS NULL
+        AND record_state = 'active'
+      `,
+      [registryKeys],
+    );
+
+    return result.rowCount ?? 0;
   });
 }
 
@@ -517,7 +559,32 @@ export async function clearPORegistry() {
   }
 
   assertWritableStorage();
-  await writeStore({ records: [] });
+  const store = await readStore();
+
+  await writeStore({
+    records: store.records.filter((record) => record.assignedJobId || record.lifecycle !== "active"),
+  });
+}
+
+export async function deletePORecords(registryKeys: string[]) {
+  if (hasSharedDatabase()) {
+    return deletePORecordsInDatabase(registryKeys);
+  }
+
+  if (!registryKeys.length) {
+    return 0;
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const uniqueKeys = new Set(registryKeys);
+  const records = store.records.filter(
+    (record) => !uniqueKeys.has(record.registryKey) || record.assignedJobId || record.lifecycle !== "active",
+  );
+
+  await writeStore({ records });
+
+  return store.records.length - records.length;
 }
 
 export async function markPORecordsAssigned(registryKeys: string[], jobId: string) {

@@ -30,6 +30,13 @@ export type JobDestinationRecord = {
   deliveryCheckedInAt?: string;
 };
 
+export type JobDestinationOverrideInput = {
+  id: string;
+  name?: string;
+  address?: string;
+  radiusMeters?: number;
+};
+
 export type JobAlertRecord = {
   id: string;
   type: string;
@@ -52,6 +59,7 @@ export type JobScanLogRecord = {
 
 export type JobRecord = {
   id: string;
+  roomName: string;
   createdAt: string;
   updatedAt: string;
   status: JobStatus;
@@ -132,6 +140,51 @@ export function buildJobDestinations(items: JobItemRecord[]) {
   });
 
   return Array.from(destinationMap.values());
+}
+
+export function applyDestinationOverrides(
+  items: JobItemRecord[],
+  destinations: JobDestinationRecord[],
+  overrides: JobDestinationOverrideInput[] = [],
+) {
+  const overridesById = new Map(
+    overrides
+      .filter((override) => override.id.trim())
+      .map((override) => [override.id.trim(), override]),
+  );
+
+  const nextDestinations = destinations.map((destination) => {
+    const override = overridesById.get(destination.id);
+
+    if (!override) {
+      return destination;
+    }
+
+    const name = override.name?.trim() || destination.name;
+    const address = override.address?.trim() || name;
+    const radiusMeters =
+      typeof override.radiusMeters === "number" && Number.isFinite(override.radiusMeters) && override.radiusMeters > 0
+        ? override.radiusMeters
+        : destination.radiusMeters;
+
+    return {
+      ...destination,
+      name,
+      address,
+      radiusMeters,
+    };
+  });
+
+  const destinationNames = new Map(nextDestinations.map((destination) => [destination.id, destination.name]));
+  const nextItems = items.map((item) => ({
+    ...item,
+    destinationName: destinationNames.get(item.destinationId) || item.destinationName,
+  }));
+
+  return {
+    items: nextItems,
+    destinations: nextDestinations,
+  };
 }
 
 export function normalizeJobDestination(destination: Partial<JobDestinationRecord>): JobDestinationRecord {

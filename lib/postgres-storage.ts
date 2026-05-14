@@ -71,6 +71,7 @@ async function createSchema(client: PoolClient) {
 
     CREATE TABLE IF NOT EXISTS delivery_jobs (
       delivery_job_id TEXT PRIMARY KEY,
+      job_room_name TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
       job_status TEXT NOT NULL,
@@ -91,6 +92,7 @@ async function createSchema(client: PoolClient) {
 
     CREATE TABLE IF NOT EXISTS delivery_job_history (
       delivery_job_id TEXT PRIMARY KEY,
+      job_room_name TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
       job_status TEXT NOT NULL,
@@ -138,6 +140,12 @@ async function createSchema(client: PoolClient) {
       delete_after_at TIMESTAMPTZ NOT NULL,
       PRIMARY KEY (archived_from_delivery_job_id, line_registry_key)
     );
+
+    ALTER TABLE delivery_jobs
+      ADD COLUMN IF NOT EXISTS job_room_name TEXT NOT NULL DEFAULT '';
+
+    ALTER TABLE delivery_job_history
+      ADD COLUMN IF NOT EXISTS job_room_name TEXT NOT NULL DEFAULT '';
 
     CREATE INDEX IF NOT EXISTS purchase_order_queue_active_idx
       ON purchase_order_queue (record_state, assigned_delivery_job_id, first_imported_at DESC);

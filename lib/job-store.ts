@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  applyDestinationOverrides,
   buildJobDestinations,
   buildJobId,
   buildJobItems,
@@ -12,11 +13,13 @@ import {
   summarizeJobArchive,
   type JobAlertRecord,
   type JobArchiveRecord,
+  type JobDestinationOverrideInput,
   type JobRecord,
   type ScanMode,
 } from "@/lib/jobs";
 import { cleanupExpiredSharedData, hasSharedDatabase, withPostgresClient, withPostgresTransaction } from "@/lib/postgres-storage";
 import { archivePORecordsForCompletedJob, getPORecordsByKeys, markPORecordsAssigned } from "@/lib/po-registry-store";
+import { formatGpsText } from "@/lib/reverse-geocode";
 import {
   mapDatabaseJob,
   mapDatabaseJobArchive,
@@ -25,7 +28,7 @@ import {
   serializeJobRecordForDatabase,
   serializePORegistryArchiveRecordForDatabase,
 } from "@/lib/shared-storage-payloads";
-import { assertWritableStorage } from "@/lib/storage-config";
+import { assertWritableStorage, canUseLocalFileStorage } from "@/lib/storage-config";
 
 type JobStore = {
   jobs: JobRecord[];
@@ -41,6 +44,10 @@ const archiveDataFilePath = path.join(dataDirectoryPath, "job-archives.json");
 const retentionWindowMs = 100 * 24 * 60 * 60 * 1000;
 
 async function ensureStoreFile() {
+  if (!canUseLocalFileStorage()) {
+    return false;
+  }
+
   await mkdir(dataDirectoryPath, { recursive: true });
 
   try {
@@ -48,9 +55,15 @@ async function ensureStoreFile() {
   } catch {
     await writeStore({ jobs: [] });
   }
+
+  return true;
 }
 
 async function ensureArchiveStoreFile() {
+  if (!canUseLocalFileStorage()) {
+    return false;
+  }
+
   await mkdir(dataDirectoryPath, { recursive: true });
 
   try {
@@ -58,6 +71,8 @@ async function ensureArchiveStoreFile() {
   } catch {
     await writeArchiveStore({ jobs: [] });
   }
+
+  return true;
 }
 
 function isExpiredJob(job: JobRecord) {
@@ -80,7 +95,9 @@ function normalizeStoredJob<T extends JobRecord | JobArchiveRecord>(job: T): T {
 }
 
 async function readStore() {
-  await ensureStoreFile();
+  if (!(await ensureStoreFile())) {
+    return { jobs: [] };
+  }
 
   const fileContents = await readFile(dataFilePath, "utf8");
 
@@ -100,7 +117,9 @@ async function readStore() {
 }
 
 async function readArchiveStore() {
-  await ensureArchiveStoreFile();
+  if (!(await ensureArchiveStoreFile())) {
+    return { jobs: [] };
+  }
 
   const fileContents = await readFile(archiveDataFilePath, "utf8");
 
@@ -202,12 +221,12 @@ function applyOriginCheckIn(
     latitude: number;
     longitude: number;
     accuracy?: number;
+    locationText?: string;
   },
 ) {
   const checkedInAt = new Date().toISOString();
-  const accuracyText = typeof input.accuracy === "number" ? ` / accuracy ${Math.round(input.accuracy)} m` : "";
 
-  job.originGps = `${input.latitude.toFixed(6)},${input.longitude.toFixed(6)}${accuracyText}`;
+  job.originGps = formatGpsText(input);
   job.originCheckedInAt = checkedInAt;
   job.updatedAt = checkedInAt;
 
@@ -227,6 +246,7 @@ function applyDestinationCheckIn(
     latitude: number;
     longitude: number;
     accuracy?: number;
+    locationText?: string;
   },
 ) {
   const destination = job.destinations.find((currentDestination) => currentDestination.id === input.destinationId);
@@ -236,9 +256,8 @@ function applyDestinationCheckIn(
   }
 
   const checkedInAt = new Date().toISOString();
-  const accuracyText = typeof input.accuracy === "number" ? ` / accuracy ${Math.round(input.accuracy)} m` : "";
 
-  destination.deliveryGps = `${input.latitude.toFixed(6)},${input.longitude.toFixed(6)}${accuracyText}`;
+  destination.deliveryGps = formatGpsText(input);
   destination.deliveryCheckedInAt = checkedInAt;
   job.updatedAt = checkedInAt;
 
@@ -287,7 +306,7 @@ function formatWrongJobMessage(input: {
   matchedBy: "registryKey" | "materialCode" | "poSapNo";
 }) {
   const details = [
-    `รหัส ${input.code} ไม่อยู่ใน Job ${input.currentJobId}`,
+    `ไม่พบเลข PO หรือรหัส ${input.code} ในรายการของ Job นี้`,
     `รายการนี้อยู่ใน Job ${input.otherJobId}`,
     `ปลายทาง: ${input.destinationName}`,
     `PO: ${input.poSapNo} / Item: ${input.poSapItem}`,
@@ -296,7 +315,7 @@ function formatWrongJobMessage(input: {
   ];
 
   if (input.matchedBy === "poSapNo") {
-    details.push("พบเลข PO นี้ในอีกงานหนึ่ง กรุณาตรวจสอบ item ให้ตรงก่อนส่ง");
+    details.push("พบเลข PO นี้ในอีกงานหนึ่ง กรุณาตรวจสอบ Item ให้ตรงก่อนสแกนต่อ");
   }
 
   return details.join("\n");
@@ -304,8 +323,8 @@ function formatWrongJobMessage(input: {
 
 function formatUnknownJobMessage(code: string, jobId: string) {
   return [
-    `รหัส ${code} ไม่อยู่ใน Job ${jobId} และไม่พบในงานจัดส่งที่กำลังเปิดอยู่`,
-    "กรุณาตรวจสอบว่าเป็นของงานอื่นหรือยังไม่ได้สร้างงาน",
+    `ไม่พบเลข PO หรือรหัส ${code} ในรายการที่เพิ่มไว้สำหรับ Job นี้`,
+    `กรุณาตรวจสอบว่าอยู่ใน Job ${jobId} หรือยังไม่ได้เพิ่มเข้าระบบ`,
   ].join("\n");
 }
 
@@ -642,11 +661,13 @@ async function getJobArchiveFromDatabase(jobId: string) {
 }
 
 async function createJobInDatabase(input: {
+  roomName?: string;
   driver: string;
   vehicle: string;
   origin: string;
   note?: string;
   registryKeys: string[];
+  destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   assertWritableStorage();
   await cleanupExpiredSharedData();
@@ -675,11 +696,17 @@ async function createJobInDatabase(input: {
     `);
     const sequence = sequenceResult.rows[0]?.value ?? "000001";
     const jobId = `${buildJobId(nowDate)}-${sequence}`;
-    const items = buildJobItems(availableRecords);
-    const destinations = buildJobDestinations(items);
+    const baseItems = buildJobItems(availableRecords);
+    const baseDestinations = buildJobDestinations(baseItems);
+    const { items, destinations } = applyDestinationOverrides(
+      baseItems,
+      baseDestinations,
+      input.destinationOverrides,
+    );
 
     const job: JobRecord = {
       id: jobId,
+      roomName: input.roomName?.trim() || `ห้อง ${jobId}`,
       createdAt: now,
       updatedAt: now,
       status: "ready",
@@ -712,6 +739,7 @@ async function createJobInDatabase(input: {
       `
         INSERT INTO delivery_jobs (
           delivery_job_id,
+          job_room_name,
           created_at,
           updated_at,
           job_status,
@@ -728,23 +756,25 @@ async function createJobInDatabase(input: {
         )
         VALUES (
           $1,
-          $2::timestamptz,
+          $2,
           $3::timestamptz,
-          $4,
+          $4::timestamptz,
           $5,
           $6,
           $7,
           $8,
           $9,
-          $10::text[],
-          $11::jsonb,
+          $10,
+          $11::text[],
           $12::jsonb,
           $13::jsonb,
-          $14::jsonb
+          $14::jsonb,
+          $15::jsonb
         )
       `,
       [
         payload.delivery_job_id,
+        payload.job_room_name,
         payload.created_at,
         payload.updated_at,
         payload.job_status,
@@ -770,6 +800,7 @@ async function checkInJobOriginInDatabase(input: {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  locationText?: string;
 }) {
   assertWritableStorage();
 
@@ -813,6 +844,7 @@ async function checkInJobDestinationInDatabase(input: {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  locationText?: string;
 }) {
   assertWritableStorage();
 
@@ -914,6 +946,7 @@ async function registerJobScanInDatabase(input: {
         `
           INSERT INTO delivery_job_history (
             delivery_job_id,
+            job_room_name,
             created_at,
             updated_at,
             job_status,
@@ -934,27 +967,29 @@ async function registerJobScanInDatabase(input: {
           )
           VALUES (
             $1,
-            $2::timestamptz,
+            $2,
             $3::timestamptz,
-            $4,
+            $4::timestamptz,
             $5,
             $6,
             $7,
             $8,
-            $9::timestamptz,
-            $10,
-            $11::text[],
-            $12::jsonb,
+            $9,
+            $10::timestamptz,
+            $11,
+            $12::text[],
             $13::jsonb,
             $14::jsonb,
             $15::jsonb,
-            $16::timestamptz,
+            $16::jsonb,
             $17::timestamptz,
-            $18::timestamptz
+            $18::timestamptz,
+            $19::timestamptz
           )
           ON CONFLICT (delivery_job_id) DO UPDATE
           SET
             created_at = EXCLUDED.created_at,
+            job_room_name = EXCLUDED.job_room_name,
             updated_at = EXCLUDED.updated_at,
             job_status = EXCLUDED.job_status,
             driver_name = EXCLUDED.driver_name,
@@ -974,6 +1009,7 @@ async function registerJobScanInDatabase(input: {
         `,
         [
           archivePayload.delivery_job_id,
+          archivePayload.job_room_name,
           archivePayload.created_at,
           archivePayload.updated_at,
           archivePayload.job_status,
@@ -1217,11 +1253,13 @@ export async function getJobArchive(jobId: string) {
 }
 
 export async function createJob(input: {
+  roomName?: string;
   driver: string;
   vehicle: string;
   origin: string;
   note?: string;
   registryKeys: string[];
+  destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   if (hasSharedDatabase()) {
     return createJobInDatabase(input);
@@ -1240,11 +1278,17 @@ export async function createJob(input: {
   const baseId = buildJobId(new Date());
   const duplicateCount = store.jobs.filter((job) => job.id.startsWith(baseId)).length;
   const jobId = duplicateCount ? `${baseId}-${duplicateCount + 1}` : baseId;
-  const items = buildJobItems(availableRecords);
-  const destinations = buildJobDestinations(items);
+  const baseItems = buildJobItems(availableRecords);
+  const baseDestinations = buildJobDestinations(baseItems);
+  const { items, destinations } = applyDestinationOverrides(
+    baseItems,
+    baseDestinations,
+    input.destinationOverrides,
+  );
 
   const job: JobRecord = {
     id: jobId,
+    roomName: input.roomName?.trim() || `ห้อง ${jobId}`,
     createdAt: now,
     updatedAt: now,
     status: "ready",
@@ -1273,6 +1317,7 @@ export async function checkInJobOrigin(input: {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  locationText?: string;
 }) {
   if (hasSharedDatabase()) {
     return checkInJobOriginInDatabase(input);
@@ -1298,6 +1343,7 @@ export async function checkInJobDestination(input: {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  locationText?: string;
 }) {
   if (hasSharedDatabase()) {
     return checkInJobDestinationInDatabase(input);

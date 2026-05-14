@@ -11,19 +11,37 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
+      roomName?: string;
       driver?: string;
       vehicle?: string;
       origin?: string;
       note?: string;
       registryKeys?: string[];
+      destinationOverrides?: {
+        id?: string;
+        name?: string;
+        address?: string;
+        radiusMeters?: number;
+      }[];
     };
 
     const job = await createJob({
+      roomName: body.roomName ?? "",
       driver: body.driver ?? "",
       vehicle: body.vehicle ?? "",
       origin: body.origin ?? "",
       note: body.note ?? "",
       registryKeys: Array.isArray(body.registryKeys) ? body.registryKeys : [],
+      destinationOverrides: Array.isArray(body.destinationOverrides)
+        ? body.destinationOverrides
+            .filter((destination) => destination.id?.trim())
+            .map((destination) => ({
+              id: destination.id!.trim(),
+              name: destination.name,
+              address: destination.address,
+              radiusMeters: destination.radiusMeters,
+            }))
+        : [],
     });
 
     return NextResponse.json({ job });

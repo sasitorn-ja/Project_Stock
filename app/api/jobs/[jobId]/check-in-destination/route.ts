@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkInJobDestination } from "@/lib/job-store";
+import { reverseGeocodeThaiLocation } from "@/lib/reverse-geocode";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
 
     const latitude = Number(body.latitude);
     const longitude = Number(body.longitude);
+    const locationText = await reverseGeocodeThaiLocation({ latitude, longitude });
 
     const job = await checkInJobDestination({
       jobId,
@@ -30,6 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
       latitude,
       longitude,
       accuracy: body.accuracy,
+      locationText,
     });
 
     return NextResponse.json({ job });

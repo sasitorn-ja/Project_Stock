@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { listJobs } from "@/lib/job-store";
 
+export const dynamic = "force-dynamic";
+
 export default async function JobsPage() {
   const jobs = await listJobs();
 
@@ -44,7 +46,7 @@ export default async function JobsPage() {
                 <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                     <tr>
-                      <th className="w-44 whitespace-nowrap px-4 py-3 font-medium">Job</th>
+                      <th className="w-56 whitespace-nowrap px-4 py-3 font-medium">ห้อง Job</th>
                       <th className="px-4 py-3 font-medium">Route / PO</th>
                       <th className="w-40 whitespace-nowrap px-4 py-3 font-medium">Driver</th>
                       <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">Loaded</th>
@@ -56,7 +58,10 @@ export default async function JobsPage() {
                   <tbody className="divide-y">
                     {jobs.map((job) => (
                       <tr key={job.id}>
-                        <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{job.id}</td>
+                        <td className="px-4 py-3 align-top font-medium">
+                          <span className="block max-w-64 break-words">{job.roomName?.trim() || job.id}</span>
+                          <span className="mt-1 block text-xs font-normal text-muted-foreground">{job.id}</span>
+                        </td>
                         <td className="break-words px-4 py-3 align-top">
                           {job.route}
                           <br />

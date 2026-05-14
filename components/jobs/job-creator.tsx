@@ -27,10 +27,12 @@ export function JobCreator() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [roomName, setRoomName] = useState("");
   const [driver, setDriver] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [origin, setOrigin] = useState("DC Bangna");
   const [note, setNote] = useState("");
+  const [destinationDrafts, setDestinationDrafts] = useState<Record<string, { name: string; address: string }>>({});
 
   useEffect(() => {
     async function loadSelectedRecords() {
@@ -59,12 +61,12 @@ export function JobCreator() {
   }, []);
 
   const groupedDestinations = useMemo(() => {
-    const groups = new Map<string, { id: string; name: string; totalQty: number; poCount: number }>();
+    const groups = new Map<string, { id: string; name: string; address: string; totalQty: number; poCount: number }>();
 
     records.forEach((record) => {
       const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
       const id = createDestinationId(name);
-      const current = groups.get(id) ?? { id, name, totalQty: 0, poCount: 0 };
+      const current = groups.get(id) ?? { id, name, address: name, totalQty: 0, poCount: 0 };
       current.totalQty += Number(record.orderQty.replace(/,/g, "")) || 0;
       current.poCount += 1;
       groups.set(id, current);
@@ -72,6 +74,31 @@ export function JobCreator() {
 
     return Array.from(groups.values());
   }, [records]);
+
+  useEffect(() => {
+    setDestinationDrafts((currentDrafts) =>
+      Object.fromEntries(
+        groupedDestinations.map((destination) => [
+          destination.id,
+          {
+            name: currentDrafts[destination.id]?.name ?? destination.name,
+            address: currentDrafts[destination.id]?.address ?? destination.address,
+          },
+        ]),
+      ),
+    );
+  }, [groupedDestinations]);
+
+  function updateDestinationDraft(destinationId: string, field: "name" | "address", value: string) {
+    setDestinationDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [destinationId]: {
+        name: currentDrafts[destinationId]?.name ?? "",
+        address: currentDrafts[destinationId]?.address ?? "",
+        [field]: value,
+      },
+    }));
+  }
 
   async function handleCreateJob() {
     if (!records.length) {
@@ -84,11 +111,17 @@ export function JobCreator() {
 
     try {
       const job = await createJob({
+        roomName,
         driver,
         vehicle,
         origin,
         note,
         registryKeys: records.map((record) => record.registryKey),
+        destinationOverrides: groupedDestinations.map((destination) => ({
+          id: destination.id,
+          name: destinationDrafts[destination.id]?.name ?? destination.name,
+          address: destinationDrafts[destination.id]?.address ?? destination.address,
+        })),
       });
 
       window.sessionStorage.removeItem(storageKey);
@@ -166,9 +199,18 @@ export function JobCreator() {
         <Card>
           <CardHeader>
             <CardTitle>รายละเอียดงานขนส่ง</CardTitle>
-            <CardDescription>กำหนดผู้รับผิดชอบงานจริงก่อนบันทึกเข้าระบบ โดยปลายทางของงานจะอ้างอิงจาก PO ที่เลือกไว้เท่านั้น</CardDescription>
+          <CardDescription>กำหนดผู้รับผิดชอบงานจริง และปรับชื่อปลายทาง/ที่อยู่ก่อนบันทึกเข้าระบบ โดยค่าเริ่มต้นจะอ้างอิงจากชื่อหน่วยงานในไฟล์ GR</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="room-name">ชื่อห้อง Job</Label>
+              <Input
+                id="room-name"
+                value={roomName}
+                onChange={(event) => setRoomName(event.target.value)}
+                placeholder="เช่น รอบเช้า บางซื่อ-ลาดพร้าว / ส่งของร้าน A"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="vehicle">รถขนส่ง</Label>
               <Input id="vehicle" value={vehicle} onChange={(event) => setVehicle(event.target.value)} placeholder="เช่น 6W-4382" />
@@ -197,14 +239,39 @@ export function JobCreator() {
                   <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
                   สรุปปลายทาง
                 </div>
-                <p className="mt-2 text-muted-foreground">ปลายทางทั้งหมดด้านล่างถูกสร้างมาจากรายการ PO ที่ admin เลือกเข้า job นี้</p>
-                <div className="mt-3 space-y-2">
+                <p className="mt-2 text-muted-foreground">ระบบตั้งต้นปลายทางจากชื่อหน่วยงานในไฟล์ GR และคุณสามารถแก้ชื่อที่แสดงหรือที่อยู่ให้ตรงกับสถานที่จริงได้ก่อนสร้าง Job</p>
+                <div className="mt-3 space-y-3">
                   {groupedDestinations.map((destination) => (
-                    <div key={destination.id} className="flex items-center justify-between gap-3 rounded-md border bg-white px-3 py-2 dark:bg-slate-950">
-                      <span className="min-w-0 break-words">{destination.name}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {destination.poCount.toLocaleString("th-TH")} รายการ / {destination.totalQty.toLocaleString("th-TH")} ชิ้น
-                      </span>
+                    <div key={destination.id} className="space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">{destinationDrafts[destination.id]?.name || destination.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">รหัสปลายทาง: {destination.id}</p>
+                        </div>
+                        <span className="shrink-0 text-muted-foreground">
+                          {destination.poCount.toLocaleString("th-TH")} รายการ / {destination.totalQty.toLocaleString("th-TH")} ชิ้น
+                        </span>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor={`destination-name-${destination.id}`}>ชื่อปลายทาง</Label>
+                          <Input
+                            id={`destination-name-${destination.id}`}
+                            value={destinationDrafts[destination.id]?.name ?? destination.name}
+                            onChange={(event) => updateDestinationDraft(destination.id, "name", event.target.value)}
+                            placeholder="ชื่อปลายทางที่ใช้ในงานจริง"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`destination-address-${destination.id}`}>ที่อยู่ / โลเคชัน</Label>
+                          <Input
+                            id={`destination-address-${destination.id}`}
+                            value={destinationDrafts[destination.id]?.address ?? destination.address}
+                            onChange={(event) => updateDestinationDraft(destination.id, "address", event.target.value)}
+                            placeholder="อาคาร, จุดส่ง, หรือคำอธิบายสถานที่"
+                          />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

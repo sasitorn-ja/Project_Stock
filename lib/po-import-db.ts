@@ -8,7 +8,8 @@ const legacyStorageKey = "project-stock.imported-po-sap-nos";
 
 async function readResponse<T>(response: Response) {
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
   }
 
   return (await response.json()) as T;
@@ -80,11 +81,25 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
 }
 
 export async function clearPORegistry() {
-  await readResponse<{ cleared: true }>(
+  await readResponse<{ cleared: true; deletedCount: number | null }>(
     await fetch("/api/po-registry", {
       method: "DELETE",
     }),
   );
+}
+
+export async function deletePORecords(registryKeys: string[]) {
+  const data = await readResponse<{ deletedCount: number }>(
+    await fetch("/api/po-registry", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ registryKeys }),
+    }),
+  );
+
+  return data.deletedCount;
 }
 
 export async function migrateLegacyPORegistry() {

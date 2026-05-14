@@ -32,6 +32,7 @@ export type PORegistryDatabasePayload = {
 
 export type JobDatabasePayload = {
   delivery_job_id: string;
+  job_room_name: string;
   created_at: string;
   updated_at: string;
   job_status: JobRecord["status"];
@@ -52,6 +53,7 @@ export type JobDatabasePayload = {
 
 export type JobArchiveDatabasePayload = {
   delivery_job_id: string;
+  job_room_name: string;
   created_at: string;
   updated_at: string;
   job_status: JobRecord["status"];
@@ -182,6 +184,7 @@ export function mapDatabasePORecord(row: DatabaseRow): PORegistryRecord {
 export function serializeJobRecordForDatabase(job: JobRecord): JobDatabasePayload {
   return {
     delivery_job_id: job.id,
+    job_room_name: job.roomName,
     created_at: job.createdAt,
     updated_at: job.updatedAt,
     job_status: job.status,
@@ -204,6 +207,7 @@ export function serializeJobRecordForDatabase(job: JobRecord): JobDatabasePayloa
 export function serializeJobArchiveRecordForDatabase(job: JobArchiveRecord): JobArchiveDatabasePayload {
   return {
     delivery_job_id: job.id,
+    job_room_name: job.roomName,
     created_at: job.createdAt,
     updated_at: job.updatedAt,
     job_status: job.status,
@@ -227,6 +231,7 @@ export function serializeJobArchiveRecordForDatabase(job: JobArchiveRecord): Job
 export function mapDatabaseJobArchive(row: DatabaseRow): JobArchiveRecord {
   return {
     id: String(row.delivery_job_id ?? ""),
+    roomName: String(row.job_room_name ?? row.delivery_job_id ?? ""),
     createdAt: toOptionalIsoString(row.created_at) ?? new Date(0).toISOString(),
     updatedAt: toOptionalIsoString(row.updated_at) ?? new Date(0).toISOString(),
     status: String(row.job_status ?? "ready") as JobRecord["status"],
@@ -286,6 +291,7 @@ export function serializePORegistryArchiveRecordForDatabase(
 export function mapDatabaseJob(row: DatabaseRow): JobRecord {
   return {
     id: String(row.delivery_job_id ?? ""),
+    roomName: String(row.job_room_name ?? row.delivery_job_id ?? ""),
     createdAt: toOptionalIsoString(row.created_at) ?? new Date(0).toISOString(),
     updatedAt: toOptionalIsoString(row.updated_at) ?? new Date(0).toISOString(),
     status: String(row.job_status ?? "ready") as JobRecord["status"],

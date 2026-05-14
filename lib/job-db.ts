@@ -30,11 +30,18 @@ export async function getJob(jobId: string) {
 }
 
 export async function createJob(input: {
+  roomName?: string;
   driver: string;
   vehicle: string;
   origin: string;
   note?: string;
   registryKeys: string[];
+  destinationOverrides?: {
+    id: string;
+    name?: string;
+    address?: string;
+    radiusMeters?: number;
+  }[];
 }) {
   const data = await readResponse<{ job: JobRecord }>(
     await fetch("/api/jobs", {

@@ -1,42 +1,80 @@
 "use client";
 
-import { Bell, Menu, Truck } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ChevronDown, LogOut, Menu, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-export function Header({ onMenuClick }: { onMenuClick: () => void }) {
+export function Header({
+  isSidebarOpen,
+  isMobileOpen,
+  onMenuClick,
+  onToggleSidebar,
+}: {
+  isSidebarOpen: boolean;
+  isMobileOpen: boolean;
+  onMenuClick: () => void;
+  onToggleSidebar: () => void;
+}) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/85 md:px-8">
-      <div className="flex min-w-0 items-center gap-3">
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0 lg:hidden"
-          title="เปิดเมนู"
-          onClick={onMenuClick}
-        >
-          <Menu className="h-4 w-4" />
-        </Button>
-        <div className="hidden h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300 sm:flex">
-          <Truck className="h-5 w-5" />
+    <header className="sticky top-0 z-30 h-14 border-b border-[#d8dde6] bg-white">
+      <div className="flex h-full items-center justify-between px-4 md:px-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8 shrink-0 border-[#d8dde6] bg-white text-slate-900 hover:bg-slate-100 lg:hidden"
+            title={isMobileOpen ? "ปิดเมนู" : "เปิดเมนู"}
+            aria-label={isMobileOpen ? "ปิดเมนู" : "เปิดเมนู"}
+            aria-expanded={isMobileOpen}
+            onClick={onMenuClick}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="hidden size-8 shrink-0 border-[#d8dde6] bg-white text-slate-900 hover:bg-slate-100 lg:inline-flex"
+            title={isSidebarOpen ? "ซ่อนเมนู" : "แสดงเมนู"}
+            aria-label={isSidebarOpen ? "ซ่อนเมนู" : "แสดงเมนู"}
+            aria-expanded={isSidebarOpen}
+            onClick={onToggleSidebar}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold tracking-normal text-slate-900 dark:text-slate-100 md:text-lg">
-            Store QR Job Transport
-          </h1>
-          <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
-            ระบบขนส่ง ตรวจรับ-ส่งสินค้าแบบเป็น Job
-          </p>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-[#d8dde6] bg-white px-2 text-left text-sm font-medium text-slate-900 outline-none transition hover:bg-slate-100">
+              <span className="flex size-6 items-center justify-center rounded-md border border-[#d8dde6] bg-[#171717] text-[11px] font-semibold text-white">
+                ST
+              </span>
+              <span className="hidden sm:block">Store Transport</span>
+              <ChevronDown className="size-4 text-slate-500" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={6}
+                className="z-50 min-w-44 rounded-md border border-[#d8dde6] bg-white p-1 text-sm text-slate-900 shadow-none"
+              >
+                <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 outline-none hover:bg-slate-100">
+                  <User className="size-4 text-slate-500" />
+                  บัญชีผู้ใช้
+                </DropdownMenu.Item>
+                <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 outline-none hover:bg-slate-100">
+                  <Settings className="size-4 text-slate-500" />
+                  ตั้งค่า
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 h-px bg-[#d8dde6]" />
+                <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-red-700 outline-none hover:bg-red-50">
+                  <LogOut className="size-4" />
+                  ออกจากระบบ
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2 md:gap-4">
-        <ThemeToggle />
-
-        <Button variant="outline" size="icon" className="relative hidden sm:inline-flex" title="แจ้งเตือน">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 flex h-2 w-2 rounded-full bg-red-500" />
-        </Button>
       </div>
     </header>
   );

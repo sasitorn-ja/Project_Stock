@@ -2,18 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
+import { clearPORegistry, deletePORecords, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
 
 export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -96,6 +97,7 @@ export function PORegistryList() {
     try {
       setIsLoading(true);
       setError("");
+      setSuccessMessage("");
       const result = await getPORecordsPage({ page: 1, pageSize: Math.max(totalCount, pageSize), query });
       setSelectedKeys(result.records.map((record) => record.registryKey));
     } catch {
@@ -106,11 +108,91 @@ export function PORegistryList() {
   }
 
   function refreshRecords() {
+    setSuccessMessage("");
     setReloadToken((current) => current + 1);
   }
 
   function clearSearch() {
     setQuery("");
+  }
+
+  async function deleteSelectedRecords() {
+    if (!selectedKeys.length) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ลบ PO ที่เลือก ${selectedKeys.length.toLocaleString("th-TH")} รายการออกจากคิวรอจัดส่ง?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+      setSuccessMessage("");
+      const deletedCount = await deletePORecords(selectedKeys);
+      setSelectedKeys([]);
+      setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
+      setReloadToken((current) => current + 1);
+    } catch {
+      setError("ลบข้อมูล PO ที่เลือกไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function deleteRecord(record: PORegistryRecord) {
+    const confirmed = window.confirm(`ลบ PO ${record.poSapNo} item ${record.poSapItem} ออกจากคิวรอจัดส่ง?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+      setSuccessMessage("");
+      const deletedCount = await deletePORecords([record.registryKey]);
+      setSelectedKeys((currentKeys) => currentKeys.filter((registryKey) => registryKey !== record.registryKey));
+      setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
+      setReloadToken((current) => current + 1);
+    } catch {
+      setError("ลบข้อมูล PO ไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function clearAllRecords() {
+    if (!totalCount) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ล้างข้อมูล PO รอจัดส่งทั้งหมด ${totalCount.toLocaleString("th-TH")} รายการ? รายการที่สร้าง Job แล้วจะไม่ถูกลบ`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+      setSuccessMessage("");
+      await clearPORegistry();
+      setSelectedKeys([]);
+      setPage(1);
+      setSuccessMessage("ล้างข้อมูล PO รอจัดส่งทั้งหมดแล้ว");
+      setReloadToken((current) => current + 1);
+    } catch {
+      setError("ล้างข้อมูล PO ไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -124,6 +206,17 @@ export function PORegistryList() {
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
               รีเฟรชรายการ
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={clearAllRecords}
+              disabled={!totalCount || isLoading}
+              className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              ล้างคิวทั้งหมด
             </Button>
             <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
           </div>
@@ -155,6 +248,17 @@ export function PORegistryList() {
               >
                 เลือกทั้งหมดตามผลค้นหา
               </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={deleteSelectedRecords}
+                disabled={!selectedKeys.length || isLoading}
+                className="sm:whitespace-nowrap"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                ลบรายการที่เลือก
+              </Button>
             </div>
             <Button
               type="button"
@@ -167,6 +271,12 @@ export function PORegistryList() {
             </Button>
           </div>
         </div>
+
+        {successMessage ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+            {successMessage}
+          </div>
+        ) : null}
 
         {isLoading ? (
           <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
@@ -202,6 +312,7 @@ export function PORegistryList() {
                     <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">รหัสวัสดุ</th>
                     <th className="w-80 px-4 py-3 font-medium">ชื่อวัสดุ</th>
                     <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">จำนวนสั่งซื้อ</th>
+                    <th className="w-24 whitespace-nowrap px-4 py-3 text-right font-medium">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -224,6 +335,19 @@ export function PORegistryList() {
                       <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
                       <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
                       <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
+                      <td className="px-4 py-3 text-right align-top">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="ลบรายการนี้"
+                          onClick={() => deleteRecord(record)}
+                          disabled={isLoading}
+                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

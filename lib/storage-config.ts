@@ -9,7 +9,7 @@ export type StorageStatus = {
 };
 
 export function getStorageStatus(): StorageStatus {
-  const hosted = Boolean(process.env.VERCEL);
+  const hosted = isHostedRuntime();
   const sharedDatabase = hasSharedDatabase();
 
   if (sharedDatabase) {
@@ -42,6 +42,14 @@ export function getStorageStatus(): StorageStatus {
     message:
       "ระบบกำลังใช้ local file storage บนเครื่องนี้ ข้อมูลจะเห็นร่วมกันเฉพาะ instance เดียวกันเท่านั้น",
   };
+}
+
+export function isHostedRuntime() {
+  return Boolean(process.env.VERCEL);
+}
+
+export function canUseLocalFileStorage() {
+  return !isHostedRuntime();
 }
 
 export function assertWritableStorage() {

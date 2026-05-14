@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, FileText, MapPin, QrCode, ScanLine, Truck } from "lucide-react";
+import { Camera, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobRecord, type ScanMode } from "@/lib/jobs";
 
-const driverScanChecks = [
-  "อยู่ใน PO ของ Job นี้",
-  "เป็นของ Location ปัจจุบัน",
-  "จำนวนไม่เกินแผน",
-  "อยู่ในลำดับ flow ที่ถูกต้อง",
-];
+type BarcodeDetectorShape = {
+  detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>>;
+};
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[];
+}) => BarcodeDetectorShape;
 
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
@@ -33,6 +34,9 @@ async function requestCurrentPosition() {
 }
 
 export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanLockRef = useRef(false);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [selectedJobId, setSelectedJobId] = useState(initialJobId ?? "");
   const [job, setJob] = useState<JobRecord | null>(null);
@@ -44,8 +48,14 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
   const [latestGps, setLatestGps] = useState("");
+  const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน QR Code หรือ Barcode");
+  const [isCameraScanning, setIsCameraScanning] = useState(false);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
 
   useEffect(() => {
     async function loadJobs() {
@@ -93,6 +103,11 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const hasDestinationCheckIn = Boolean(currentDestination?.deliveryCheckedInAt && currentDestination.deliveryGps);
   const isDestinationGpsRequired = mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
   const isScanBlocked = isOriginGpsRequired || isDestinationGpsRequired;
+  const requiredTotal = job?.items.reduce((sum, item) => sum + item.orderQty, 0) ?? 0;
+  const loadedTotal = job?.items.reduce((sum, item) => sum + item.loadedQty, 0) ?? 0;
+  const deliveredTotal = job?.items.reduce((sum, item) => sum + item.deliveredQty, 0) ?? 0;
+  const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้อง Job";
+  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : isDestinationGpsRequired ? 2 : 3;
 
   async function captureOriginGps() {
     if (!job) {
@@ -110,7 +125,6 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       const accuracy = position.coords.accuracy;
       const gpsText = `${latitude.toFixed(6)},${longitude.toFixed(6)} / accuracy ${Math.round(accuracy)} m`;
 
-      setLatestGps(gpsText);
       const nextJob = await checkInJobOrigin({
         jobId: job.id,
         latitude,
@@ -119,6 +133,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       });
 
       setJob(nextJob);
+      setLatestGps(nextJob.originGps || gpsText);
       setMessage("ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
       setScanResult("ok");
     } catch (error) {
@@ -145,7 +160,6 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       const accuracy = position.coords.accuracy;
       const gpsText = `${latitude.toFixed(6)},${longitude.toFixed(6)} / accuracy ${Math.round(accuracy)} m`;
 
-      setLatestGps(gpsText);
       const nextJob = await checkInJobDestination({
         jobId: job.id,
         destinationId: currentDestination.id,
@@ -155,6 +169,8 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       });
 
       setJob(nextJob);
+      const nextDestination = nextJob.destinations.find((destination) => destination.id === currentDestination.id);
+      setLatestGps(nextDestination?.deliveryGps || gpsText);
       setMessage(`เช็กอิน GPS ปลายทาง ${currentDestination.name} เรียบร้อยแล้ว`);
       setScanResult("ok");
     } catch (error) {
@@ -165,9 +181,16 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
   }
 
-  async function handleScanSubmit() {
+  async function submitScannedCode(nextCode: string) {
     if (!job) {
       setMessage("ยังไม่มี Job ให้สแกน");
+      setScanResult("alert");
+      return;
+    }
+
+    const normalizedCode = nextCode.trim();
+    if (!normalizedCode) {
+      setMessage("กรุณาสแกนหรือกรอกรหัสก่อนบันทึก");
       setScanResult("alert");
       return;
     }
@@ -177,7 +200,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     try {
       const response = await submitJobScan({
         jobId: job.id,
-        code,
+        code: normalizedCode,
         mode,
         destinationId: mode === "deliver" ? currentDestination?.id : undefined,
       });
@@ -194,309 +217,347 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
   }
 
+  async function handleScanSubmit() {
+    await submitScannedCode(code);
+  }
+
+  async function startCamera() {
+    if (isScanBlocked) {
+      setCameraMessage("ต้องเช็กอิน GPS ตามขั้นตอนก่อนเปิดกล้องสแกน");
+      return;
+    }
+
+    if (!("mediaDevices" in navigator)) {
+      setCameraMessage("อุปกรณ์นี้ไม่รองรับการเปิดกล้องผ่านเว็บ");
+      return;
+    }
+
+    const BarcodeDetector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+
+    if (!BarcodeDetector) {
+      setCameraMessage("เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector กรุณาคีย์รหัสแทน");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      scanLockRef.current = false;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setIsCameraScanning(true);
+      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode");
+      void scanCameraLoop(new BarcodeDetector({
+        formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e"],
+      }));
+    } catch {
+      setCameraMessage("เปิดกล้องไม่ได้ กรุณาอนุญาตสิทธิ์กล้อง หรือใช้การคีย์รหัสแทน");
+    }
+  }
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    scanLockRef.current = false;
+    setIsCameraScanning(false);
+  }
+
+  async function scanCameraLoop(detector: BarcodeDetectorShape) {
+    while (streamRef.current && videoRef.current) {
+      try {
+        const codes = await detector.detect(videoRef.current);
+        const scannedCode = codes[0]?.rawValue?.trim();
+
+        if (scannedCode && !scanLockRef.current) {
+          scanLockRef.current = true;
+          setCode(scannedCode);
+          setCameraMessage(`พบรหัส ${scannedCode} กำลังบันทึก`);
+          stopCamera();
+          await submitScannedCode(scannedCode);
+          break;
+        }
+      } catch {
+        setCameraMessage("กำลังค้นหารหัสจากภาพกล้อง");
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">งานปัจจุบัน</CardTitle>
-              <CardDescription>{job ? `${job.id} / ${job.vehicle || "-"}` : "ยังไม่ได้เลือก Job"}</CardDescription>
-            </div>
-            <Badge variant={mode === "load" ? "warning" : "success"}>
-              {mode === "load" ? "โหลดต้นทาง" : "ส่งปลายทาง"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {!isDedicatedDriverMode ? (
-            <div className="space-y-2">
-              <Label htmlFor="job-selector">เลือก Job</Label>
-              <select
-                id="job-selector"
-                value={selectedJobId}
-                onChange={(event) => setSelectedJobId(event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">เลือก Job</option>
-                {jobs.map((currentJob) => (
-                  <option key={currentJob.id} value={currentJob.id}>
-                    {currentJob.id}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          {job ? (
-            <div className="grid gap-2 text-sm">
-              <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                <span className="text-muted-foreground">คนขับ</span>
-                <span className="min-w-0 break-words text-right font-medium">{job.driver || "-"}</span>
-              </div>
-              <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                <span className="text-muted-foreground">ต้นทาง</span>
-                <span className="min-w-0 break-words text-right font-medium">{job.origin || "-"}</span>
-              </div>
-              <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                <span className="text-muted-foreground">GPS ต้นทางจริง</span>
-                <span className="min-w-0 break-words text-right font-medium">{job.originGps || "ยังไม่เช็กอินจากอุปกรณ์"}</span>
-              </div>
-              <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                <span className="text-muted-foreground">ปลายทางปัจจุบัน</span>
-                <span className="min-w-0 break-words text-right font-medium">{currentDestination?.name || "-"}</span>
-              </div>
-              {mode === "deliver" && currentDestination ? (
-                <div className="flex justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                  <span className="text-muted-foreground">GPS ปลายทางจริง</span>
-                  <span className="min-w-0 break-words text-right font-medium">
-                    {currentDestination.deliveryGps || "ยังไม่เช็กอินปลายทางนี้"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
       {!isDedicatedDriverMode ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4" />
-              PO ในงานนี้
-            </CardTitle>
-            <CardDescription>รายการจริงที่ต้องโหลดและส่งใน Job ที่เลือก</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {job?.items.length ? (
-              job.destinations.map((destination) => {
-                const items = job.items.filter((item) => item.destinationId === destination.id);
-
-                return (
-                  <div key={destination.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{destination.name}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{destination.id}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          GPS ส่งของ: {destination.deliveryGps || "ยังไม่เช็กอิน"}
-                        </p>
-                      </div>
-                      <Badge variant="secondary">{items.reduce((sum, item) => sum + item.orderQty, 0)} pcs</Badge>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {items.map((item) => (
-                        <div
-                          key={item.registryKey}
-                          className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm dark:bg-slate-900"
-                        >
-                          <span className="min-w-0 break-words">
-                            {item.materialCode || item.registryKey} - {item.materialName || "-"}
-                          </span>
-                          <span className="ml-3 shrink-0 font-semibold">
-                            {item.deliveredQty}/{item.loadedQty}/{item.orderQty}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-lg border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-                ยังไม่มีรายการใน Job นี้
-              </div>
-            )}
+          <CardContent className="space-y-2 pt-5">
+            <Label htmlFor="job-selector">เลือกห้อง Job</Label>
+            <select
+              id="job-selector"
+              value={selectedJobId}
+              onChange={(event) => setSelectedJobId(event.target.value)}
+              className="h-10 w-full rounded-md border border-[#cfd6df] bg-white px-3 text-sm text-slate-900"
+            >
+              <option value="">เลือกห้อง Job</option>
+              {jobs.map((currentJob) => (
+                <option key={currentJob.id} value={currentJob.id}>
+                  {(currentJob.roomName?.trim() || currentJob.id)} - {currentJob.vehicle || "ไม่ระบุรถ"}
+                </option>
+              ))}
+            </select>
           </CardContent>
         </Card>
       ) : null}
 
-      <Card className={isDedicatedDriverMode ? "border-cyan-200 shadow-sm dark:border-cyan-900" : undefined}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ScanLine className="h-4 w-4" />
-            {isDedicatedDriverMode ? "หน้าปฏิบัติงานคนขับ" : "สแกนบาร์โค้ด"}
-          </CardTitle>
-          <CardDescription>
-            {isDedicatedDriverMode
-              ? "หน้านี้ออกแบบให้คนขับใช้งานอย่างเดียว ไม่มีเมนูฝั่งแอดมิน"
-              : "กรอกรหัสวัสดุ, เลข PO หรือ registry key เพื่อบันทึกขึ้นรถ/ส่งปลายทางจริง"}
-          </CardDescription>
-        </CardHeader>
+      <section className="rounded-lg border border-[#d8dde6] bg-white px-4 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Driver Room</p>
+            <h2 className="mt-1 break-words text-2xl font-bold tracking-normal text-slate-950">{roomTitle}</h2>
+            <p className="mt-1 break-words text-sm text-slate-500">
+              {job ? `${job.id} / รถ ${job.vehicle || "-"} / คนขับ ${job.driver || "-"}` : "เลือกห้อง Job เพื่อเริ่มงาน"}
+            </p>
+          </div>
+          <Badge variant={mode === "load" ? "warning" : "success"} className="w-fit">
+            {mode === "load" ? "โหมดขึ้นรถ" : "โหมดส่งปลายทาง"}
+          </Badge>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-3">
+            <p className="text-xs text-slate-500">ต้องโหลด</p>
+            <p className="mt-1 text-lg font-semibold text-slate-950">{requiredTotal.toLocaleString("th-TH")} ชิ้น</p>
+          </div>
+          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-3">
+            <p className="text-xs text-slate-500">ขึ้นรถแล้ว</p>
+            <p className="mt-1 text-lg font-semibold text-slate-950">{loadedTotal.toLocaleString("th-TH")} ชิ้น</p>
+          </div>
+          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-3">
+            <p className="text-xs text-slate-500">ส่งแล้ว</p>
+            <p className="mt-1 text-lg font-semibold text-slate-950">{deliveredTotal.toLocaleString("th-TH")} ชิ้น</p>
+          </div>
+        </div>
+      </section>
+
+      <Card>
+        <CardContent className="grid gap-3 pt-5 md:grid-cols-3">
+          {[
+            ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
+            ["2", "เลือกโหมดงาน", mode === "load" ? "ขึ้นรถ" : "ส่งปลายทาง"],
+            ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
+          ].map(([step, label, status]) => (
+            <div
+              key={step}
+              className={`rounded-md border px-3 py-3 ${
+                Number(step) <= activeStep ? "border-slate-900 bg-slate-950 text-white" : "border-[#d8dde6] bg-white text-slate-700"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-950">{step}</span>
+                <span className="font-medium">{label}</span>
+              </div>
+              <p className={Number(step) <= activeStep ? "mt-2 text-xs text-slate-200" : "mt-2 text-xs text-slate-500"}>{status}</p>
+            </div>
+          ))}
+        </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="space-y-5 pt-6">
-          <div className="rounded-lg border bg-cyan-50 p-4 text-sm text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200">
-            <div className="flex items-center gap-2 font-medium">
-              <MapPin className="h-4 w-4" />
-              GPS จากอุปกรณ์
-            </div>
-            <p className="mt-2">ระบบจะใช้พิกัดจากมือถือเครื่องนี้เท่านั้น ไม่รับการพิมพ์ตำแหน่งเอง และต้องเช็กอินตามขั้นตอนก่อนสแกน</p>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button type="button" variant="outline" onClick={captureOriginGps} disabled={!job || isFetchingOriginGps}>
-                {isFetchingOriginGps ? "กำลังดึง GPS ต้นทาง" : "เช็กอิน GPS ต้นทาง"}
-              </Button>
-              <span className="text-xs text-cyan-900 dark:text-cyan-100">{latestGps || job?.originGps || "ยังไม่มีพิกัดจากอุปกรณ์"}</span>
-            </div>
-            {isOriginGpsRequired ? (
-              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                ต้องเช็กอิน GPS ต้นทางก่อน ระบบจึงจะเปิดให้สแกนขึ้นรถหรือส่งปลายทาง
-              </p>
-            ) : null}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Button type="button" variant={mode === "load" ? "default" : "outline"} onClick={() => setMode("load")} disabled={isOriginGpsRequired}>
-              <Truck className="mr-2 h-4 w-4" />
-              โหมดขึ้นรถ
-            </Button>
-            <Button type="button" variant={mode === "deliver" ? "default" : "outline"} onClick={() => setMode("deliver")} disabled={isOriginGpsRequired}>
-              <QrCode className="mr-2 h-4 w-4" />
-              โหมดส่งปลายทาง
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MapPin className="h-4 w-4" />
+            จุดเช็กอิน
+          </CardTitle>
+          <CardDescription>ใช้พิกัดจากมือถือเครื่องนี้เท่านั้น</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
+            <p className="text-sm font-medium">ต้นทาง</p>
+            <p className="mt-1 text-sm text-slate-500">{job?.origin || "-"}</p>
+            <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">{job?.originGps || "ยังไม่เช็กอิน"}</p>
+            <Button type="button" variant="outline" className="mt-3 w-full" onClick={captureOriginGps} disabled={!job || isFetchingOriginGps}>
+              {isFetchingOriginGps ? "กำลังดึง GPS" : hasOriginCheckIn ? "เช็กอินต้นทางใหม่" : "เช็กอินต้นทาง"}
             </Button>
           </div>
 
-          {mode === "deliver" && job?.destinations.length ? (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="space-y-2">
-                <Label htmlFor="destination-selector">เลือกปลายทางปัจจุบัน</Label>
-                <select
-                  id="destination-selector"
-                  value={currentLocation}
-                  onChange={(event) => setCurrentLocation(event.target.value)}
-                  disabled={isOriginGpsRequired}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {job.destinations.map((destination) => (
-                    <option key={destination.id} value={destination.id}>
-                      {destination.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-900">
-                <p className="font-medium">สถานะ GPS ปลายทาง</p>
-                <p className="mt-1 text-muted-foreground">{currentDestination?.deliveryGps || "ยังไม่เช็กอินปลายทางนี้"}</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={captureDestinationGps}
-                disabled={!job || !currentDestination || isOriginGpsRequired || isFetchingDestinationGps}
+          <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
+            <p className="text-sm font-medium">ปลายทางปัจจุบัน</p>
+            {job?.destinations.length ? (
+              <select
+                value={currentLocation}
+                onChange={(event) => setCurrentLocation(event.target.value)}
+                disabled={isOriginGpsRequired}
+                className="mt-2 h-10 w-full rounded-md border border-[#cfd6df] bg-white px-3 text-sm text-slate-900"
               >
-                {isFetchingDestinationGps ? "กำลังเช็กอิน GPS ปลายทาง" : "เช็กอิน GPS ปลายทางนี้"}
-              </Button>
-              {isDestinationGpsRequired ? (
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                  ต้องเช็กอิน GPS ของปลายทาง {currentDestination?.name} ก่อน จึงจะสแกนส่งของได้
-                </p>
-              ) : null}
+                {job.destinations.map((destination) => (
+                  <option key={destination.id} value={destination.id}>
+                    {destination.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">ยังไม่มีปลายทาง</p>
+            )}
+            <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">
+              {currentDestination?.deliveryGps || "ยังไม่เช็กอินปลายทาง"}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3 w-full"
+              onClick={captureDestinationGps}
+              disabled={!job || !currentDestination || isOriginGpsRequired || isFetchingDestinationGps}
+            >
+              {isFetchingDestinationGps ? "กำลังดึง GPS" : hasDestinationCheckIn ? "เช็กอินปลายทางใหม่" : "เช็กอินปลายทาง"}
+            </Button>
+          </div>
+
+          {(isOriginGpsRequired || isDestinationGpsRequired) && job ? (
+            <div className="md:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {isOriginGpsRequired
+                ? "ต้องเช็กอิน GPS ต้นทางก่อน จึงจะเปิดให้สแกนสินค้า"
+                : `ต้องเช็กอิน GPS ปลายทาง ${currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้`}
             </div>
           ) : null}
-
-          <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-slate-950">
-            <div className="absolute inset-0 grid place-items-center text-center text-slate-200">
-              <div>
-                <ScanLine className="mx-auto mb-3 h-12 w-12" />
-                <p className="text-sm">พร้อมเชื่อมกล้อง/เครื่องสแกนภายนอกในขั้นถัดไป</p>
-                <p className="mt-1 text-xs text-slate-400">รอบนี้บันทึกข้อมูลจริงผ่านการคีย์รหัสก่อน</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="scan-code">รหัสที่สแกน</Label>
-            <Input
-              id="scan-code"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              disabled={isScanBlocked}
-              placeholder="เช่น material code, PO SAP No. หรือ registry key"
-            />
-          </div>
-
-          <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked}>
-            บันทึกการสแกน
-          </Button>
-
-          {job?.items.length ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {job.items.slice(0, 6).map((item) => (
-                <Button
-                  key={item.registryKey}
-                  type="button"
-                  variant="outline"
-                  disabled={isScanBlocked}
-                  onClick={() => setCode(item.materialCode || item.registryKey)}
-                >
-                  ใช้ {item.materialCode || item.registryKey}
-                </Button>
-              ))}
+          {latestGps ? (
+            <div className="md:col-span-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              พิกัดล่าสุด: {latestGps}
             </div>
           ) : null}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">ผลการตรวจ</CardTitle>
-          <CardDescription>สถานะล่าสุดของการสแกนและเงื่อนไขตรวจสอบหลัก</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ScanLine className="h-4 w-4" />
+            สแกนสินค้า
+          </CardTitle>
+          <CardDescription>เลือกโหมดให้ตรงกับงานที่ทำอยู่ แล้วสแกนหรือกรอกรหัส</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3">
-            {driverScanChecks.map((label) => {
-              const ok = scanResult !== "alert";
-
-              return (
-                <div key={label} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                  <span>{label}</span>
-                  {ok ? (
-                    <Badge variant="success">
-                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> ผ่าน
-                    </Badge>
-                  ) : (
-                    <Badge variant="warning">
-                      <AlertTriangle className="mr-1 h-3.5 w-3.5" /> Alert
-                    </Badge>
-                  )}
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(280px,420px)_1fr] lg:items-start">
+          <div className="relative aspect-video max-h-[260px] overflow-hidden rounded-lg border bg-slate-950 lg:max-h-[220px]">
+            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="h-24 w-48 max-w-[72%] rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.38)]" />
+            </div>
+            {!isCameraScanning ? (
+              <div className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200">
+                <div>
+                  <Camera className="mx-auto mb-2 h-8 w-8" />
+                  <p className="text-xs">{cameraMessage}</p>
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="rounded-lg border p-4">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <MapPin className="h-4 w-4 text-cyan-700" />
-              ปลายทางที่เลือก
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {currentDestination ? `${currentDestination.name} / radius ${currentDestination.radiusMeters} m` : "ยังไม่ได้เลือกปลายทาง"}
-            </p>
-            {mode === "deliver" && currentDestination ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                สถานะเช็กอินปลายทาง: {currentDestination.deliveryCheckedInAt ? "พร้อมส่ง" : "ยังไม่เช็กอิน"}
-              </p>
+              </div>
             ) : null}
           </div>
 
-          {message ? (
-            scanResult === "alert" ? (
-              <div className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-                {message}
-              </div>
-            ) : (
-              <div className="whitespace-pre-line rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-                {message}
-              </div>
-            )
-          ) : null}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant={mode === "load" ? "default" : "outline"} onClick={() => setMode("load")} disabled={isOriginGpsRequired}>
+                <Truck className="mr-2 h-4 w-4" />
+                ขึ้นรถ
+              </Button>
+              <Button type="button" variant={mode === "deliver" ? "default" : "outline"} onClick={() => setMode("deliver")} disabled={isOriginGpsRequired}>
+                <QrCode className="mr-2 h-4 w-4" />
+                ส่งปลายทาง
+              </Button>
+            </div>
 
-          {job ? !isDedicatedDriverMode ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" onClick={startCamera} disabled={!job || isCameraScanning || isScanBlocked}>
+                <Camera className="mr-2 h-4 w-4" />
+                เปิดกล้อง
+              </Button>
+              <Button type="button" variant="outline" onClick={stopCamera} disabled={!isCameraScanning}>
+                <Square className="mr-2 h-4 w-4" />
+                หยุด
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="scan-code">รหัสสินค้า / PO / registry key</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="scan-code"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  disabled={isScanBlocked}
+                  placeholder="สแกนหรือกรอกรหัส"
+                />
+                <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">
+                  {isSubmitting ? "กำลังบันทึก" : "บันทึก"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {message ? (
+            <div
+              className={
+                scanResult === "alert"
+                  ? "whitespace-pre-line rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 lg:col-span-2"
+                  : "whitespace-pre-line rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 lg:col-span-2"
+              }
+            >
+              {message}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="h-4 w-4" />
+            รายการในห้อง
+          </CardTitle>
+          <CardDescription>แสดงแบบสรุปตามปลายทาง ลดเหลือเฉพาะที่ต้องใช้หน้างาน</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {job?.destinations.length ? (
+            job.destinations.map((destination) => {
+              const items = job.items.filter((item) => item.destinationId === destination.id);
+              const total = items.reduce((sum, item) => sum + item.orderQty, 0);
+              const loaded = items.reduce((sum, item) => sum + item.loadedQty, 0);
+              const delivered = items.reduce((sum, item) => sum + item.deliveredQty, 0);
+
+              return (
+                <details key={destination.id} className="rounded-md border border-[#d8dde6] bg-white">
+                  <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm font-medium">
+                    <span className="min-w-0 break-words">{destination.name}</span>
+                    <span className="shrink-0 text-xs text-slate-500">
+                      {delivered}/{loaded}/{total}
+                    </span>
+                  </summary>
+                  <div className="space-y-2 border-t border-[#d8dde6] p-3">
+                    {items.map((item) => (
+                      <div key={item.registryKey} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0 break-words">{item.materialCode || item.registryKey}</span>
+                          <span className="shrink-0 font-semibold">{item.deliveredQty}/{item.loadedQty}/{item.orderQty}</span>
+                        </div>
+                        <p className="mt-1 break-words text-xs text-slate-500">{item.materialName || "-"}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              );
+            })
+          ) : (
+            <div className="rounded-md border bg-slate-50 p-4 text-sm text-slate-500">ยังไม่มีรายการในห้องนี้</div>
+          )}
+
+          {job && !isDedicatedDriverMode ? (
             <Button asChild variant="outline">
               <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>เปิด Monitor ของ Job นี้</Link>
             </Button>
-          ) : null : null}
+          ) : null}
         </CardContent>
       </Card>
 
