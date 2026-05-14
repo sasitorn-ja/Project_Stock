@@ -3,6 +3,7 @@ import { AlertTriangle, History, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobProgress } from "@/components/jobs/job-progress";
@@ -22,6 +23,8 @@ export default async function JobMonitorPage({
 
   return (
     <div className="space-y-6">
+      <JobAutoRefresh />
+
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div className="min-w-0">
           <h2 className="text-xl font-bold tracking-normal sm:text-2xl">Monitor Realtime</h2>
