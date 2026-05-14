@@ -66,6 +66,20 @@ export async function getExistingPORecords(registryKeys: string[]) {
   return new Map(data.records.map((record) => [record.registryKey, record]));
 }
 
+export async function getPORecordsByPoSapNos(poSapNos: string[]) {
+  const data = await readResponse<{ records: PORegistryRecord[] }>(
+    await fetch("/api/po-registry/by-po", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ poSapNos }),
+    }),
+  );
+
+  return data.records;
+}
+
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
   const data = await readResponse<{ savedCount: number }>(
     await fetch("/api/po-registry", {

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { clearPORegistry, deletePORecords, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
+import { clearPORegistry, deletePORecords, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
 
 export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
@@ -66,12 +66,45 @@ export function PORegistryList() {
     };
   }, []);
 
-  function toggleRecord(registryKey: string) {
+  async function toggleRecord(record: PORegistryRecord) {
+    const isSelected = selectedKeySet.has(record.registryKey);
+    const visibleSamePoRecords = records.filter((currentRecord) => currentRecord.poSapNo === record.poSapNo);
+
+    if (isSelected) {
+      setSelectedKeys((currentKeys) => {
+        const keysToRemove = new Set(visibleSamePoRecords.map((currentRecord) => currentRecord.registryKey));
+        return currentKeys.filter((currentKey) => !keysToRemove.has(currentKey));
+      });
+
+      try {
+        const samePoRecords = await getPORecordsByPoSapNos([record.poSapNo]);
+        const samePoKeys = new Set(samePoRecords.map((currentRecord) => currentRecord.registryKey));
+        setSelectedKeys((currentKeys) => currentKeys.filter((currentKey) => !samePoKeys.has(currentKey)));
+      } catch {
+        setError("ยกเลิกเลือก PO ที่เลขซ้ำให้ครบไม่สำเร็จ กรุณาลองอีกครั้ง");
+      }
+
+      return;
+    }
+
     setSelectedKeys((currentKeys) =>
-      currentKeys.includes(registryKey)
-        ? currentKeys.filter((currentKey) => currentKey !== registryKey)
-        : [...currentKeys, registryKey],
+      Array.from(new Set([...currentKeys, ...visibleSamePoRecords.map((currentRecord) => currentRecord.registryKey)])),
     );
+
+    try {
+      const samePoRecords = await getPORecordsByPoSapNos([record.poSapNo]);
+      const samePoKeys = samePoRecords.map((currentRecord) => currentRecord.registryKey);
+
+      setSelectedKeys((currentKeys) => Array.from(new Set([...currentKeys, ...samePoKeys])));
+
+      if (samePoKeys.length > visibleSamePoRecords.length) {
+        setSuccessMessage(
+          `เลือก PO ${record.poSapNo} ให้ครบแล้ว ${samePoKeys.length.toLocaleString("th-TH")} รายการ`,
+        );
+      }
+    } catch {
+      setError("เลือก PO ที่เลขซ้ำให้ครบไม่สำเร็จ กรุณาลองติ๊กอีกครั้ง");
+    }
   }
 
   function toggleVisibleRecords() {
@@ -323,7 +356,7 @@ export function PORegistryList() {
                           type="checkbox"
                           aria-label={`เลือก PO ${record.poSapNo} item ${record.poSapItem}`}
                           checked={selectedKeySet.has(record.registryKey)}
-                          onChange={() => toggleRecord(record.registryKey)}
+                          onChange={() => void toggleRecord(record)}
                           className="h-4 w-4 rounded border-slate-300"
                         />
                       </td>
@@ -361,7 +394,7 @@ export function PORegistryList() {
                       type="checkbox"
                       aria-label={`เลือก PO ${record.poSapNo} item ${record.poSapItem}`}
                       checked={selectedKeySet.has(record.registryKey)}
-                      onChange={() => toggleRecord(record.registryKey)}
+                      onChange={() => void toggleRecord(record)}
                       className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300"
                     />
                     <div className="min-w-0 flex-1">

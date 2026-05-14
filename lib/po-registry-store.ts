@@ -316,6 +316,32 @@ async function getPORecordsByKeysFromDatabase(registryKeys: string[]) {
   });
 }
 
+async function getPORecordsByPoSapNosFromDatabase(poSapNos: string[]) {
+  await cleanupExpiredSharedData();
+
+  const normalizedPoSapNos = Array.from(new Set(poSapNos.map((poSapNo) => poSapNo.trim()).filter(Boolean)));
+
+  if (!normalizedPoSapNos.length) {
+    return [];
+  }
+
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM purchase_order_queue
+        WHERE purchase_order_number = ANY($1::text[])
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+        ORDER BY purchase_order_number ASC, purchase_order_item_number ASC, first_imported_at DESC
+      `,
+      [normalizedPoSapNos],
+    );
+
+    return result.rows.map(mapDatabasePORecord);
+  });
+}
+
 async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
   if (!records.length) {
     return 0;
@@ -616,6 +642,26 @@ export async function getPORecordsByKeys(registryKeys: string[]) {
   const uniqueKeys = new Set(registryKeys);
 
   return sortPORecords(store.records.filter((record) => uniqueKeys.has(record.registryKey)));
+}
+
+export async function getPORecordsByPoSapNos(poSapNos: string[]) {
+  if (hasSharedDatabase()) {
+    return getPORecordsByPoSapNosFromDatabase(poSapNos);
+  }
+
+  const normalizedPoSapNos = new Set(poSapNos.map((poSapNo) => poSapNo.trim()).filter(Boolean));
+
+  if (!normalizedPoSapNos.size) {
+    return [];
+  }
+
+  const store = await readStore();
+
+  return sortPORecords(
+    store.records.filter(
+      (record) => normalizedPoSapNos.has(record.poSapNo) && !record.assignedJobId && record.lifecycle === "active",
+    ),
+  );
 }
 
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
