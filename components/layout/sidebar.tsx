@@ -61,7 +61,7 @@ export function Sidebar({
           "fixed inset-y-0 left-0 z-50 h-screen border-r border-[#d8dde6] bg-white text-slate-900 shadow-none transition-transform duration-200 ease-out",
           "w-72 max-w-[86vw]",
           isMobileOpen ? "translate-x-0" : "-translate-x-full",
-          isOpen ? "lg:translate-x-0 lg:w-60" : "lg:-translate-x-full lg:w-60",
+          isOpen ? "lg:translate-x-0 lg:w-64" : "lg:-translate-x-full lg:w-64",
         )}
       >
         <div className="flex h-full flex-col">
@@ -82,20 +82,20 @@ export function Sidebar({
                 size="icon"
                 onClick={onCloseMobile}
                 title="ปิดเมนู"
-                className="size-8 border-[#d8dde6] bg-white text-slate-900 hover:bg-slate-100"
+                className="size-10 shrink-0 border-[#d8dde6] bg-white text-slate-900 hover:bg-slate-100"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </Button>
             </div>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white px-2 py-2">
+          <nav className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-2 py-2">
             {sections.map((section) => (
               <div key={section.title}>
-                <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <div className="mb-1 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                   {section.title}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {section.items.map((item) => {
                     const isActive =
                       pathname === item.href ||
@@ -107,13 +107,16 @@ export function Sidebar({
                         onClick={onCloseMobile}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
-                          "group flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors",
+                          "group relative flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-3 text-[13px] font-medium transition-colors",
                           isActive
-                            ? "bg-slate-100 text-slate-950"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                            ? "bg-[#f0faf7] text-[#0d7a5f]"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
                         )}
                       >
-                        <item.icon className="size-4 shrink-0" />
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[#0d7a5f]" />
+                        )}
+                        <item.icon className="size-[15px] shrink-0" />
                         <span className="truncate">{item.name}</span>
                       </Link>
                     );

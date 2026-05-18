@@ -323,10 +323,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-3">
       {!isDedicatedDriverMode ? (
-        <Card>
-          <CardContent className="space-y-2 pt-5">
+        <Card className="order-1">
+          <CardContent className="space-y-2 p-3">
             <Label htmlFor="job-selector">เลือกห้อง Job</Label>
             <select
               id="job-selector"
@@ -345,38 +345,39 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </Card>
       ) : null}
 
-      <section className="rounded-lg border border-[#d8dde6] bg-white px-3 py-3 sm:px-4 sm:py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section className="order-2 rounded-md border border-[#d8dde6] bg-white px-3 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Driver Room</p>
-            <h2 className="mt-1 break-words text-xl font-bold tracking-normal text-slate-950 sm:text-2xl">{roomTitle}</h2>
+            <h2 className="mt-1 break-words text-lg font-bold tracking-normal text-slate-950 sm:text-xl">{roomTitle}</h2>
             <p className="mt-1 break-words text-sm text-slate-500">
               {job ? `${job.id} / รถ ${job.vehicle || "-"} / คนขับ ${job.driver || "-"}` : "เลือกห้อง Job เพื่อเริ่มงาน"}
             </p>
           </div>
-          <Badge variant={mode === "load" ? "warning" : "success"} className="w-fit">
-            {mode === "load" ? "โหมดขึ้นรถ" : "โหมดส่งปลายทาง"}
-          </Badge>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-2 py-2 sm:px-3 sm:py-3">
-            <p className="text-xs text-slate-500">ต้องสแกน</p>
-            <p className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">{requiredTotal.toLocaleString("th-TH")} รอบ</p>
-          </div>
-          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-2 py-2 sm:px-3 sm:py-3">
-            <p className="text-xs text-slate-500">ขึ้นรถแล้ว</p>
-            <p className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">{loadedTotal.toLocaleString("th-TH")} ชิ้น</p>
-          </div>
-          <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-2 py-2 sm:px-3 sm:py-3">
-            <p className="text-xs text-slate-500">ส่งแล้ว</p>
-            <p className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">{deliveredTotal.toLocaleString("th-TH")} ชิ้น</p>
+          <div className="flex shrink-0 flex-col gap-2 lg:w-[520px]">
+            <Badge variant={mode === "load" ? "warning" : "success"} className="w-fit self-start lg:self-end">
+              {mode === "load" ? "โหมดขึ้นรถ" : "โหมดส่งปลายทาง"}
+            </Badge>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
+                <p className="text-[11px] text-slate-500">ต้องสแกน</p>
+                <p className="text-base font-semibold text-slate-950">{requiredTotal.toLocaleString("th-TH")}</p>
+              </div>
+              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
+                <p className="text-[11px] text-slate-500">ขึ้นรถแล้ว</p>
+                <p className="text-base font-semibold text-slate-950">{loadedTotal.toLocaleString("th-TH")}</p>
+              </div>
+              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
+                <p className="text-[11px] text-slate-500">ส่งแล้ว</p>
+                <p className="text-base font-semibold text-slate-950">{deliveredTotal.toLocaleString("th-TH")}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <Card>
-        <CardContent className="grid gap-2 p-3 sm:gap-3 sm:p-5 md:grid-cols-3">
+      <Card className="order-3">
+        <CardContent className="grid gap-2 p-3 md:grid-cols-3">
           {[
             ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
             ["2", "สแกนขึ้นรถ", hasLoadedItems ? "มีรายการขึ้นรถแล้ว" : "ยังไม่เปิดปลายทาง"],
@@ -384,13 +385,13 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           ].map(([step, label, status]) => (
             <div
               key={step}
-              className={`rounded-md border px-2 py-3 sm:px-3 ${
+              className={`rounded-md border px-3 py-2 ${
                 Number(step) <= activeStep ? "border-slate-900 bg-slate-950 text-white" : "border-[#d8dde6] bg-white text-slate-700"
               }`}
             >
               <div className="flex items-center gap-2">
                 <span className="flex size-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-950">{step}</span>
-                <span className="text-sm font-medium sm:text-base">{label}</span>
+                <span className="text-sm font-medium">{label}</span>
               </div>
               <p className={Number(step) <= activeStep ? "mt-2 text-xs text-slate-200" : "mt-2 text-xs text-slate-500"}>{status}</p>
             </div>
@@ -398,15 +399,15 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="order-5">
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <MapPin className="h-4 w-4" />
             จุดเช็กอิน
           </CardTitle>
           <CardDescription>ใช้พิกัดจากมือถือเครื่องนี้เท่านั้น</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 p-3 sm:p-5 md:grid-cols-2">
+        <CardContent className="grid gap-3 p-3 md:grid-cols-2">
           <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
             <p className="text-sm font-medium">ต้นทาง</p>
             <p className="mt-1 text-sm text-slate-500">{job?.origin || "-"}</p>
@@ -468,21 +469,24 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="order-4">
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
             สแกนสินค้า
           </CardTitle>
           <CardDescription>เลือกโหมดให้ตรงกับงานที่ทำอยู่ แล้วสแกนหรือกรอกรหัส</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 p-3 sm:p-5">
+        <CardContent className="space-y-3 p-3">
           {/* Video — full card width, no column constraint */}
-          <div className="relative w-full overflow-hidden rounded-lg border bg-slate-950" style={{ aspectRatio: "4/3", minHeight: "320px" }}>
+          <div
+            className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-lg border bg-slate-950"
+            style={{ aspectRatio: "16/9", minHeight: "300px", maxHeight: "560px" }}
+          >
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[72%] w-[90%] max-w-3xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)] sm:h-[70%] sm:w-[86%]">
+              <div className="relative h-[70%] w-[76%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
@@ -520,7 +524,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           `}</style>
 
           {/* Controls — mode buttons + camera buttons + input */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]">
+          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]">
             <button
               type="button"
               onClick={() => setMode("load")}
@@ -570,7 +574,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             </Button>
           </div>
 
-          <div className="space-y-2">
+          <div className="mx-auto w-full max-w-4xl space-y-2">
             <Label htmlFor="scan-code">เลข PO / Barcode / QR / registry key</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
@@ -600,7 +604,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="order-6">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4" />
@@ -652,7 +656,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
-      {isLoading ? <div className="text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
+      {isLoading ? <div className="order-7 text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
     </div>
   );
 }

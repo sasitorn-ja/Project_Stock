@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           "min-h-screen transition-[padding-left] duration-200 ease-out",
-          isSidebarOpen ? "lg:pl-60" : "lg:pl-0",
+          isSidebarOpen ? "lg:pl-64" : "lg:pl-0",
         )}
       >
         <Header
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onMenuClick={() => setIsMobileOpen((value) => !value)}
           onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
         />
-        <main className="w-full min-w-0 px-3 py-3 sm:px-4 sm:py-4 md:px-5">{children}</main>
+        <main className="w-full min-w-0 px-4 py-4 md:px-5">{children}</main>
       </div>
     </div>
   );

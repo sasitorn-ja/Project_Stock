@@ -104,9 +104,9 @@ export function parseQty(value: string) {
 
 export function normalizeScanQty(value: unknown, minimum = 1) {
   const parsed = typeof value === "number" ? value : Number(String(value ?? "").replace(/,/g, "").trim());
-  const safeMinimum = Math.max(1, Math.ceil(minimum));
+  const safeMinimum = Math.max(0, Math.ceil(minimum));
 
-  return Number.isFinite(parsed) && parsed > 0 ? Math.max(safeMinimum, Math.ceil(parsed)) : safeMinimum;
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.max(safeMinimum, Math.ceil(parsed)) : safeMinimum;
 }
 
 export function buildJobItems(records: PORegistryRecord[], scanQuantities: Record<string, number> = {}) {
@@ -125,7 +125,7 @@ export function buildJobItems(records: PORegistryRecord[], scanQuantities: Recor
       materialName: record.materialName,
       sourceOrderQty: record.orderQty,
       sourceTotalAmount: record.totalAmount,
-      orderQty: normalizeScanQty(scanQuantities[record.registryKey], 1),
+      orderQty: normalizeScanQty(scanQuantities[record.registryKey] ?? 1, 0),
       loadedQty: 0,
       deliveredQty: 0,
       destinationId,

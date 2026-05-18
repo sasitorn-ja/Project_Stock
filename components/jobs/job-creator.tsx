@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileWarning, MapPinned, Save, Truck } from "lucide-react";
+import { AlertCircle, FileWarning, MapPinned, Save, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createJob } from "@/lib/job-db";
 import { getExistingPORecords, type PORegistryRecord } from "@/lib/po-import-db";
+import { cn } from "@/lib/utils";
 
 const storageKey = "project-stock.selected-po-registry-keys";
+type FieldErrors = Record<string, string>;
 
 function createDestinationId(name: string) {
   return name
@@ -27,6 +29,7 @@ export function JobCreator() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [roomName, setRoomName] = useState("");
   const [driver, setDriver] = useState("");
   const [vehicle, setVehicle] = useState("");
@@ -95,6 +98,7 @@ export function JobCreator() {
   }, [groupedDestinations]);
 
   function updateDestinationDraft(destinationId: string, field: "name" | "address", value: string) {
+    clearFieldError(`destination.${destinationId}.${field}`);
     setDestinationDrafts((currentDrafts) => ({
       ...currentDrafts,
       [destinationId]: {
@@ -105,14 +109,87 @@ export function JobCreator() {
     }));
   }
 
+  function clearFieldError(field: string) {
+    setFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) {
+        return currentErrors;
+      }
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  }
+
+  function getInputClassName(field: string, className?: string) {
+    return cn(
+      fieldErrors[field] &&
+        "border-red-400 bg-red-50 text-red-900 placeholder:text-red-300 focus-visible:border-red-500 focus-visible:ring-red-500/20 dark:border-red-800 dark:bg-red-950/20 dark:text-red-100",
+      className,
+    );
+  }
+
+  function renderFieldError(field: string) {
+    const message = fieldErrors[field];
+
+    if (!message) {
+      return null;
+    }
+
+    return <p className="text-xs font-medium text-red-600 dark:text-red-300">{message}</p>;
+  }
+
+  function validateJobDetails() {
+    const nextErrors: FieldErrors = {};
+
+    if (!roomName.trim()) {
+      nextErrors.roomName = "กรุณากรอกชื่อห้อง Job";
+    }
+
+    if (!vehicle.trim()) {
+      nextErrors.vehicle = "กรุณากรอกรถขนส่ง";
+    }
+
+    if (!driver.trim()) {
+      nextErrors.driver = "กรุณากรอกชื่อคนขับ";
+    }
+
+    if (!origin.trim()) {
+      nextErrors.origin = "กรุณากรอกต้นทาง";
+    }
+
+    groupedDestinations.forEach((destination) => {
+      const draft = destinationDrafts[destination.id];
+
+      if (!(draft?.name ?? destination.name).trim()) {
+        nextErrors[`destination.${destination.id}.name`] = "กรุณากรอกชื่อปลายทาง";
+      }
+
+      if (!(draft?.address ?? destination.address).trim()) {
+        nextErrors[`destination.${destination.id}.address`] = "กรุณากรอกที่อยู่หรือโลเคชัน";
+      }
+    });
+
+    return nextErrors;
+  }
+
   async function handleCreateJob() {
     if (!records.length) {
       setError("ยังไม่มีรายการ PO ที่พร้อมสร้าง Job");
       return;
     }
 
+    const nextFieldErrors = validateJobDetails();
+
+    if (Object.keys(nextFieldErrors).length) {
+      setFieldErrors(nextFieldErrors);
+      setError("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนสร้าง Job");
+      return;
+    }
+
     setIsSaving(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const job = await createJob({
@@ -123,7 +200,7 @@ export function JobCreator() {
         note,
         registryKeys: records.map((record) => record.registryKey),
         itemScanQuantities: Object.fromEntries(
-          records.map((record) => [record.registryKey, Math.max(1, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
+          records.map((record) => [record.registryKey, Math.max(0, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
         ),
         destinationOverrides: groupedDestinations.map((destination) => ({
           id: destination.id,
@@ -133,8 +210,8 @@ export function JobCreator() {
       });
 
       window.sessionStorage.removeItem(storageKey);
+      window.sessionStorage.removeItem("project-stock.po-registry-list.v1");
       router.push(`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`);
-      router.refresh();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "สร้าง Job ไม่สำเร็จ");
     } finally {
@@ -187,12 +264,12 @@ export function JobCreator() {
                             <td className="px-4 py-3 align-top">
                               <Input
                                 type="number"
-                                min="1"
+                                min="0"
                                 value={scanQuantities[record.registryKey] ?? 1}
                                 onChange={(event) =>
                                   setScanQuantities((currentQuantities) => ({
                                     ...currentQuantities,
-                                    [record.registryKey]: Math.max(1, Math.ceil(Number(event.target.value) || 1)),
+                                    [record.registryKey]: Math.max(0, Math.ceil(Number(event.target.value) || 0)),
                                   }))
                                 }
                                 className="h-9 w-28"
@@ -228,12 +305,12 @@ export function JobCreator() {
                           <Input
                             id={`scan-qty-${record.registryKey}`}
                             type="number"
-                            min="1"
+                            min="0"
                             value={scanQuantities[record.registryKey] ?? 1}
                             onChange={(event) =>
                               setScanQuantities((currentQuantities) => ({
                                 ...currentQuantities,
-                                [record.registryKey]: Math.max(1, Math.ceil(Number(event.target.value) || 1)),
+                                [record.registryKey]: Math.max(0, Math.ceil(Number(event.target.value) || 0)),
                               }))
                             }
                           />
@@ -268,26 +345,72 @@ export function JobCreator() {
           <CardDescription>กำหนดผู้รับผิดชอบงานจริง และปรับชื่อปลายทาง/ที่อยู่ก่อนบันทึกเข้าระบบ โดยค่าเริ่มต้นจะอ้างอิงจากชื่อหน่วยงานในไฟล์ GR</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
+            {error ? (
+              <div className="md:col-span-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              </div>
+            ) : null}
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="room-name">ชื่อห้อง Job</Label>
               <Input
                 id="room-name"
                 value={roomName}
-                onChange={(event) => setRoomName(event.target.value)}
+                aria-invalid={Boolean(fieldErrors.roomName)}
+                onChange={(event) => {
+                  clearFieldError("roomName");
+                  setRoomName(event.target.value);
+                }}
                 placeholder="เช่น รอบเช้า บางซื่อ-ลาดพร้าว / ส่งของร้าน A"
+                className={getInputClassName("roomName")}
               />
+              {renderFieldError("roomName")}
             </div>
             <div className="space-y-2">
               <Label htmlFor="vehicle">รถขนส่ง</Label>
-              <Input id="vehicle" value={vehicle} onChange={(event) => setVehicle(event.target.value)} placeholder="เช่น 6W-4382" />
+              <Input
+                id="vehicle"
+                value={vehicle}
+                aria-invalid={Boolean(fieldErrors.vehicle)}
+                onChange={(event) => {
+                  clearFieldError("vehicle");
+                  setVehicle(event.target.value);
+                }}
+                placeholder="เช่น 6W-4382"
+                className={getInputClassName("vehicle")}
+              />
+              {renderFieldError("vehicle")}
             </div>
             <div className="space-y-2">
               <Label htmlFor="driver">คนขับ</Label>
-              <Input id="driver" value={driver} onChange={(event) => setDriver(event.target.value)} placeholder="ชื่อคนขับ" />
+              <Input
+                id="driver"
+                value={driver}
+                aria-invalid={Boolean(fieldErrors.driver)}
+                onChange={(event) => {
+                  clearFieldError("driver");
+                  setDriver(event.target.value);
+                }}
+                placeholder="ชื่อคนขับ"
+                className={getInputClassName("driver")}
+              />
+              {renderFieldError("driver")}
             </div>
             <div className="space-y-2">
               <Label htmlFor="origin">ต้นทาง</Label>
-              <Input id="origin" value={origin} onChange={(event) => setOrigin(event.target.value)} />
+              <Input
+                id="origin"
+                value={origin}
+                aria-invalid={Boolean(fieldErrors.origin)}
+                onChange={(event) => {
+                  clearFieldError("origin");
+                  setOrigin(event.target.value);
+                }}
+                className={getInputClassName("origin")}
+              />
+              {renderFieldError("origin")}
             </div>
             <div className="space-y-2">
               <Label>GPS ต้นทาง</Label>
@@ -324,18 +447,24 @@ export function JobCreator() {
                           <Input
                             id={`destination-name-${destination.id}`}
                             value={destinationDrafts[destination.id]?.name ?? destination.name}
+                            aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.name`])}
                             onChange={(event) => updateDestinationDraft(destination.id, "name", event.target.value)}
                             placeholder="ชื่อปลายทางที่ใช้ในงานจริง"
+                            className={getInputClassName(`destination.${destination.id}.name`)}
                           />
+                          {renderFieldError(`destination.${destination.id}.name`)}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor={`destination-address-${destination.id}`}>ที่อยู่ / โลเคชัน</Label>
                           <Input
                             id={`destination-address-${destination.id}`}
                             value={destinationDrafts[destination.id]?.address ?? destination.address}
+                            aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.address`])}
                             onChange={(event) => updateDestinationDraft(destination.id, "address", event.target.value)}
                             placeholder="อาคาร, จุดส่ง, หรือคำอธิบายสถานที่"
+                            className={getInputClassName(`destination.${destination.id}.address`)}
                           />
+                          {renderFieldError(`destination.${destination.id}.address`)}
                         </div>
                       </div>
                     </div>
@@ -343,11 +472,6 @@ export function JobCreator() {
                 </div>
               </div>
             </div>
-            {error ? (
-              <div className="md:col-span-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
-                {error}
-              </div>
-            ) : null}
             <div className="md:col-span-2">
               <Button type="button" className="w-full" onClick={handleCreateJob} disabled={isLoading || isSaving || !records.length}>
                 {isSaving ? (

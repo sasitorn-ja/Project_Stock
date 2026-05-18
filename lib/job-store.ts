@@ -19,7 +19,13 @@ import {
   type ScanMode,
 } from "@/lib/jobs";
 import { cleanupExpiredSharedData, hasSharedDatabase, withPostgresClient, withPostgresTransaction } from "@/lib/postgres-storage";
-import { archivePORecordsForCompletedJob, getPORecordsByKeys, markPORecordsAssigned, releasePORecordsFromJob } from "@/lib/po-registry-store";
+import {
+  archivePORecordsForCompletedJob,
+  getPORecordsByKeys,
+  invalidatePORecordsPageCache,
+  markPORecordsAssigned,
+  releasePORecordsFromJob,
+} from "@/lib/po-registry-store";
 import { formatGpsText } from "@/lib/reverse-geocode";
 import {
   mapDatabaseJob,
@@ -770,26 +776,15 @@ async function createJobInDatabase(input: {
   itemScanQuantities?: Record<string, number>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
+  if (!input.registryKeys.length) {
+    throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
+  }
+
   assertWritableStorage();
   await cleanupExpiredSharedData();
+  invalidatePORecordsPageCache();
 
   return withPostgresTransaction(async (client) => {
-    const recordsResult = await client.query(
-      `
-        SELECT *
-        FROM purchase_order_queue
-        WHERE line_registry_key = ANY($1::text[])
-        FOR UPDATE
-      `,
-      [input.registryKeys],
-    );
-    const records = recordsResult.rows.map(mapDatabasePORecord);
-    const availableRecords = records.filter((record) => !record.assignedJobId && record.lifecycle === "active");
-
-    if (!availableRecords.length) {
-      throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
-    }
-
     const nowDate = new Date();
     const now = nowDate.toISOString();
     const sequenceResult = await client.query<{ value: string }>(`
@@ -797,6 +792,26 @@ async function createJobInDatabase(input: {
     `);
     const sequence = sequenceResult.rows[0]?.value ?? "000001";
     const jobId = `${buildJobId(nowDate)}-${sequence}`;
+    const recordsResult = await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'assigned',
+          assigned_delivery_job_id = $2,
+          assigned_to_job_at = $3::timestamptz
+        WHERE line_registry_key = ANY($1::text[])
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+        RETURNING *
+      `,
+      [input.registryKeys, jobId, now],
+    );
+    const availableRecords = recordsResult.rows.map(mapDatabasePORecord);
+
+    if (!availableRecords.length) {
+      throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
+    }
+
     const baseItems = buildJobItems(availableRecords, input.itemScanQuantities);
     const baseDestinations = buildJobDestinations(baseItems);
     const { items, destinations } = applyDestinationOverrides(
@@ -823,18 +838,6 @@ async function createJobInDatabase(input: {
       scanLogs: [],
     };
     const payload = serializeJobRecordForDatabase(job);
-
-    await client.query(
-      `
-        UPDATE purchase_order_queue
-        SET
-          record_state = 'assigned',
-          assigned_delivery_job_id = $2,
-          assigned_to_job_at = $3::timestamptz
-        WHERE line_registry_key = ANY($1::text[])
-      `,
-      [job.poRegistryKeys, job.id, now],
-    );
 
     await client.query(
       `
@@ -970,7 +973,7 @@ async function updateJobItemScanQuantityInDatabase(input: {
       throw new Error("ไม่พบรายการที่ต้องการแก้ใน Job นี้");
     }
 
-    item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 1));
+    item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 0));
     job.updatedAt = new Date().toISOString();
     updateJobStatus(job);
 
@@ -1510,7 +1513,7 @@ export async function updateJobItemScanQuantity(input: {
     throw new Error("ไม่พบรายการที่ต้องการแก้ใน Job นี้");
   }
 
-  item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 1));
+  item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 0));
   job.updatedAt = new Date().toISOString();
   updateJobStatus(job);
 

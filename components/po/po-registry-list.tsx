@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,44 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { clearPORegistry, deletePORecords, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
+
+type PORegistryListCache = {
+  records: PORegistryRecord[];
+  totalCount: number;
+  cachedAt: number;
+};
+
+const poRegistryListCacheKey = "project-stock.po-registry-list.v1";
+const poRegistryListCacheTtlMs = 30_000;
+
+function readCachedPORegistryList(): PORegistryListCache | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const cachedValue = window.sessionStorage.getItem(poRegistryListCacheKey);
+    return cachedValue ? (JSON.parse(cachedValue) as PORegistryListCache) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedPORegistryList(data: PORegistryListCache) {
+  try {
+    window.sessionStorage.setItem(poRegistryListCacheKey, JSON.stringify(data));
+  } catch {
+    return;
+  }
+}
+
+function clearCachedPORegistryList() {
+  try {
+    window.sessionStorage.removeItem(poRegistryListCacheKey);
+  } catch {
+    return;
+  }
+}
 
 export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
@@ -19,6 +57,7 @@ export function PORegistryList() {
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
+  const recordsLengthRef = useRef(0);
   const pageSize = 20;
   const normalizedQuery = query.trim();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -30,14 +69,40 @@ export function PORegistryList() {
     visibleRecordKeys.length > 0 && visibleRecordKeys.every((registryKey) => selectedKeySet.has(registryKey));
 
   useEffect(() => {
+    recordsLengthRef.current = records.length;
+  }, [records.length]);
+
+  useEffect(() => {
     async function loadRecords() {
-      setIsLoading(true);
+      let hasVisibleRecords = recordsLengthRef.current > 0;
+      let canUseFreshCache = false;
+
+      if (!hasVisibleRecords && currentPage === 1 && !query.trim()) {
+        const cachedList = readCachedPORegistryList();
+
+        if (cachedList) {
+          setRecords(cachedList.records);
+          setTotalCount(cachedList.totalCount);
+          hasVisibleRecords = cachedList.records.length > 0;
+          canUseFreshCache = Date.now() - cachedList.cachedAt < poRegistryListCacheTtlMs;
+        }
+      }
+
+      setIsLoading(!hasVisibleRecords);
       setError("");
+
+      if (canUseFreshCache && reloadToken === 0) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
         const result = await getPORecordsPage({ page: currentPage, pageSize, query });
         setRecords(result.records);
         setTotalCount(result.totalCount);
+        if (currentPage === 1 && !query.trim()) {
+          writeCachedPORegistryList({ ...result, cachedAt: Date.now() });
+        }
       } catch {
         setRecords([]);
         setTotalCount(0);
@@ -167,6 +232,7 @@ export function PORegistryList() {
       setError("");
       setSuccessMessage("");
       const deletedCount = await deletePORecords(selectedKeys);
+      clearCachedPORegistryList();
       setSelectedKeys([]);
       setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
       setReloadToken((current) => current + 1);
@@ -189,6 +255,7 @@ export function PORegistryList() {
       setError("");
       setSuccessMessage("");
       const deletedCount = await deletePORecords([record.registryKey]);
+      clearCachedPORegistryList();
       setSelectedKeys((currentKeys) => currentKeys.filter((registryKey) => registryKey !== record.registryKey));
       setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
       setReloadToken((current) => current + 1);
@@ -217,6 +284,7 @@ export function PORegistryList() {
       setError("");
       setSuccessMessage("");
       await clearPORegistry();
+      clearCachedPORegistryList();
       setSelectedKeys([]);
       setPage(1);
       setSuccessMessage("ล้างข้อมูล PO รอจัดส่งทั้งหมดแล้ว");
@@ -311,7 +379,7 @@ export function PORegistryList() {
           </div>
         ) : null}
 
-        {isLoading ? (
+        {isLoading && !records.length ? (
           <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
             กำลังโหลดข้อมูล PO
           </div>

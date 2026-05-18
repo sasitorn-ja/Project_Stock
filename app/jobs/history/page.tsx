@@ -20,30 +20,26 @@ export default async function JobHistoryPage({
 }) {
   const { jobId, query = "", dateFrom = "", dateTo = "" } = await searchParams;
   const jobs = await listJobArchives({ query, dateFrom, dateTo });
-  const fallbackJobId = jobId || jobs[0]?.id;
-  const job = fallbackJobId ? await getJobArchive(fallbackJobId) : null;
+  const selectedJobId = jobId ?? null;
+  const job = selectedJobId ? await getJobArchive(selectedJobId) : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h2 className="text-2xl font-bold tracking-normal">ประวัติงาน</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            งานที่ปิดจบแล้วจะถูกย้ายมาเก็บในประวัติ 100 วัน และไม่อยู่ในคิวปฏิบัติการหลักอีกต่อไป
-          </p>
-        </div>
-        <Button asChild variant="outline">
-          <Link href="/jobs">
-            <Truck className="mr-2 h-4 w-4" />
-            กลับไปงานปัจจุบัน
-          </Link>
-        </Button>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold tracking-normal">ประวัติงาน</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          งานที่ปิดจบแล้วจะถูกย้ายมาเก็บในประวัติ 100 วัน และไม่อยู่ในคิวปฏิบัติการหลักอีกต่อไป
+        </p>
       </div>
 
+      {/* ── ขั้นตอน 1: ค้นหา ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>ค้นหางานย้อนหลัง</CardTitle>
-          <CardDescription>ค้นหาได้จาก Job ID, คนขับ, รถ, PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">1</span>
+            <CardTitle className="text-sm">ค้นหางานย้อนหลัง</CardTitle>
+          </div>
+          <CardDescription className="ml-7">ค้นหาได้จาก Job ID, คนขับ, รถ, PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
@@ -52,46 +48,69 @@ export default async function JobHistoryPage({
               name="query"
               defaultValue={query}
               placeholder="ค้นหา job id, driver, vehicle, PO, material"
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             />
             <input
               type="date"
               name="dateFrom"
               defaultValue={dateFrom}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             />
             <input
               type="date"
               name="dateTo"
               defaultValue={dateTo}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             />
-            <Button type="submit">ค้นหา</Button>
+            <Button type="submit" size="sm">ค้นหา</Button>
           </form>
         </CardContent>
       </Card>
 
-      {jobs.length ? (
-        <div className="flex flex-wrap gap-2">
-          {jobs.map((currentJob) => (
-            <Button key={currentJob.id} asChild variant={currentJob.id === fallbackJobId ? "default" : "outline"} size="sm">
-              <Link
-                href={`/jobs/history?jobId=${encodeURIComponent(currentJob.id)}&query=${encodeURIComponent(query)}&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`}
-              >
-                {currentJob.roomName?.trim() || currentJob.id}
-              </Link>
-            </Button>
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            ยังไม่มีงานในประวัติย้อนหลังตามเงื่อนไขที่ค้นหา
+      {/* ── ขั้นตอน 2: เลือกงาน ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">2</span>
+            <CardTitle className="text-sm">เลือกงานที่ต้องการดู</CardTitle>
+          </div>
+          <CardDescription className="ml-7">
+            {jobs.length > 0
+              ? `พบ ${jobs.length} งานในประวัติ — กดเลือกงานเพื่อดูรายละเอียด`
+              : "ยังไม่มีงานในประวัติย้อนหลังตามเงื่อนไขที่ค้นหา"}
+          </CardDescription>
+        </CardHeader>
+        {jobs.length > 0 && (
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {jobs.map((currentJob) => (
+                <Button
+                  key={currentJob.id}
+                  asChild
+                  variant={currentJob.id === selectedJobId ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-sm"
+                >
+                  <Link
+                    href={`/jobs/history?jobId=${encodeURIComponent(currentJob.id)}&query=${encodeURIComponent(query)}&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`}
+                  >
+                    {currentJob.roomName?.trim() || currentJob.id}
+                  </Link>
+                </Button>
+              ))}
+            </div>
           </CardContent>
-        </Card>
+        )}
+      </Card>
+
+      {/* ── ขั้นตอน 3: รายละเอียด (แสดงเมื่อเลือกแล้ว) ── */}
+      {!selectedJobId && (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-muted-foreground">
+          เลือกงานจากรายการด้านบนเพื่อดูรายละเอียด
+        </div>
       )}
 
-      {job ? (
+      {job && selectedJobId ? (
         <>
           <section className="grid gap-4 md:grid-cols-4">
             {[

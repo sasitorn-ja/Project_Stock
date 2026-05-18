@@ -22,11 +22,11 @@ export function JobItemScanQtyEditor({
   const [nextValue, setNextValue] = useState(value);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const safeMinimum = Math.max(1, Math.ceil(minimum));
+  const safeMinimum = Math.max(0, Math.ceil(minimum));
   const hasChanged = Math.ceil(nextValue) !== value;
 
   async function handleSave() {
-    const scanQty = Math.max(safeMinimum, Math.ceil(Number(nextValue) || safeMinimum));
+    const scanQty = Math.max(safeMinimum, Math.ceil(Number(nextValue) || 0));
 
     setIsSaving(true);
     setMessage("");
@@ -53,7 +53,7 @@ export function JobItemScanQtyEditor({
           type="number"
           min={safeMinimum}
           value={nextValue}
-          onChange={(event) => setNextValue(Math.max(safeMinimum, Math.ceil(Number(event.target.value) || safeMinimum)))}
+          onChange={(event) => setNextValue(Math.max(safeMinimum, Math.ceil(Number(event.target.value) || 0)))}
           className="h-9 w-24"
         />
         <Button type="button" size="icon" variant={hasChanged ? "default" : "outline"} onClick={handleSave} disabled={isSaving || !hasChanged} title="บันทึกจำนวนที่ต้องสแกน">

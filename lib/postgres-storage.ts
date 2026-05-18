@@ -5,6 +5,10 @@ const hasDatabaseUrl = DATABASE_URL.length > 0;
 
 let pool: Pool | null = null;
 let schemaInitializationPromise: Promise<void> | null = null;
+const schemaInitializationLockKey = 24_051_806;
+let lastCleanupAt = Date.now();
+let cleanupPromise: Promise<void> | null = null;
+const cleanupIntervalMs = 5 * 60 * 1000;
 
 function shouldUseSsl(connectionString: string) {
   if (!connectionString) {
@@ -185,8 +189,10 @@ export async function ensurePostgresSchema() {
       const client = await getPool().connect();
 
       try {
+        await client.query("SELECT pg_advisory_lock($1)", [schemaInitializationLockKey]);
         await createSchema(client);
       } finally {
+        await client.query("SELECT pg_advisory_unlock($1)", [schemaInitializationLockKey]).catch(() => {});
         client.release();
       }
     })().catch((error) => {
@@ -229,7 +235,16 @@ export async function cleanupExpiredSharedData() {
     return;
   }
 
-  await withPostgresTransaction(async (client) => {
+  const now = Date.now();
+  if (cleanupPromise) {
+    return cleanupPromise;
+  }
+
+  if (now - lastCleanupAt < cleanupIntervalMs) {
+    return;
+  }
+
+  cleanupPromise = withPostgresTransaction(async (client) => {
     await client.query(`
       DELETE FROM purchase_order_history
       WHERE delete_after_at <= NOW()
@@ -251,5 +266,13 @@ export async function cleanupExpiredSharedData() {
       WHERE cleanup_after_at IS NOT NULL
         AND cleanup_after_at <= NOW()
     `);
-  });
+  })
+    .then(() => {
+      lastCleanupAt = Date.now();
+    })
+    .finally(() => {
+      cleanupPromise = null;
+    });
+
+  await cleanupPromise;
 }

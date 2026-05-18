@@ -84,7 +84,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                                 jobId={job.id}
                                 registryKey={item.registryKey}
                                 value={item.orderQty}
-                                minimum={Math.max(item.loadedQty, item.deliveredQty, 1)}
+                                minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
                               />
                             ) : (
                               item.orderQty

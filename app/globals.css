@@ -15,13 +15,13 @@
     --secondary: 220 14% 96%;
     --secondary-foreground: 221 39% 11%;
     --muted: 216 14% 94%;
-    --muted-foreground: 220 9% 46%;
+    --muted-foreground: 215 14% 34%;
     --accent: 220 14% 96%;
     --accent-foreground: 221 39% 11%;
     --destructive: 0 74% 42%;
     --destructive-foreground: 210 40% 98%;
-    --border: 216 18% 87%;
-    --input: 211 23% 89%;
+    --border: 218 18% 87%;
+    --input: 213 24% 89%;
     --ring: 0 0% 9% / 0.18;
     --sidebar: 0 0% 100%;
     --sidebar-foreground: 221 39% 11%;
@@ -46,13 +46,13 @@
     --secondary: 220 14% 96%;
     --secondary-foreground: 221 39% 11%;
     --muted: 216 14% 94%;
-    --muted-foreground: 220 9% 46%;
+    --muted-foreground: 215 14% 34%;
     --accent: 220 14% 96%;
     --accent-foreground: 221 39% 11%;
     --destructive: 0 74% 42%;
     --destructive-foreground: 210 40% 98%;
-    --border: 216 18% 87%;
-    --input: 211 23% 89%;
+    --border: 218 18% 87%;
+    --input: 213 24% 89%;
     --ring: 0 0% 9% / 0.18;
   }
 
@@ -68,6 +68,26 @@
     font-size: 14px;
     font-feature-settings: "tnum";
     text-rendering: optimizeLegibility;
+  }
+
+  /* compact card headers */
+  .compact-page h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* tighter table rows */
+  table th {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  table td {
+    font-size: 12.5px;
   }
 
   .dark body {

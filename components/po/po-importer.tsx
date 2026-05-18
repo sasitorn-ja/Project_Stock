@@ -7,20 +7,17 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Database,
   FileSpreadsheet,
   Upload,
+  UploadCloud,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   createPORegistryKey,
   getExistingPORecords,
-  getPORegistryCount,
   migrateLegacyPORegistry,
   saveNewPORecords,
   type PORegistryRecord,
@@ -100,7 +97,6 @@ function buildRecord(row: ExcelRow, rowNumber: number, columns: Record<string, s
 }
 
 export function POImporter() {
-  const [registryCount, setRegistryCount] = useState(0);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -110,7 +106,6 @@ export function POImporter() {
     async function prepareRegistry() {
       try {
         await migrateLegacyPORegistry();
-        await refreshRegistry();
       } catch {
         setError("เชื่อมต่อข้อมูล PO ของระบบไม่สำเร็จ");
       }
@@ -119,13 +114,7 @@ export function POImporter() {
     prepareRegistry();
   }, []);
 
-  async function refreshRegistry() {
-    setRegistryCount(await getPORegistryCount());
-  }
-
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
+  async function processFile(file?: File) {
     setError("");
     setSuccessMessage("");
     setPreview(null);
@@ -134,8 +123,8 @@ export function POImporter() {
       return;
     }
 
-    if (!file.name.toLowerCase().endsWith(".xlsx")) {
-      setError("รองรับเฉพาะไฟล์ .xlsx เท่านั้น");
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      setError("รองรับเฉพาะไฟล์ Excel / CSV เท่านั้น");
       return;
     }
 
@@ -219,11 +208,28 @@ export function POImporter() {
         newPOs: uniqueRecords.filter((record) => !existingRecords.has(record.registryKey)),
       });
     } catch {
-      setError("อ่านไฟล์ Excel ไม่สำเร็จ กรุณาตรวจสอบว่าเป็นไฟล์ .xlsx ที่เปิดได้ปกติ");
+      setError("อ่านไฟล์ Excel / CSV ไม่สำเร็จ กรุณาตรวจสอบว่าเป็นไฟล์ที่เปิดได้ปกติ");
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    try {
+      await processFile(event.target.files?.[0]);
+    } finally {
       event.target.value = "";
     }
+  }
+
+  async function handleFileDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    if (isBusy) {
+      return;
+    }
+
+    await processFile(event.dataTransfer.files?.[0]);
   }
 
   async function confirmImport() {
@@ -256,7 +262,7 @@ export function POImporter() {
         })),
       );
 
-      await refreshRegistry();
+      window.sessionStorage.removeItem("project-stock.po-registry-list.v1");
       setSuccessMessage(`นำเข้าข้อมูลใหม่แล้ว ${preview.newPOs.length.toLocaleString("th-TH")} รายการ`);
       setPreview(null);
     } catch {
@@ -267,20 +273,30 @@ export function POImporter() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>เลือกไฟล์ GR</CardTitle>
-        <CardDescription>ระบบจะตรวจ PO SAP No. + PO SAP Item และข้ามรายการที่เคยบันทึกแล้ว</CardDescription>
+    <Card className="rounded-md">
+      <CardHeader className="border-b-0 px-4 pb-2 pt-4">
+        <CardTitle className="text-[15px] font-bold leading-5 text-slate-950">อัปโหลด PO จาก SAP</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="space-y-2">
-            <Label htmlFor="po-excel-file">ไฟล์ .xlsx</Label>
-            <Input id="po-excel-file" type="file" accept=".xlsx" onChange={handleFileChange} disabled={isBusy} />
-          </div>
-          <div className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
-            <Database className="h-4 w-4" />
-            คิวรอจัดส่ง {registryCount.toLocaleString("th-TH")} รายการ
+      <CardContent className="space-y-4 px-4 pb-4 pt-2">
+        <div
+          className="flex min-h-36 items-center justify-center rounded-md border border-dashed border-[#cfd8e3] bg-[#fafafa] px-4 py-8"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleFileDrop}
+        >
+          <div className="flex flex-col items-center text-center">
+            <UploadCloud className="h-7 w-7 text-slate-300" />
+            <p className="mt-2 text-sm font-medium text-slate-400">ลากไฟล์มาวางที่นี่ หรือ</p>
+            <Button asChild variant="outline" className="mt-2 h-9 border-slate-300 px-4 text-[13px] font-semibold text-slate-900">
+              <label htmlFor="po-excel-file">เลือกไฟล์ Excel / CSV</label>
+            </Button>
+            <input
+              id="po-excel-file"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileChange}
+              disabled={isBusy}
+              className="sr-only"
+            />
           </div>
         </div>
 
@@ -306,7 +322,7 @@ export function POImporter() {
 
         {preview ? (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-md border p-4">
                 <p className="text-xs text-muted-foreground">ไฟล์</p>
                 <p className="mt-1 truncate font-medium">{preview.fileName}</p>
@@ -338,8 +354,8 @@ export function POImporter() {
               </div>
             ) : null}
 
-            <div className="flex flex-col justify-between gap-3 rounded-md border bg-slate-50 p-4 dark:bg-slate-900 md:flex-row md:items-center">
-              <div className="flex items-start gap-3">
+            <div className="flex flex-col justify-between gap-4 rounded-md border bg-slate-50 p-4 dark:bg-slate-900 md:flex-row md:items-center">
+              <div className="flex min-w-0 items-start gap-3">
                 <FileSpreadsheet className="mt-1 h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">
@@ -360,12 +376,12 @@ export function POImporter() {
                   </p>
                 </div>
               </div>
-                <Button
-                  type="button"
-                  onClick={confirmImport}
-                  disabled={isBusy || !preview.newPOs.length}
-                  className="h-auto min-h-10 whitespace-normal"
-                >
+              <Button
+                type="button"
+                onClick={confirmImport}
+                disabled={isBusy || !preview.newPOs.length}
+                className="min-h-10 shrink-0 px-5"
+              >
                 <Upload className="mr-2 h-4 w-4" />
                 ยืนยันนำเข้ารายการใหม่
               </Button>

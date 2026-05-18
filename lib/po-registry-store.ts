@@ -23,9 +23,22 @@ type PORegistryArchiveStore = {
   records: PORegistryArchiveRecord[];
 };
 
+type PORecordsPageResult = {
+  records: PORegistryRecord[];
+  totalCount: number;
+};
+
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "po-registry.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "po-registry-archives.json");
+const poRecordsPageCacheTtlMs = 30_000;
+const poRecordsPageCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<PORecordsPageResult>;
+  }
+>();
 const searchableColumns = [
   "purchase_order_number",
   "purchase_order_item_number",
@@ -51,6 +64,56 @@ function buildSearchFilter(query: string, startIndex = 1) {
     clause: ` AND (${comparisons.join(" OR ")})`,
     params: searchableColumns.map(() => searchValue),
   };
+}
+
+function buildNumericTextExpression(column: string) {
+  const normalizedColumn = `regexp_replace(${column}, '[^0-9.-]', '', 'g')`;
+
+  return `
+    CASE
+      WHEN ${normalizedColumn} ~ '^-?[0-9]+(\\.[0-9]+)?$'
+      THEN ${normalizedColumn}::numeric
+      ELSE NULL
+    END
+  `;
+}
+
+function getPORecordsPageCacheKey(input: { page: number; pageSize: number; query?: string }) {
+  return JSON.stringify({
+    page: Math.max(1, input.page),
+    pageSize: input.pageSize,
+    query: input.query?.trim() ?? "",
+  });
+}
+
+export function invalidatePORecordsPageCache() {
+  poRecordsPageCache.clear();
+}
+
+async function getCachedPORecordsPageFromDatabase(input: {
+  page: number;
+  pageSize: number;
+  query?: string;
+}) {
+  const cacheKey = getPORecordsPageCacheKey(input);
+  const now = Date.now();
+  const cachedResult = poRecordsPageCache.get(cacheKey);
+
+  if (cachedResult && cachedResult.expiresAt > now) {
+    return cachedResult.promise;
+  }
+
+  const promise = getPORecordsPageFromDatabase(input).catch((error) => {
+    poRecordsPageCache.delete(cacheKey);
+    throw error;
+  });
+
+  poRecordsPageCache.set(cacheKey, {
+    expiresAt: now + poRecordsPageCacheTtlMs,
+    promise,
+  });
+
+  return promise;
 }
 
 async function ensureStoreFile() {
@@ -205,21 +268,24 @@ async function getPORecordsPageFromDatabase({
       ${search.clause}
     `;
 
-    const countResult = await client.query<{ count: string }>(
-      `
-        SELECT COUNT(*)::text AS count
-        FROM purchase_order_queue
-        WHERE ${baseWhere}
-      `,
-      search.params,
-    );
-
     const rowsResult = await client.query(
       `
-        SELECT *
-        FROM purchase_order_queue
-        WHERE ${baseWhere}
-        ORDER BY first_imported_at DESC
+        WITH filtered_records AS (
+          SELECT *
+          FROM purchase_order_queue
+          WHERE ${baseWhere}
+        )
+        SELECT
+          filtered_records.*,
+          COUNT(*) OVER ()::text AS total_count
+        FROM filtered_records
+        ORDER BY
+          MAX(first_imported_at) OVER (PARTITION BY purchase_order_number) DESC,
+          MIN(import_row_number) OVER (PARTITION BY purchase_order_number) ASC,
+          purchase_order_number ASC,
+          ${buildNumericTextExpression("purchase_order_item_number")} ASC NULLS LAST,
+          purchase_order_item_number ASC,
+          import_row_number ASC
         LIMIT $${search.params.length + 1}
         OFFSET $${search.params.length + 2}
       `,
@@ -228,7 +294,7 @@ async function getPORecordsPageFromDatabase({
 
     return {
       records: rowsResult.rows.map(mapDatabasePORecord),
-      totalCount: Number(countResult.rows[0]?.count ?? "0"),
+      totalCount: Number(rowsResult.rows[0]?.total_count ?? "0"),
     };
   });
 }
@@ -348,6 +414,7 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   await cleanupExpiredSharedData();
 
   const importedAt = new Date().toISOString();
@@ -482,6 +549,7 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
 
 async function clearPORegistryInDatabase() {
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   await withPostgresTransaction(async (client) => {
     await client.query(`
@@ -498,6 +566,7 @@ async function deletePORecordsInDatabase(registryKeys: string[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   return withPostgresTransaction(async (client) => {
     const result = await client.query(
@@ -520,6 +589,7 @@ async function markPORecordsAssignedInDatabase(registryKeys: string[], jobId: st
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   await withPostgresTransaction(async (client) => {
     await client.query(
@@ -542,6 +612,7 @@ async function releasePORecordsFromJobInDatabase(registryKeys: string[], jobId: 
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   await withPostgresTransaction(async (client) => {
     await client.query(
@@ -566,6 +637,7 @@ async function markPORecordsCompletedInDatabase(registryKeys: string[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   await withPostgresTransaction(async (client) => {
     await client.query(
@@ -602,7 +674,7 @@ export async function getPORecordsPage({
   query?: string;
 }) {
   if (hasSharedDatabase()) {
-    return getPORecordsPageFromDatabase({ page, pageSize, query });
+    return getCachedPORecordsPageFromDatabase({ page, pageSize, query });
   }
 
   const store = await readStore();
@@ -674,6 +746,7 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
 
   const store = await readStore();
   const importedAt = new Date().toISOString();
@@ -735,6 +808,7 @@ export async function clearPORegistry() {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
 
   await writeStore({
@@ -752,6 +826,7 @@ export async function deletePORecords(registryKeys: string[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
   const uniqueKeys = new Set(registryKeys);
   const records = store.records.filter(
@@ -769,6 +844,7 @@ export async function markPORecordsAssigned(registryKeys: string[], jobId: strin
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
   const uniqueKeys = new Set(registryKeys);
   const assignedAt = new Date().toISOString();
@@ -797,6 +873,7 @@ export async function releasePORecordsFromJob(registryKeys: string[], jobId: str
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
   const uniqueKeys = new Set(registryKeys);
 
@@ -820,6 +897,7 @@ export async function markPORecordsCompleted(registryKeys: string[]) {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
   const uniqueKeys = new Set(registryKeys);
   const completedAt = new Date().toISOString();
