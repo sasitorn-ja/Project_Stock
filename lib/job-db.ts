@@ -37,6 +37,7 @@ export async function createJob(input: {
   note?: string;
   registryKeys: string[];
   itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
   destinationOverrides?: {
     id: string;
     name?: string;

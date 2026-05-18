@@ -199,6 +199,35 @@ function assertDestinationModeUnlocked(job: JobRecord) {
   }
 }
 
+function applyDestinationAssignments(
+  items: JobRecord["items"],
+  assignments: Record<string, string> = {},
+  overrides: JobDestinationOverrideInput[] = [],
+) {
+  const overridesById = new Map(
+    overrides
+      .filter((override) => override.id.trim())
+      .map((override) => [override.id.trim(), override]),
+  );
+
+  return items.map((item) => {
+    const assignedDestinationId = assignments[item.registryKey]?.trim();
+    const override = assignedDestinationId ? overridesById.get(assignedDestinationId) : undefined;
+
+    if (!assignedDestinationId || !override) {
+      return item;
+    }
+
+    const destinationName = override.name?.trim() || override.address?.trim() || item.destinationName;
+
+    return {
+      ...item,
+      destinationId: assignedDestinationId,
+      destinationName,
+    };
+  });
+}
+
 function buildAlert(type: string, message: string, severity: JobAlertRecord["severity"]): JobAlertRecord {
   const createdAt = new Date().toISOString();
 
@@ -791,6 +820,7 @@ async function createJobInDatabase(input: {
   note?: string;
   registryKeys: string[];
   itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   if (!input.registryKeys.length) {
@@ -829,7 +859,11 @@ async function createJobInDatabase(input: {
       throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
     }
 
-    const baseItems = buildJobItems(availableRecords, input.itemScanQuantities);
+    const baseItems = applyDestinationAssignments(
+      buildJobItems(availableRecords, input.itemScanQuantities),
+      input.destinationAssignments,
+      input.destinationOverrides,
+    );
     const baseDestinations = buildJobDestinations(baseItems);
     const { items, destinations } = applyDestinationOverrides(
       baseItems,
@@ -1506,6 +1540,7 @@ export async function createJob(input: {
   note?: string;
   registryKeys: string[];
   itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   if (hasSharedDatabase()) {
@@ -1525,7 +1560,11 @@ export async function createJob(input: {
   const baseId = buildJobId(new Date());
   const duplicateCount = store.jobs.filter((job) => job.id.startsWith(baseId)).length;
   const jobId = duplicateCount ? `${baseId}-${duplicateCount + 1}` : baseId;
-  const baseItems = buildJobItems(availableRecords, input.itemScanQuantities);
+  const baseItems = applyDestinationAssignments(
+    buildJobItems(availableRecords, input.itemScanQuantities),
+    input.destinationAssignments,
+    input.destinationOverrides,
+  );
   const baseDestinations = buildJobDestinations(baseItems);
   const { items, destinations } = applyDestinationOverrides(
     baseItems,

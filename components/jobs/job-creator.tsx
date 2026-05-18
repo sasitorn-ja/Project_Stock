@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, FileWarning, MapPinned, Save, Truck } from "lucide-react";
+import { AlertCircle, FileWarning, MapPinned, Plus, Save, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 const storageKey = "project-stock.selected-po-registry-keys";
 type FieldErrors = Record<string, string>;
+type DestinationDraft = { name: string; address: string };
 
 function createDestinationId(name: string) {
   return name
@@ -35,7 +36,8 @@ export function JobCreator() {
   const [vehicle, setVehicle] = useState("");
   const [origin, setOrigin] = useState("DC Bangna");
   const [note, setNote] = useState("");
-  const [destinationDrafts, setDestinationDrafts] = useState<Record<string, { name: string; address: string }>>({});
+  const [destinationDrafts, setDestinationDrafts] = useState<Record<string, DestinationDraft>>({});
+  const [destinationAssignments, setDestinationAssignments] = useState<Record<string, string>>({});
   const [scanQuantities, setScanQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -55,6 +57,25 @@ export function JobCreator() {
         const existingRecords = await getExistingPORecords(selectedKeys);
         const nextRecords = selectedKeys.map((key) => existingRecords.get(key)).filter(Boolean) as PORegistryRecord[];
         setRecords(nextRecords);
+        setDestinationAssignments((currentAssignments) =>
+          Object.fromEntries(
+            nextRecords.map((record) => [
+              record.registryKey,
+              currentAssignments[record.registryKey] ?? createDestinationId(record.unitName.trim() || "ไม่ระบุปลายทาง"),
+            ]),
+          ),
+        );
+        setDestinationDrafts((currentDrafts) => {
+          const nextDrafts = { ...currentDrafts };
+
+          nextRecords.forEach((record) => {
+            const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
+            const id = createDestinationId(name);
+            nextDrafts[id] = nextDrafts[id] ?? { name, address: name };
+          });
+
+          return nextDrafts;
+        });
         setScanQuantities((currentQuantities) =>
           Object.fromEntries(nextRecords.map((record) => [record.registryKey, currentQuantities[record.registryKey] ?? 1])),
         );
@@ -69,33 +90,45 @@ export function JobCreator() {
   }, []);
 
   const groupedDestinations = useMemo(() => {
-    const groups = new Map<string, { id: string; name: string; address: string; totalQty: number; poCount: number }>();
+    const groups = new Map<string, { id: string; name: string; address: string; totalQty: number; poCount: number; records: PORegistryRecord[] }>();
 
     records.forEach((record) => {
-      const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
-      const id = createDestinationId(name);
-      const current = groups.get(id) ?? { id, name, address: name, totalQty: 0, poCount: 0 };
+      const fallbackName = record.unitName.trim() || "ไม่ระบุปลายทาง";
+      const id = destinationAssignments[record.registryKey] || createDestinationId(fallbackName);
+      const draft = destinationDrafts[id];
+      const name = draft?.name || fallbackName;
+      const address = draft?.address || name;
+      const current = groups.get(id) ?? { id, name, address, totalQty: 0, poCount: 0, records: [] };
       current.totalQty += Number(record.orderQty.replace(/,/g, "")) || 0;
       current.poCount += 1;
+      current.records.push(record);
       groups.set(id, current);
     });
 
-    return Array.from(groups.values());
-  }, [records]);
+    Object.entries(destinationDrafts).forEach(([id, draft]) => {
+      if (!groups.has(id)) {
+        groups.set(id, { id, name: draft.name, address: draft.address, totalQty: 0, poCount: 0, records: [] });
+      }
+    });
 
-  useEffect(() => {
-    setDestinationDrafts((currentDrafts) =>
-      Object.fromEntries(
-        groupedDestinations.map((destination) => [
-          destination.id,
-          {
-            name: currentDrafts[destination.id]?.name ?? destination.name,
-            address: currentDrafts[destination.id]?.address ?? destination.address,
-          },
-        ]),
-      ),
+    return Array.from(groups.values()).sort((first, second) => {
+      if (second.poCount !== first.poCount) {
+        return second.poCount - first.poCount;
+      }
+
+      return first.name.localeCompare(second.name, "th");
+    });
+  }, [destinationAssignments, destinationDrafts, records]);
+
+  const destinationNameByRecordKey = useMemo(() => {
+    return Object.fromEntries(
+      records.map((record) => {
+        const fallbackName = record.unitName.trim() || "ไม่ระบุปลายทาง";
+        const id = destinationAssignments[record.registryKey] || createDestinationId(fallbackName);
+        return [record.registryKey, destinationDrafts[id]?.name || fallbackName];
+      }),
     );
-  }, [groupedDestinations]);
+  }, [destinationAssignments, destinationDrafts, records]);
 
   function updateDestinationDraft(destinationId: string, field: "name" | "address", value: string) {
     clearFieldError(`destination.${destinationId}.${field}`);
@@ -106,6 +139,27 @@ export function JobCreator() {
         address: currentDrafts[destinationId]?.address ?? "",
         [field]: value,
       },
+    }));
+  }
+
+  function addDestinationGroup() {
+    const nextNumber = Object.keys(destinationDrafts).filter((id) => id.startsWith("custom-destination-")).length + 1;
+    const id = `custom-destination-${Date.now()}-${nextNumber}`;
+
+    setDestinationDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [id]: {
+        name: `ปลายทางใหม่ ${nextNumber}`,
+        address: "",
+      },
+    }));
+  }
+
+  function assignRecordToDestination(registryKey: string, destinationId: string, checked: boolean) {
+    clearFieldError(`assignment.${registryKey}`);
+    setDestinationAssignments((currentAssignments) => ({
+      ...currentAssignments,
+      [registryKey]: checked ? destinationId : "",
     }));
   }
 
@@ -170,6 +224,12 @@ export function JobCreator() {
       }
     });
 
+    records.forEach((record) => {
+      if (!destinationAssignments[record.registryKey]?.trim()) {
+        nextErrors[`assignment.${record.registryKey}`] = "กรุณาเลือกปลายทางให้รายการนี้";
+      }
+    });
+
     return nextErrors;
   }
 
@@ -202,6 +262,7 @@ export function JobCreator() {
         itemScanQuantities: Object.fromEntries(
           records.map((record) => [record.registryKey, Math.max(0, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
         ),
+        destinationAssignments,
         destinationOverrides: groupedDestinations.map((destination) => ({
           id: destination.id,
           name: destinationDrafts[destination.id]?.name ?? destination.name,
@@ -257,7 +318,12 @@ export function JobCreator() {
                           <tr key={record.registryKey}>
                             <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{record.poSapNo}</td>
                             <td className="whitespace-nowrap px-4 py-3 align-top">{record.poSapItem}</td>
-                            <td className="max-w-72 break-words px-4 py-3 align-top">{record.unitName || "-"}</td>
+                            <td className="max-w-72 break-words px-4 py-3 align-top">
+                              <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
+                              {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
+                                <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
+                              ) : null}
+                            </td>
                             <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
                             <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
                             <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
@@ -294,7 +360,7 @@ export function JobCreator() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">ปลายทาง</p>
-                          <p className="break-words">{record.unitName || "-"}</p>
+                          <p className="break-words">{destinationNameByRecordKey[record.registryKey] || "-"}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อในไฟล์</p>
@@ -428,7 +494,13 @@ export function JobCreator() {
                   <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
                   สรุปปลายทาง
                 </div>
-                <p className="mt-2 text-muted-foreground">ระบบตั้งต้นปลายทางจากชื่อหน่วยงานในไฟล์ GR และคุณสามารถแก้ชื่อที่แสดงหรือที่อยู่ให้ตรงกับสถานที่จริงได้ก่อนสร้าง Job</p>
+                <p className="mt-2 text-muted-foreground">พิมพ์ชื่อ/โลเคชันครั้งเดียวต่อปลายทาง แล้วติ๊กเลือกรายการ PO SAP No. ที่ต้องส่งไปจุดนั้น ระบบจะรวมเป็นปลายทางเดียวใน Driver Room</p>
+                <div className="mt-3">
+                  <Button type="button" variant="outline" size="sm" onClick={addDestinationGroup} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    เพิ่มปลายทาง
+                  </Button>
+                </div>
                 <div className="mt-3 space-y-3">
                   {groupedDestinations.map((destination) => (
                     <div key={destination.id} className="space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
@@ -466,6 +538,55 @@ export function JobCreator() {
                           />
                           {renderFieldError(`destination.${destination.id}.address`)}
                         </div>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold text-slate-700">ติ๊ก PO SAP No. เข้าปลายทางนี้</p>
+                          <Badge variant={destination.poCount ? "success" : "secondary"}>
+                            {destination.poCount.toLocaleString("th-TH")} รายการ
+                          </Badge>
+                        </div>
+                        <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                          {records.map((record) => {
+                            const checked = destinationAssignments[record.registryKey] === destination.id;
+                            const assignedDestination = destinationAssignments[record.registryKey];
+                            const assignedElsewhere = Boolean(assignedDestination && assignedDestination !== destination.id);
+
+                            return (
+                              <label
+                                key={`${destination.id}-${record.registryKey}`}
+                                className={`flex cursor-pointer items-start gap-2 rounded-md border px-2 py-2 text-xs ${
+                                  checked
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                                    : assignedElsewhere
+                                      ? "border-slate-100 bg-white text-slate-400 hover:border-emerald-200"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) => assignRecordToDestination(record.registryKey, destination.id, event.target.checked)}
+                                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                                />
+                                <span className="min-w-0">
+                                  <span className="block break-words font-semibold">
+                                    {record.poSapNo} / Item {record.poSapItem}
+                                  </span>
+                                  <span className="mt-0.5 block break-words text-[11px] opacity-75">
+                                    {record.materialCode || "-"} {record.materialName ? `/ ${record.materialName}` : ""}
+                                  </span>
+                                  {fieldErrors[`assignment.${record.registryKey}`] ? (
+                                    <span className="mt-1 block text-[11px] font-medium text-red-600">
+                                      {fieldErrors[`assignment.${record.registryKey}`]}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 text-[11px] text-muted-foreground">ติ๊กที่ปลายทางใหม่เพื่อย้ายรายการ ระบบจะให้ 1 รายการอยู่ได้แค่ 1 ปลายทาง</p>
                       </div>
                     </div>
                   ))}
