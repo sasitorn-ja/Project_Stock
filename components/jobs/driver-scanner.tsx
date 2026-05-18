@@ -377,7 +377,49 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </div>
       </section>
 
-      <Card className="order-3">
+      {isOriginGpsRequired && job ? (
+        <Card className="order-3 border-slate-950">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className="h-4 w-4" />
+              เริ่มงาน: เช็กอินต้นทาง
+            </CardTitle>
+            <CardDescription>คนขับต้องกดเช็กอิน GPS ต้นทางจากมือถือเครื่องนี้ก่อน จึงจะเปิดส่วนสแกนสินค้าได้</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-3">
+            <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
+              <p className="text-sm font-medium">ต้นทาง</p>
+              <p className="mt-1 break-words text-sm text-slate-600">{job.origin || "-"}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">ยังไม่เช็กอินต้นทาง</p>
+            </div>
+            <Button
+              type="button"
+              className="h-12 w-full gap-2 text-base"
+              onClick={captureOriginGps}
+              disabled={!job || isFetchingOriginGps}
+            >
+              <MapPin className="h-5 w-5" />
+              {isFetchingOriginGps ? "กำลังดึง GPS ต้นทาง" : "เช็กอินต้นทางเพื่อเริ่มสแกน"}
+            </Button>
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              หลังเช็กอินสำเร็จ ระบบจะแสดงปุ่มเปิดกล้องและช่องสแกนสินค้า
+            </div>
+            {message ? (
+              <div
+                className={
+                  scanResult === "alert"
+                    ? "whitespace-pre-line rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                    : "whitespace-pre-line rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
+                }
+              >
+                {message}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card className="order-4">
         <CardContent className="grid gap-2 p-3 md:grid-cols-3">
           {[
             ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
@@ -404,6 +446,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
+      {!isOriginGpsRequired ? (
       <Card className="order-5">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -473,8 +516,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           ) : null}
         </CardContent>
       </Card>
+      ) : null}
 
-      <Card className="order-4">
+      {!isOriginGpsRequired ? (
+      <Card className="order-6">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
@@ -608,8 +653,9 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           ) : null}
         </CardContent>
       </Card>
+      ) : null}
 
-      <Card className="order-6">
+      <Card className="order-7">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4" />
@@ -661,7 +707,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         </CardContent>
       </Card>
 
-      {isLoading ? <div className="order-7 text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
+      {isLoading ? <div className="order-8 text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
     </div>
   );
 }

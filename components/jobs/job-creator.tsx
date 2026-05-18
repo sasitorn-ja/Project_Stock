@@ -213,6 +213,10 @@ export function JobCreator() {
     }
 
     groupedDestinations.forEach((destination) => {
+      if (destination.poCount <= 0) {
+        return;
+      }
+
       const draft = destinationDrafts[destination.id];
 
       if (!(draft?.name ?? destination.name).trim()) {
@@ -263,11 +267,13 @@ export function JobCreator() {
           records.map((record) => [record.registryKey, Math.max(0, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
         ),
         destinationAssignments,
-        destinationOverrides: groupedDestinations.map((destination) => ({
-          id: destination.id,
-          name: destinationDrafts[destination.id]?.name ?? destination.name,
-          address: destinationDrafts[destination.id]?.address ?? destination.address,
-        })),
+        destinationOverrides: groupedDestinations
+          .filter((destination) => destination.poCount > 0)
+          .map((destination) => ({
+            id: destination.id,
+            name: destinationDrafts[destination.id]?.name ?? destination.name,
+            address: destinationDrafts[destination.id]?.address ?? destination.address,
+          })),
       });
 
       window.sessionStorage.removeItem(storageKey);
@@ -281,14 +287,14 @@ export function JobCreator() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-        <Card>
-          <CardHeader>
+    <div className="space-y-4">
+      <section className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_460px] 2xl:items-start">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="px-4 py-3 sm:px-5 sm:py-4">
             <CardTitle>รายการที่เลือกจาก PO รอจัดส่ง</CardTitle>
             <CardDescription>ระบบจะใช้รายการจริงเหล่านี้ไปสร้าง Job และตัดออกจากคิวรอจัดส่งทันที</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-4 py-3 sm:px-5 sm:py-4">
             {isLoading ? (
               <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
                 กำลังโหลดรายการ PO ที่เลือก
@@ -300,34 +306,34 @@ export function JobCreator() {
                   <Badge variant="secondary">{groupedDestinations.length.toLocaleString("th-TH")} ปลายทาง</Badge>
                 </div>
                 <div className="overflow-hidden rounded-md border">
-                  <div className="hidden overflow-x-auto md:block">
-                    <table className="w-full min-w-[980px] text-sm">
+                  <div className="hidden overflow-x-auto lg:block">
+                    <table className="w-full min-w-[900px] text-sm">
                       <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                         <tr>
-                          <th className="px-4 py-3 font-medium">PO SAP No.</th>
-                          <th className="px-4 py-3 font-medium">Item</th>
-                          <th className="px-4 py-3 font-medium">ปลายทาง</th>
-                          <th className="px-4 py-3 font-medium">รหัสวัสดุ</th>
-                          <th className="px-4 py-3 font-medium">ชื่อวัสดุ</th>
-                          <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">จำนวนในไฟล์</th>
-                          <th className="w-40 whitespace-nowrap px-4 py-3 font-medium">จำนวนที่ต้องสแกน</th>
+                          <th className="px-3 py-2.5 font-medium">PO SAP No.</th>
+                          <th className="px-3 py-2.5 font-medium">Item</th>
+                          <th className="px-3 py-2.5 font-medium">ปลายทาง</th>
+                          <th className="px-3 py-2.5 font-medium">รหัสวัสดุ</th>
+                          <th className="px-3 py-2.5 font-medium">ชื่อวัสดุ</th>
+                          <th className="w-28 whitespace-nowrap px-3 py-2.5 font-medium">จำนวนในไฟล์</th>
+                          <th className="w-36 whitespace-nowrap px-3 py-2.5 font-medium">จำนวนที่ต้องสแกน</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {records.map((record) => (
                           <tr key={record.registryKey}>
-                            <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{record.poSapNo}</td>
-                            <td className="whitespace-nowrap px-4 py-3 align-top">{record.poSapItem}</td>
-                            <td className="max-w-72 break-words px-4 py-3 align-top">
+                            <td className="whitespace-nowrap px-3 py-2.5 align-top font-medium">{record.poSapNo}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 align-top">{record.poSapItem}</td>
+                            <td className="max-w-64 break-words px-3 py-2.5 align-top">
                               <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
                               {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
                                 <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
                               ) : null}
                             </td>
-                            <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
-                            <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
-                            <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
-                            <td className="px-4 py-3 align-top">
+                            <td className="whitespace-nowrap px-3 py-2.5 align-top">{record.materialCode || "-"}</td>
+                            <td className="max-w-72 break-words px-3 py-2.5 align-top">{record.materialName || "-"}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 align-top">{record.orderQty || "-"}</td>
+                            <td className="px-3 py-2.5 align-top">
                               <Input
                                 type="number"
                                 min="0"
@@ -338,7 +344,7 @@ export function JobCreator() {
                                     [record.registryKey]: Math.max(0, Math.ceil(Number(event.target.value) || 0)),
                                   }))
                                 }
-                                className="h-9 w-28"
+                                className="h-9 w-24"
                               />
                             </td>
                           </tr>
@@ -346,7 +352,7 @@ export function JobCreator() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="divide-y md:hidden">
+                  <div className="divide-y lg:hidden">
                     {records.map((record) => (
                       <div key={record.registryKey} className="space-y-3 p-3 text-sm">
                         <div className="flex items-start justify-between gap-3">
@@ -405,21 +411,21 @@ export function JobCreator() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="min-w-0 overflow-hidden 2xl:sticky 2xl:top-4">
+          <CardHeader className="px-4 py-3 sm:px-5 sm:py-4">
             <CardTitle>รายละเอียดงานขนส่ง</CardTitle>
-          <CardDescription>กำหนดผู้รับผิดชอบงานจริง และปรับชื่อปลายทาง/ที่อยู่ก่อนบันทึกเข้าระบบ โดยค่าเริ่มต้นจะอ้างอิงจากชื่อหน่วยงานในไฟล์ GR</CardDescription>
+            <CardDescription>กำหนดผู้รับผิดชอบงานจริง และปรับชื่อปลายทาง/ที่อยู่ก่อนบันทึกเข้าระบบ โดยค่าเริ่มต้นจะอ้างอิงจากชื่อหน่วยงานในไฟล์ GR</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-2">
+          <CardContent className="grid gap-4 px-4 py-3 sm:grid-cols-2 sm:px-5 sm:py-4 2xl:grid-cols-1">
             {error ? (
-              <div className="md:col-span-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200 sm:col-span-2 2xl:col-span-1">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>{error}</p>
                 </div>
               </div>
             ) : null}
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 sm:col-span-2 2xl:col-span-1">
               <Label htmlFor="room-name">ชื่อห้อง Job</Label>
               <Input
                 id="room-name"
@@ -484,12 +490,12 @@ export function JobCreator() {
                 ระบบจะดึงจากมือถือของผู้เริ่มงานใน Driver Room เท่านั้น
               </div>
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 sm:col-span-2 2xl:col-span-1">
               <Label htmlFor="note">หมายเหตุ</Label>
               <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="ข้อมูลเสริมของงานนี้" />
             </div>
-            <div className="md:col-span-2">
-              <div className="rounded-lg border bg-slate-50 p-4 text-sm dark:bg-slate-900">
+            <div className="min-w-0 sm:col-span-2 2xl:col-span-1">
+              <div className="rounded-lg border bg-slate-50 p-3 text-sm dark:bg-slate-900 sm:p-4">
                 <div className="flex items-center gap-2 font-medium">
                   <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
                   สรุปปลายทาง
@@ -503,17 +509,17 @@ export function JobCreator() {
                 </div>
                 <div className="mt-3 space-y-3">
                   {groupedDestinations.map((destination) => (
-                    <div key={destination.id} className="space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={destination.id} className="min-w-0 space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between 2xl:flex-col">
                         <div className="min-w-0">
-                          <p className="font-medium">{destinationDrafts[destination.id]?.name || destination.name}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">รหัสปลายทาง: {destination.id}</p>
+                          <p className="break-words font-medium">{destinationDrafts[destination.id]?.name || destination.name}</p>
+                          <p className="mt-1 break-all text-xs text-muted-foreground">รหัสปลายทาง: {destination.id}</p>
                         </div>
-                        <span className="shrink-0 text-muted-foreground">
+                        <span className="shrink-0 text-xs text-muted-foreground sm:text-right 2xl:text-left">
                           {destination.poCount.toLocaleString("th-TH")} line / จำนวนในไฟล์ {destination.totalQty.toLocaleString("th-TH")}
                         </span>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
                         <div className="space-y-2">
                           <Label htmlFor={`destination-name-${destination.id}`}>ชื่อปลายทาง</Label>
                           <Input
@@ -546,7 +552,7 @@ export function JobCreator() {
                             {destination.poCount.toLocaleString("th-TH")} รายการ
                           </Badge>
                         </div>
-                        <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                        <div className="grid max-h-56 gap-1 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-1">
                           {records.map((record) => {
                             const checked = destinationAssignments[record.registryKey] === destination.id;
                             const assignedDestination = destinationAssignments[record.registryKey];
@@ -555,7 +561,7 @@ export function JobCreator() {
                             return (
                               <label
                                 key={`${destination.id}-${record.registryKey}`}
-                                className={`flex cursor-pointer items-start gap-2 rounded-md border px-2 py-2 text-xs ${
+                                className={`flex min-w-0 cursor-pointer items-start gap-2 rounded-md border px-2 py-2 text-xs ${
                                   checked
                                     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
                                     : assignedElsewhere
@@ -593,7 +599,7 @@ export function JobCreator() {
                 </div>
               </div>
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2 2xl:col-span-1">
               <Button type="button" className="w-full" onClick={handleCreateJob} disabled={isLoading || isSaving || !records.length}>
                 {isSaving ? (
                   <>กำลังบันทึก Job</>
@@ -605,7 +611,7 @@ export function JobCreator() {
                 )}
               </Button>
             </div>
-            <div className="md:col-span-2 rounded-lg border bg-cyan-50 p-4 text-sm text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200">
+            <div className="rounded-lg border bg-cyan-50 p-3 text-sm text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200 sm:col-span-2 sm:p-4 2xl:col-span-1">
               <div className="flex items-center gap-2 font-medium">
                 <Truck className="h-4 w-4" />
                 หลังสร้างสำเร็จ
