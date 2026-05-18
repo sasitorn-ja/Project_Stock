@@ -97,6 +97,7 @@ function isExpiredJobArchive(job: JobArchiveRecord) {
 function normalizeStoredJob<T extends JobRecord | JobArchiveRecord>(job: T): T {
   return {
     ...job,
+    allowDestinationBeforeFullyLoaded: Boolean(job.allowDestinationBeforeFullyLoaded),
     destinations: Array.isArray(job.destinations) ? job.destinations.map(normalizeJobDestination) : [],
   };
 }
@@ -185,6 +186,19 @@ function updateJobStatus(job: JobRecord) {
   job.status = "ready";
 }
 
+function isJobFullyLoaded(job: JobRecord) {
+  const requiredTotal = job.items.reduce((sum, item) => sum + item.orderQty, 0);
+  const loadedTotal = job.items.reduce((sum, item) => sum + item.loadedQty, 0);
+
+  return requiredTotal > 0 && loadedTotal >= requiredTotal;
+}
+
+function assertDestinationModeUnlocked(job: JobRecord) {
+  if (!isJobFullyLoaded(job) && !job.allowDestinationBeforeFullyLoaded) {
+    throw new Error("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดโหมดปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
+  }
+}
+
 function buildAlert(type: string, message: string, severity: JobAlertRecord["severity"]): JobAlertRecord {
   const createdAt = new Date().toISOString();
 
@@ -261,6 +275,8 @@ function applyDestinationCheckIn(
   if (!destination) {
     throw new Error("ไม่พบปลายทางที่เลือกใน Job นี้");
   }
+
+  assertDestinationModeUnlocked(job);
 
   const checkedInAt = new Date().toISOString();
 
@@ -487,6 +503,7 @@ function applyJobScan(
   }
 
   if (input.mode === "deliver") {
+    assertDestinationModeUnlocked(job);
     assertDestinationCheckInCompleted(job, input.destinationId);
   }
 
@@ -830,6 +847,7 @@ async function createJobInDatabase(input: {
       vehicle: input.vehicle.trim(),
       origin: input.origin.trim(),
       originGps: "",
+      allowDestinationBeforeFullyLoaded: false,
       note: input.note?.trim() ?? "",
       poRegistryKeys: items.map((item) => item.registryKey),
       items,
@@ -851,6 +869,7 @@ async function createJobInDatabase(input: {
           vehicle_plate,
           origin_location_name,
           origin_check_in_coordinates,
+          allow_destination_before_fully_loaded,
           job_note,
           selected_line_registry_keys,
           job_items_json,
@@ -869,11 +888,12 @@ async function createJobInDatabase(input: {
           $8,
           $9,
           $10,
-          $11::text[],
-          $12::jsonb,
+          $11,
+          $12::text[],
           $13::jsonb,
           $14::jsonb,
-          $15::jsonb
+          $15::jsonb,
+          $16::jsonb
         )
       `,
       [
@@ -886,6 +906,7 @@ async function createJobInDatabase(input: {
         payload.vehicle_plate,
         payload.origin_location_name,
         payload.origin_check_in_coordinates,
+        payload.allow_destination_before_fully_loaded,
         payload.job_note,
         payload.selected_line_registry_keys,
         JSON.stringify(payload.job_items_json),
@@ -893,6 +914,48 @@ async function createJobInDatabase(input: {
         JSON.stringify(payload.job_alerts_json),
         JSON.stringify(payload.scan_events_json),
       ],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function updateJobDestinationOverrideInDatabase(input: {
+  jobId: string;
+  allowDestinationBeforeFullyLoaded: boolean;
+}) {
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    job.allowDestinationBeforeFullyLoaded = input.allowDestinationBeforeFullyLoaded;
+    job.updatedAt = new Date().toISOString();
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          allow_destination_before_fully_loaded = $2,
+          updated_at = $3::timestamptz
+        WHERE delivery_job_id = $1
+      `,
+      [job.id, Boolean(job.allowDestinationBeforeFullyLoaded), job.updatedAt],
     );
 
     return summarizeJob(job);
@@ -1110,6 +1173,7 @@ async function registerJobScanInDatabase(input: {
             origin_location_name,
             origin_check_in_coordinates,
             origin_checked_in_at,
+            allow_destination_before_fully_loaded,
             job_note,
             selected_line_registry_keys,
             job_items_json,
@@ -1132,14 +1196,15 @@ async function registerJobScanInDatabase(input: {
             $9,
             $10::timestamptz,
             $11,
-            $12::text[],
-            $13::jsonb,
+            $12,
+            $13::text[],
             $14::jsonb,
             $15::jsonb,
             $16::jsonb,
-            $17::timestamptz,
+            $17::jsonb,
             $18::timestamptz,
-            $19::timestamptz
+            $19::timestamptz,
+            $20::timestamptz
           )
           ON CONFLICT (delivery_job_id) DO UPDATE
           SET
@@ -1152,6 +1217,7 @@ async function registerJobScanInDatabase(input: {
             origin_location_name = EXCLUDED.origin_location_name,
             origin_check_in_coordinates = EXCLUDED.origin_check_in_coordinates,
             origin_checked_in_at = EXCLUDED.origin_checked_in_at,
+            allow_destination_before_fully_loaded = EXCLUDED.allow_destination_before_fully_loaded,
             job_note = EXCLUDED.job_note,
             selected_line_registry_keys = EXCLUDED.selected_line_registry_keys,
             job_items_json = EXCLUDED.job_items_json,
@@ -1173,6 +1239,7 @@ async function registerJobScanInDatabase(input: {
           archivePayload.origin_location_name,
           archivePayload.origin_check_in_coordinates,
           archivePayload.origin_checked_in_at,
+          archivePayload.allow_destination_before_fully_loaded,
           archivePayload.job_note,
           archivePayload.selected_line_registry_keys,
           JSON.stringify(archivePayload.job_items_json),
@@ -1330,8 +1397,9 @@ async function registerJobScanInDatabase(input: {
             delivery_destinations_json = $5::jsonb,
             job_alerts_json = $6::jsonb,
             scan_events_json = $7::jsonb,
-            completed_at = $8::timestamptz,
-            cleanup_after_at = $9::timestamptz
+            allow_destination_before_fully_loaded = $8,
+            completed_at = $9::timestamptz,
+            cleanup_after_at = $10::timestamptz
           WHERE delivery_job_id = $1
         `,
         [
@@ -1342,6 +1410,7 @@ async function registerJobScanInDatabase(input: {
           JSON.stringify(payload.delivery_destinations_json),
           JSON.stringify(payload.job_alerts_json),
           JSON.stringify(payload.scan_events_json),
+          payload.allow_destination_before_fully_loaded,
           payload.completed_at,
           payload.cleanup_after_at,
         ],
@@ -1474,6 +1543,7 @@ export async function createJob(input: {
     vehicle: input.vehicle.trim(),
     origin: input.origin.trim(),
     originGps: "",
+    allowDestinationBeforeFullyLoaded: false,
     note: input.note?.trim() ?? "",
     poRegistryKeys: items.map((item) => item.registryKey),
     items,
@@ -1486,6 +1556,30 @@ export async function createJob(input: {
   await writeStore({
     jobs: [...store.jobs, job],
   });
+
+  return summarizeJob(job);
+}
+
+export async function updateJobDestinationOverride(input: {
+  jobId: string;
+  allowDestinationBeforeFullyLoaded: boolean;
+}) {
+  if (hasSharedDatabase()) {
+    return updateJobDestinationOverrideInDatabase(input);
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === input.jobId && currentJob.status !== "completed");
+
+  if (!job) {
+    throw new Error("ไม่พบ Job ที่เลือก");
+  }
+
+  job.allowDestinationBeforeFullyLoaded = input.allowDestinationBeforeFullyLoaded;
+  job.updatedAt = new Date().toISOString();
+
+  await writeStore({ jobs: store.jobs });
 
   return summarizeJob(job);
 }

@@ -100,11 +100,12 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const requiredTotal = job?.items.reduce((sum, item) => sum + item.orderQty, 0) ?? 0;
   const loadedTotal = job?.items.reduce((sum, item) => sum + item.loadedQty, 0) ?? 0;
   const deliveredTotal = job?.items.reduce((sum, item) => sum + item.deliveredQty, 0) ?? 0;
-  const hasLoadedItems = loadedTotal > 0;
-  const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || !hasLoadedItems);
+  const isFullyLoaded = requiredTotal > 0 && loadedTotal >= requiredTotal;
+  const canOpenDestinationEarly = Boolean(job?.allowDestinationBeforeFullyLoaded);
+  const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || (!isFullyLoaded && !canOpenDestinationEarly));
   const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
   const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้อง Job";
-  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !hasLoadedItems ? 2 : isDestinationGpsRequired ? 2 : 3;
+  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !isFullyLoaded && !canOpenDestinationEarly ? 2 : isDestinationGpsRequired ? 2 : 3;
 
   useEffect(() => {
     if (mode === "deliver" && isDeliverModeLocked) {
@@ -155,7 +156,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     if (isDeliverModeLocked) {
-      setMessage("ต้องเช็กอินต้นทางและสแกนขึ้นรถอย่างน้อย 1 รายการก่อน จึงจะเปิดปลายทางได้");
+      setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -205,7 +206,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     if (mode === "deliver" && isDeliverModeLocked) {
-      setMessage("ต้องสแกนขึ้นรถที่ต้นทางก่อน จึงจะบันทึกส่งปลายทางได้");
+      setMessage("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะบันทึกส่งปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -242,7 +243,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         isOriginGpsRequired
           ? "ต้องเช็กอิน GPS ต้นทางก่อนเปิดกล้อง"
           : mode === "deliver" && isDeliverModeLocked
-            ? "ต้องสแกนขึ้นรถที่ต้นทางก่อนเปิดปลายทาง"
+            ? "ต้องสแกนขึ้นรถให้ครบก่อนเปิดปลายทาง"
             : "ต้องเช็กอิน GPS ปลายทางก่อนเปิดกล้อง",
       );
       return;
@@ -380,7 +381,11 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
         <CardContent className="grid gap-2 p-3 md:grid-cols-3">
           {[
             ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
-            ["2", "สแกนขึ้นรถ", hasLoadedItems ? "มีรายการขึ้นรถแล้ว" : "ยังไม่เปิดปลายทาง"],
+            [
+              "2",
+              "สแกนขึ้นรถ",
+              isFullyLoaded ? "โหลดครบแล้ว" : canOpenDestinationEarly ? "Admin เปิดปลายทาง" : "ยังโหลดไม่ครบ",
+            ],
             ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
           ].map(([step, label, status]) => (
             <div
@@ -457,7 +462,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               {isOriginGpsRequired
                 ? "ต้องเช็กอิน GPS ต้นทางก่อน จึงจะเปิดให้สแกนสินค้า"
                 : isDeliverModeLocked
-                  ? "ต้องสแกนขึ้นรถที่ต้นทางก่อนอย่างน้อย 1 รายการ ระบบจึงจะเปิดส่วนปลายทาง"
+                  ? "ต้องสแกนสินค้าขึ้นรถให้ครบก่อน ระบบจึงจะเปิดส่วนปลายทาง หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ"
                 : `ต้องเช็กอิน GPS ปลายทาง ${currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้`}
             </div>
           ) : null}
@@ -545,7 +550,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               type="button"
               onClick={() => {
                 if (isDeliverModeLocked) {
-                  setMessage("ต้องเช็กอินต้นทางและสแกนขึ้นรถก่อน จึงจะเลือกโหมดส่งปลายทางได้");
+                  setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเลือกโหมดส่งปลายทางได้");
                   setScanResult("alert");
                   return;
                 }

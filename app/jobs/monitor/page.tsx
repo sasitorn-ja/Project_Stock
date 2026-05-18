@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
+import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJob, listJobs } from "@/lib/job-store";
@@ -110,7 +111,14 @@ export default async function JobMonitorPage({
                   <CardTitle className="text-sm">ช่องทางเข้าหน้าคนขับ</CardTitle>
                   <CardDescription>เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ</CardDescription>
                 </div>
-                <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <JobDestinationOverrideButton
+                    jobId={job.id}
+                    enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
+                    isFullyLoaded={job.isFullyLoaded}
+                  />
+                  <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>

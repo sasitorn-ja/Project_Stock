@@ -78,6 +78,25 @@ export async function updateJobItemScanQuantity(input: {
   return data.job;
 }
 
+export async function updateJobDestinationOverride(input: {
+  jobId: string;
+  allowDestinationBeforeFullyLoaded: boolean;
+}) {
+  const data = await readResponse<{ job: JobRecord }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        allowDestinationBeforeFullyLoaded: input.allowDestinationBeforeFullyLoaded,
+      }),
+    }),
+  );
+
+  return data.job;
+}
+
 export async function deleteJob(jobId: string) {
   await readResponse<{ ok: true }>(
     await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {

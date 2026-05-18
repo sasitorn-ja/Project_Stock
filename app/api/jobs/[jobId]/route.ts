@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteJob, getJob, updateJobItemScanQuantity } from "@/lib/job-store";
+import { deleteJob, getJob, updateJobDestinationOverride, updateJobItemScanQuantity } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ jobId
     const body = (await request.json()) as {
       registryKey?: string;
       scanQty?: number;
+      allowDestinationBeforeFullyLoaded?: boolean;
     };
+
+    if (typeof body.allowDestinationBeforeFullyLoaded === "boolean") {
+      const job = await updateJobDestinationOverride({
+        jobId,
+        allowDestinationBeforeFullyLoaded: body.allowDestinationBeforeFullyLoaded,
+      });
+
+      return NextResponse.json({ job });
+    }
 
     if (!body.registryKey?.trim()) {
       return NextResponse.json({ error: "กรุณาระบุรายการที่ต้องการแก้จำนวนสแกน" }, { status: 400 });

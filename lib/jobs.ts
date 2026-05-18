@@ -70,6 +70,7 @@ export type JobRecord = {
   origin: string;
   originGps: string;
   originCheckedInAt?: string;
+  allowDestinationBeforeFullyLoaded?: boolean;
   note: string;
   poRegistryKeys: string[];
   items: JobItemRecord[];
@@ -236,6 +237,7 @@ export function summarizeJob(job: JobRecord) {
   const requiredTotal = job.items.reduce((sum, item) => sum + item.orderQty, 0);
   const loadedTotal = job.items.reduce((sum, item) => sum + item.loadedQty, 0);
   const deliveredTotal = job.items.reduce((sum, item) => sum + item.deliveredQty, 0);
+  const isFullyLoaded = requiredTotal > 0 && loadedTotal >= requiredTotal;
   const route = `${job.origin} -> ${job.destinations.length} ปลายทาง`;
 
   const destinations = job.destinations.map((destination) => {
@@ -289,6 +291,8 @@ export function summarizeJob(job: JobRecord) {
     requiredTotal,
     loadedTotal,
     deliveredTotal,
+    isFullyLoaded,
+    canOpenDestinationMode: isFullyLoaded || Boolean(job.allowDestinationBeforeFullyLoaded),
     destinations,
     poStatuses,
   };

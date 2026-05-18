@@ -84,6 +84,7 @@ async function createSchema(client: PoolClient) {
       origin_location_name TEXT NOT NULL DEFAULT '',
       origin_check_in_coordinates TEXT NOT NULL DEFAULT '',
       origin_checked_in_at TIMESTAMPTZ,
+      allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE,
       job_note TEXT NOT NULL DEFAULT '',
       selected_line_registry_keys TEXT[] NOT NULL DEFAULT '{}',
       job_items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -105,6 +106,7 @@ async function createSchema(client: PoolClient) {
       origin_location_name TEXT NOT NULL DEFAULT '',
       origin_check_in_coordinates TEXT NOT NULL DEFAULT '',
       origin_checked_in_at TIMESTAMPTZ,
+      allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE,
       job_note TEXT NOT NULL DEFAULT '',
       selected_line_registry_keys TEXT[] NOT NULL DEFAULT '{}',
       job_items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -150,6 +152,12 @@ async function createSchema(client: PoolClient) {
 
     ALTER TABLE delivery_job_history
       ADD COLUMN IF NOT EXISTS job_room_name TEXT NOT NULL DEFAULT '';
+
+    ALTER TABLE delivery_jobs
+      ADD COLUMN IF NOT EXISTS allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE;
+
+    ALTER TABLE delivery_job_history
+      ADD COLUMN IF NOT EXISTS allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE;
 
     CREATE INDEX IF NOT EXISTS purchase_order_queue_active_idx
       ON purchase_order_queue (record_state, assigned_delivery_job_id, first_imported_at DESC);

@@ -41,6 +41,7 @@ export type JobDatabasePayload = {
   origin_location_name: string;
   origin_check_in_coordinates: string;
   origin_checked_in_at: string | null;
+  allow_destination_before_fully_loaded: boolean;
   job_note: string;
   selected_line_registry_keys: string[];
   job_items_json: JobRecord["items"];
@@ -62,6 +63,7 @@ export type JobArchiveDatabasePayload = {
   origin_location_name: string;
   origin_check_in_coordinates: string;
   origin_checked_in_at: string | null;
+  allow_destination_before_fully_loaded: boolean;
   job_note: string;
   selected_line_registry_keys: string[];
   job_items_json: JobRecord["items"];
@@ -193,6 +195,7 @@ export function serializeJobRecordForDatabase(job: JobRecord): JobDatabasePayloa
     origin_location_name: job.origin,
     origin_check_in_coordinates: job.originGps,
     origin_checked_in_at: job.originCheckedInAt ?? null,
+    allow_destination_before_fully_loaded: Boolean(job.allowDestinationBeforeFullyLoaded),
     job_note: job.note,
     selected_line_registry_keys: job.poRegistryKeys,
     job_items_json: job.items,
@@ -216,6 +219,7 @@ export function serializeJobArchiveRecordForDatabase(job: JobArchiveRecord): Job
     origin_location_name: job.origin,
     origin_check_in_coordinates: job.originGps,
     origin_checked_in_at: job.originCheckedInAt ?? null,
+    allow_destination_before_fully_loaded: Boolean(job.allowDestinationBeforeFullyLoaded),
     job_note: job.note,
     selected_line_registry_keys: job.poRegistryKeys,
     job_items_json: job.items,
@@ -240,6 +244,7 @@ export function mapDatabaseJobArchive(row: DatabaseRow): JobArchiveRecord {
     origin: String(row.origin_location_name ?? ""),
     originGps: String(row.origin_check_in_coordinates ?? ""),
     originCheckedInAt: toOptionalIsoString(row.origin_checked_in_at),
+    allowDestinationBeforeFullyLoaded: Boolean(row.allow_destination_before_fully_loaded),
     note: String(row.job_note ?? ""),
     poRegistryKeys: Array.isArray(row.selected_line_registry_keys)
       ? row.selected_line_registry_keys.map((item) => String(item))
@@ -300,6 +305,7 @@ export function mapDatabaseJob(row: DatabaseRow): JobRecord {
     origin: String(row.origin_location_name ?? ""),
     originGps: String(row.origin_check_in_coordinates ?? ""),
     originCheckedInAt: toOptionalIsoString(row.origin_checked_in_at),
+    allowDestinationBeforeFullyLoaded: Boolean(row.allow_destination_before_fully_loaded),
     note: String(row.job_note ?? ""),
     poRegistryKeys: Array.isArray(row.selected_line_registry_keys)
       ? row.selected_line_registry_keys.map((item) => String(item))
