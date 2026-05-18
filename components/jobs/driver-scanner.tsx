@@ -94,6 +94,8 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   );
   const isDedicatedDriverMode = Boolean(initialJobId);
   const hasOriginCheckIn = Boolean(job?.originCheckedInAt && job.originGps);
+  const isOriginLocked = Boolean(job?.originLockedAt);
+  const canRecheckOrigin = Boolean(job?.allowOriginRecheckAfterLocked);
   const isOriginGpsRequired = Boolean(job) && !hasOriginCheckIn;
   const hasDestinationCheckIn = Boolean(currentDestination?.deliveryCheckedInAt && currentDestination.deliveryGps);
   const isDestinationGpsRequired = mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
@@ -106,6 +108,16 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
   const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้อง Job";
   const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !isFullyLoaded && !canOpenDestinationEarly ? 2 : isDestinationGpsRequired ? 2 : 3;
+  const originStatusText = isOriginLocked ? "ต้นทางปิดแล้ว" : hasOriginCheckIn ? "เช็กอินแล้ว" : "รอ GPS";
+  const nextActionText = isOriginGpsRequired
+    ? "กดเช็กอินต้นทาง"
+    : !isFullyLoaded
+      ? "สแกนขึ้นรถให้ครบ"
+      : mode === "deliver"
+        ? hasDestinationCheckIn
+          ? "สแกนส่งของ"
+          : "กดเช็กอินปลายทาง"
+        : "ไปปลายทาง";
 
   useEffect(() => {
     if (mode === "deliver" && isDeliverModeLocked) {
@@ -116,6 +128,12 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   async function captureOriginGps() {
     if (!job) {
       setMessage("ยังไม่มี Job ให้เช็กอิน GPS");
+      setScanResult("alert");
+      return;
+    }
+
+    if (isOriginLocked && !canRecheckOrigin) {
+      setMessage("ต้นทางปิดแล้วหลังสแกนขึ้นรถครบ หากต้องแก้ไขให้โทรหา Admin เพื่อเปิดต้นทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -138,7 +156,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
       setJob(nextJob);
       setLatestGps(nextJob.originGps || gpsText);
-      setMessage("ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
+      setMessage(canRecheckOrigin ? "Admin เปิดต้นทางกรณีพิเศษ: เช็กอินต้นทางใหม่เรียบร้อยแล้ว" : "ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
       setScanResult("ok");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
@@ -359,7 +377,11 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             <Badge variant={mode === "load" ? "warning" : "success"} className="w-fit self-start lg:self-end">
               {mode === "load" ? "โหมดขึ้นรถ" : "โหมดส่งปลายทาง"}
             </Badge>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-md border-2 border-slate-900 bg-slate-950 px-3 py-2 text-white">
+              <p className="text-[11px] text-slate-300">ขั้นตอนต่อไป</p>
+              <p className="text-lg font-bold">{nextActionText}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
                 <p className="text-[11px] text-slate-500">ต้องสแกน</p>
                 <p className="text-base font-semibold text-slate-950">{requiredTotal.toLocaleString("th-TH")}</p>
@@ -371,6 +393,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
                 <p className="text-[11px] text-slate-500">ส่งแล้ว</p>
                 <p className="text-base font-semibold text-slate-950">{deliveredTotal.toLocaleString("th-TH")}</p>
+              </div>
+              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
+                <p className="text-[11px] text-slate-500">ต้นทาง</p>
+                <p className="text-sm font-semibold text-slate-950">{originStatusText}</p>
               </div>
             </div>
           </div>
@@ -426,7 +452,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             [
               "2",
               "สแกนขึ้นรถ",
-              isFullyLoaded ? "โหลดครบแล้ว" : canOpenDestinationEarly ? "Admin เปิดปลายทาง" : "ยังโหลดไม่ครบ",
+              isFullyLoaded ? "โหลดครบ / ปิดต้นทาง" : canOpenDestinationEarly ? "Admin เปิดปลายทาง" : "ยังโหลดไม่ครบ",
             ],
             ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
           ].map(([step, label, status]) => (
@@ -460,8 +486,25 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             <p className="text-sm font-medium">ต้นทาง</p>
             <p className="mt-1 text-sm text-slate-500">{job?.origin || "-"}</p>
             <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">{job?.originGps || "ยังไม่เช็กอิน"}</p>
-            <Button type="button" variant="outline" className="mt-3 w-full" onClick={captureOriginGps} disabled={!job || isFetchingOriginGps}>
-              {isFetchingOriginGps ? "กำลังดึง GPS" : hasOriginCheckIn ? "เช็กอินต้นทางใหม่" : "เช็กอินต้นทาง"}
+            {isOriginLocked && !canRecheckOrigin ? (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                ปิดต้นทางแล้ว ห้ามเช็กอินต้นทางซ้ำ
+              </div>
+            ) : null}
+            <Button
+              type="button"
+              variant={canRecheckOrigin ? "default" : "outline"}
+              className="mt-3 h-12 w-full text-base"
+              onClick={captureOriginGps}
+              disabled={!job || isFetchingOriginGps || (isOriginLocked && !canRecheckOrigin)}
+            >
+              {isFetchingOriginGps
+                ? "กำลังดึง GPS"
+                : canRecheckOrigin
+                  ? "Admin เปิดแล้ว: เช็กอินต้นทางใหม่"
+                  : hasOriginCheckIn
+                    ? "เช็กอินต้นทางใหม่"
+                    : "เช็กอินต้นทาง"}
             </Button>
           </div>
 

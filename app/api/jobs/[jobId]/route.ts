@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteJob, getJob, updateJobDestinationOverride, updateJobItemScanQuantity } from "@/lib/job-store";
+import { deleteJob, getJob, updateJobDestinationOverride, updateJobItemScanQuantity, updateJobOriginOverride } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +36,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ jobId
     const body = (await request.json()) as {
       registryKey?: string;
       scanQty?: number;
+      allowOriginRecheckAfterLocked?: boolean;
       allowDestinationBeforeFullyLoaded?: boolean;
     };
+
+    if (typeof body.allowOriginRecheckAfterLocked === "boolean") {
+      const job = await updateJobOriginOverride({
+        jobId,
+        allowOriginRecheckAfterLocked: body.allowOriginRecheckAfterLocked,
+      });
+
+      return NextResponse.json({ job });
+    }
 
     if (typeof body.allowDestinationBeforeFullyLoaded === "boolean") {
       const job = await updateJobDestinationOverride({

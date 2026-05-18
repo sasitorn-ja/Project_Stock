@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, History, Radio, Route, Truck } from "lucide-react";
+import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
+import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJob, listJobs } from "@/lib/job-store";
 
@@ -89,6 +90,7 @@ export default async function JobMonitorPage({
             {[
               ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
               ["Status", job.status, Radio],
+              ["ต้นทาง", job.isOriginLocked ? "ปิดแล้ว" : job.originCheckedInAt ? "เช็กอินแล้ว" : "รอเช็กอิน", MapPin],
               ["Route", `${job.destinations.length} Locations`, Route],
               ["Alerts", String(job.alerts.length), AlertTriangle],
             ].map(([label, value, Icon]) => (
@@ -116,6 +118,11 @@ export default async function JobMonitorPage({
                     jobId={job.id}
                     enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
                     isFullyLoaded={job.isFullyLoaded}
+                  />
+                  <JobOriginOverrideButton
+                    jobId={job.id}
+                    enabled={Boolean(job.allowOriginRecheckAfterLocked)}
+                    isOriginLocked={job.isOriginLocked}
                   />
                   <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
                 </div>

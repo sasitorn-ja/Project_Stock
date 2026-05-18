@@ -98,6 +98,25 @@ export async function updateJobDestinationOverride(input: {
   return data.job;
 }
 
+export async function updateJobOriginOverride(input: {
+  jobId: string;
+  allowOriginRecheckAfterLocked: boolean;
+}) {
+  const data = await readResponse<{ job: JobRecord }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        allowOriginRecheckAfterLocked: input.allowOriginRecheckAfterLocked,
+      }),
+    }),
+  );
+
+  return data.job;
+}
+
 export async function deleteJob(jobId: string) {
   await readResponse<{ ok: true }>(
     await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {

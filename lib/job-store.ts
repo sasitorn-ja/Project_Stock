@@ -97,6 +97,7 @@ function isExpiredJobArchive(job: JobArchiveRecord) {
 function normalizeStoredJob<T extends JobRecord | JobArchiveRecord>(job: T): T {
   return {
     ...job,
+    allowOriginRecheckAfterLocked: Boolean(job.allowOriginRecheckAfterLocked),
     allowDestinationBeforeFullyLoaded: Boolean(job.allowDestinationBeforeFullyLoaded),
     destinations: Array.isArray(job.destinations) ? job.destinations.map(normalizeJobDestination) : [],
   };
@@ -193,6 +194,17 @@ function isJobFullyLoaded(job: JobRecord) {
   return requiredTotal > 0 && loadedTotal >= requiredTotal;
 }
 
+function isOriginLocked(job: JobRecord) {
+  return Boolean(job.originLockedAt);
+}
+
+function lockOriginIfFullyLoaded(job: JobRecord, lockedAt = new Date().toISOString()) {
+  if (isJobFullyLoaded(job) && !job.originLockedAt) {
+    job.originLockedAt = lockedAt;
+    job.allowOriginRecheckAfterLocked = false;
+  }
+}
+
 function assertDestinationModeUnlocked(job: JobRecord) {
   if (!isJobFullyLoaded(job) && !job.allowDestinationBeforeFullyLoaded) {
     throw new Error("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดโหมดปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
@@ -274,10 +286,20 @@ function applyOriginCheckIn(
     locationText?: string;
   },
 ) {
+  if (isOriginLocked(job) && !job.allowOriginRecheckAfterLocked) {
+    throw new Error("ต้นทางถูกปิดหลังสแกนขึ้นรถครบแล้ว หากต้องแก้ไขให้ Admin เปิดต้นทางกรณีพิเศษก่อน");
+  }
+
   const checkedInAt = new Date().toISOString();
 
   job.originGps = formatGpsText(input);
   job.originCheckedInAt = checkedInAt;
+  if (job.allowOriginRecheckAfterLocked) {
+    job.allowOriginRecheckAfterLocked = false;
+  }
+  if (isJobFullyLoaded(job)) {
+    job.originLockedAt = checkedInAt;
+  }
   job.updatedAt = checkedInAt;
 
   return job;
@@ -659,6 +681,9 @@ function applyJobScan(
   }
 
   const createdAt = new Date().toISOString();
+  if (input.mode === "load") {
+    lockOriginIfFullyLoaded(job, createdAt);
+  }
   appendScanLog(job, {
     code,
     mode: input.mode,
@@ -684,7 +709,7 @@ function applyJobScan(
     result: "ok" as const,
     message:
       input.mode === "load"
-        ? `${getJobItemLabel(item)} ขึ้นรถแล้ว ${item.loadedQty}/${item.orderQty}`
+        ? `${getJobItemLabel(item)} ขึ้นรถแล้ว ${item.loadedQty}/${item.orderQty}${isJobFullyLoaded(job) ? "\nโหลดครบแล้ว ระบบปิดต้นทางให้แล้ว ห้ามเช็กอินต้นทางซ้ำ" : ""}`
         : `${getJobItemLabel(item)} ส่งแล้ว ${item.deliveredQty}/${item.orderQty}`,
   };
 }
@@ -881,6 +906,7 @@ async function createJobInDatabase(input: {
       vehicle: input.vehicle.trim(),
       origin: input.origin.trim(),
       originGps: "",
+      allowOriginRecheckAfterLocked: false,
       allowDestinationBeforeFullyLoaded: false,
       note: input.note?.trim() ?? "",
       poRegistryKeys: items.map((item) => item.registryKey),
@@ -904,6 +930,8 @@ async function createJobInDatabase(input: {
           origin_location_name,
           origin_check_in_coordinates,
           allow_destination_before_fully_loaded,
+          origin_locked_at,
+          allow_origin_recheck_after_locked,
           job_note,
           selected_line_registry_keys,
           job_items_json,
@@ -923,11 +951,13 @@ async function createJobInDatabase(input: {
           $9,
           $10,
           $11,
-          $12::text[],
-          $13::jsonb,
-          $14::jsonb,
+          $12,
+          $13,
+          $14::text[],
           $15::jsonb,
-          $16::jsonb
+          $16::jsonb,
+          $17::jsonb,
+          $18::jsonb
         )
       `,
       [
@@ -941,6 +971,8 @@ async function createJobInDatabase(input: {
         payload.origin_location_name,
         payload.origin_check_in_coordinates,
         payload.allow_destination_before_fully_loaded,
+        payload.origin_locked_at,
+        payload.allow_origin_recheck_after_locked,
         payload.job_note,
         payload.selected_line_registry_keys,
         JSON.stringify(payload.job_items_json),
@@ -996,6 +1028,48 @@ async function updateJobDestinationOverrideInDatabase(input: {
   });
 }
 
+async function updateJobOriginOverrideInDatabase(input: {
+  jobId: string;
+  allowOriginRecheckAfterLocked: boolean;
+}) {
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    job.allowOriginRecheckAfterLocked = input.allowOriginRecheckAfterLocked;
+    job.updatedAt = new Date().toISOString();
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          allow_origin_recheck_after_locked = $2,
+          updated_at = $3::timestamptz
+        WHERE delivery_job_id = $1
+      `,
+      [job.id, Boolean(job.allowOriginRecheckAfterLocked), job.updatedAt],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
 async function checkInJobOriginInDatabase(input: {
   jobId: string;
   latitude: number;
@@ -1029,10 +1103,19 @@ async function checkInJobOriginInDatabase(input: {
         SET
           origin_check_in_coordinates = $2,
           origin_checked_in_at = $3::timestamptz,
-          updated_at = $4::timestamptz
+          origin_locked_at = $4::timestamptz,
+          allow_origin_recheck_after_locked = $5,
+          updated_at = $6::timestamptz
         WHERE delivery_job_id = $1
       `,
-      [job.id, job.originGps, job.originCheckedInAt ?? null, job.updatedAt],
+      [
+        job.id,
+        job.originGps,
+        job.originCheckedInAt ?? null,
+        job.originLockedAt ?? null,
+        Boolean(job.allowOriginRecheckAfterLocked),
+        job.updatedAt,
+      ],
     );
 
     return summarizeJob(job);
@@ -1207,6 +1290,8 @@ async function registerJobScanInDatabase(input: {
             origin_location_name,
             origin_check_in_coordinates,
             origin_checked_in_at,
+            origin_locked_at,
+            allow_origin_recheck_after_locked,
             allow_destination_before_fully_loaded,
             job_note,
             selected_line_registry_keys,
@@ -1231,14 +1316,16 @@ async function registerJobScanInDatabase(input: {
             $10::timestamptz,
             $11,
             $12,
-            $13::text[],
-            $14::jsonb,
-            $15::jsonb,
+            $13,
+            $14,
+            $15::text[],
             $16::jsonb,
             $17::jsonb,
-            $18::timestamptz,
-            $19::timestamptz,
-            $20::timestamptz
+            $18::jsonb,
+            $19::jsonb,
+            $20::timestamptz,
+            $21::timestamptz,
+            $22::timestamptz
           )
           ON CONFLICT (delivery_job_id) DO UPDATE
           SET
@@ -1251,6 +1338,8 @@ async function registerJobScanInDatabase(input: {
             origin_location_name = EXCLUDED.origin_location_name,
             origin_check_in_coordinates = EXCLUDED.origin_check_in_coordinates,
             origin_checked_in_at = EXCLUDED.origin_checked_in_at,
+            origin_locked_at = EXCLUDED.origin_locked_at,
+            allow_origin_recheck_after_locked = EXCLUDED.allow_origin_recheck_after_locked,
             allow_destination_before_fully_loaded = EXCLUDED.allow_destination_before_fully_loaded,
             job_note = EXCLUDED.job_note,
             selected_line_registry_keys = EXCLUDED.selected_line_registry_keys,
@@ -1273,6 +1362,8 @@ async function registerJobScanInDatabase(input: {
           archivePayload.origin_location_name,
           archivePayload.origin_check_in_coordinates,
           archivePayload.origin_checked_in_at,
+          archivePayload.origin_locked_at,
+          archivePayload.allow_origin_recheck_after_locked,
           archivePayload.allow_destination_before_fully_loaded,
           archivePayload.job_note,
           archivePayload.selected_line_registry_keys,
@@ -1432,8 +1523,10 @@ async function registerJobScanInDatabase(input: {
             job_alerts_json = $6::jsonb,
             scan_events_json = $7::jsonb,
             allow_destination_before_fully_loaded = $8,
-            completed_at = $9::timestamptz,
-            cleanup_after_at = $10::timestamptz
+            origin_locked_at = $9::timestamptz,
+            allow_origin_recheck_after_locked = $10,
+            completed_at = $11::timestamptz,
+            cleanup_after_at = $12::timestamptz
           WHERE delivery_job_id = $1
         `,
         [
@@ -1445,6 +1538,8 @@ async function registerJobScanInDatabase(input: {
           JSON.stringify(payload.job_alerts_json),
           JSON.stringify(payload.scan_events_json),
           payload.allow_destination_before_fully_loaded,
+          payload.origin_locked_at,
+          payload.allow_origin_recheck_after_locked,
           payload.completed_at,
           payload.cleanup_after_at,
         ],
@@ -1582,6 +1677,7 @@ export async function createJob(input: {
     vehicle: input.vehicle.trim(),
     origin: input.origin.trim(),
     originGps: "",
+    allowOriginRecheckAfterLocked: false,
     allowDestinationBeforeFullyLoaded: false,
     note: input.note?.trim() ?? "",
     poRegistryKeys: items.map((item) => item.registryKey),
@@ -1616,6 +1712,30 @@ export async function updateJobDestinationOverride(input: {
   }
 
   job.allowDestinationBeforeFullyLoaded = input.allowDestinationBeforeFullyLoaded;
+  job.updatedAt = new Date().toISOString();
+
+  await writeStore({ jobs: store.jobs });
+
+  return summarizeJob(job);
+}
+
+export async function updateJobOriginOverride(input: {
+  jobId: string;
+  allowOriginRecheckAfterLocked: boolean;
+}) {
+  if (hasSharedDatabase()) {
+    return updateJobOriginOverrideInDatabase(input);
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === input.jobId && currentJob.status !== "completed");
+
+  if (!job) {
+    throw new Error("ไม่พบ Job ที่เลือก");
+  }
+
+  job.allowOriginRecheckAfterLocked = input.allowOriginRecheckAfterLocked;
   job.updatedAt = new Date().toISOString();
 
   await writeStore({ jobs: store.jobs });

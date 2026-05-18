@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>คู่มือใช้งานเว็บ Project Stock QR</title>
+  <style>
+    @page { size: A4; margin: 16mm 15mm 17mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Tahoma, "Noto Sans Thai", Arial, sans-serif;
+      color: #172033;
+      line-height: 1.55;
+      font-size: 12.5px;
+      margin: 0;
+      background: white;
+    }
+    h1, h2, h3 { page-break-after: avoid; line-height: 1.25; }
+    h1 {
+      font-size: 24px;
+      color: #0b2545;
+      border-bottom: 2px solid #2e74b5;
+      padding-bottom: 6px;
+      margin: 0 0 12px;
+    }
+    h2 { font-size: 18px; color: #2e74b5; margin: 24px 0 8px; }
+    h3 { font-size: 15px; color: #1f4d78; margin: 18px 0 6px; }
+    p { margin: 0 0 9px; }
+    .subtitle { font-style: italic; font-weight: 700; margin-bottom: 14px; }
+    .page-break { break-before: page; }
+    .note {
+      border-left: 4px solid #2e74b5;
+      background: #f4f7fb;
+      padding: 9px 11px;
+      margin: 10px 0 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 13px;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #cfd7e3;
+      padding: 6px 7px;
+      vertical-align: top;
+    }
+    th {
+      background: #e8eef5;
+      text-align: left;
+      color: #102033;
+      font-weight: 700;
+    }
+    ol, ul { margin: 6px 0 12px 22px; padding: 0; }
+    li { margin: 0 0 5px; }
+    figure { margin: 10px 0 16px; page-break-inside: avoid; }
+    .shot {
+      width: 100%;
+      max-height: 182mm;
+      object-fit: contain;
+      border: 1px solid #d7dee8;
+      border-radius: 5px;
+      display: block;
+    }
+    .portrait {
+      width: auto;
+      max-width: 86mm;
+      max-height: 178mm;
+      margin: 0 auto;
+    }
+    figcaption {
+      text-align: center;
+      color: #5b6678;
+      font-style: italic;
+      font-size: 11px;
+      margin-top: 5px;
+    }
+    .footer {
+      margin-top: 28px;
+      color: #667085;
+      font-size: 11px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <h1>คู่มือใช้งานเว็บ Project Stock QR</h1>
+  <p class="subtitle">แยกขั้นตอนสำหรับ Admin และคนขับ พร้อมตัวอย่างข้อมูลและภาพหน้าจอจากเว็บจริง</p>
+  <table><thead><tr><th>หัวข้อ</th><th>รายละเอียด</th></tr></thead><tbody><tr><td>เว็บไซต์</td><td>https://project-stock-qr.vercel.app/jobs</td></tr><tr><td>วันที่จัดทำ</td><td>18 พฤษภาคม 2026</td></tr><tr><td>ระบบที่อ้างอิง</td><td>Store QR Job Transport / DC Bangna</td></tr><tr><td>Job ตัวอย่างในคู่มือ</td><td>JOB-20260518-152703-000012, ห้อง frt, รถ iu, คนขับ iug</td></tr></tbody></table>
+  <p class="note">คู่มือนี้เขียนจากการสำรวจหน้าเว็บจริง โดยใช้ข้อมูลตัวอย่างที่มีอยู่ในระบบเพื่ออธิบาย flow การทำงานตั้งแต่นำเข้า PO จนถึงการสแกนและ monitor งานขนส่ง</p>
+
+  <h2>ภาพรวมระบบ</h2>
+  <p>ระบบนี้ใช้จัดการงานขนส่งจาก PO จริง แอดมินจะนำเข้า/เลือก PO แล้วสร้าง Job จากนั้นส่งลิงก์หรือ QR ให้คนขับเปิด Driver Room เพื่อเช็กอิน GPS และสแกนสินค้า ส่วนหน้า Monitor ใช้ดูสถานะโหลดขึ้นรถ ส่งปลายทาง และ alert แบบ realtime</p>
+  <table><thead><tr><th>บทบาท</th><th>หน้าที่หลัก</th><th>หน้าที่เกี่ยวข้อง</th></tr></thead><tbody><tr><td>Admin</td><td>นำเข้า PO, เลือกรายการ, สร้าง Job, ดู Monitor, เปิด QR, ตรวจประวัติ</td><td>เมนูฝั่งซ้ายทั้งหมด และปุ่มในตาราง Job</td></tr><tr><td>คนขับ</td><td>เปิด Driver Room, เช็กอินต้นทาง, สแกนขึ้นรถ, เช็กอินปลายทาง, สแกนส่งของ</td><td>ลิงก์ /driver-room?jobId=... หรือ QR ที่ Admin แสดง</td></tr></tbody></table>
+
+  <h2 class="page-break">คู่มือฝั่ง Admin</h2>
+  <h3>1. เปิดหน้ารายการ Job</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/01-jobs-list.png" alt="ภาพหน้ารายการ Job ปัจจุบัน มีปุ่ม Monitor, เปิด Driver Room, แสดง QR และลบ Job">
+      <figcaption>ภาพหน้ารายการ Job ปัจจุบัน มีปุ่ม Monitor, เปิด Driver Room, แสดง QR และลบ Job</figcaption>
+    </figure>
+    
+  <ol><li>เข้าเว็บที่ https://project-stock-qr.vercel.app/jobs</li><li>ดูแถบเมนูซ้ายเพื่อเลือกหน้าที่ต้องใช้งาน เช่น นำเข้า PO, PO รอจัดส่ง, สร้าง Job, Monitor Realtime, Driver Room, รายการ Job และประวัติงาน</li><li>ในตารางงานทั้งหมด ตรวจคอลัมน์ห้อง Job, Route / PO, Driver, ขึ้นรถ, ส่งแล้ว, Status และ Action</li><li>ถ้าต้องติดตามงานให้กด Monitor ถ้าต้องเปิดหน้าคนขับให้กด เปิด Driver Room หรือ แสดง QR สำหรับคนขับ</li></ol>
+
+  <h3>2. นำเข้า PO จากไฟล์</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/02-po-import.png" alt="ภาพหน้าจอนำเข้า PO จากไฟล์ Excel หรือ CSV">
+      <figcaption>ภาพหน้าจอนำเข้า PO จากไฟล์ Excel หรือ CSV</figcaption>
+    </figure>
+    
+  <ol><li>กดเมนู นำเข้า PO</li><li>ลากไฟล์มาวางในกรอบอัปโหลด หรือกด เลือกไฟล์ Excel / CSV</li><li>ตรวจว่าข้อมูลจากไฟล์ขึ้นในคิว PO รอจัดส่ง</li><li>หากข้อมูลไม่ขึ้น ให้ตรวจนามสกุลไฟล์และคอลัมน์หลัก เช่น PO SAP No., Item, Vendor, รหัสวัสดุ, ชื่อวัสดุ และจำนวนสั่งซื้อ</li></ol>
+
+  <h3>3. เลือก PO รอจัดส่ง</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/01-admin-po-queue.png" alt="ภาพหน้าคิว PO รอจัดส่ง มีช่องค้นหาและ checkbox เลือกรายการ">
+      <figcaption>ภาพหน้าคิว PO รอจัดส่ง มีช่องค้นหาและ checkbox เลือกรายการ</figcaption>
+    </figure>
+    
+  <ol><li>กดเมนู PO รอจัดส่ง</li><li>ค้นหา PO, Vendor, PO Web No. หรือชื่อวัสดุ หากต้องการกรองรายการ</li><li>ติ๊ก checkbox หน้ารายการ PO ที่ต้องการสร้าง Job</li><li>ตรวจตัวนับ เลือกแล้ว ... รายการ แล้วกด สร้าง Job จากรายการที่เลือก</li></ol>
+  <p><b>ตัวอย่างข้อมูลจากคิว PO</b></p>
+  <table><thead><tr><th>PO SAP No.</th><th>Item</th><th>Vendor</th><th>รหัสวัสดุ</th><th>สินค้า</th><th>จำนวน</th></tr></thead><tbody><tr><td>8030492670</td><td>1</td><td>บจ.ชวนันท์ คอร์ปอเรชั่น</td><td>80216114</td><td>SMC ชัตเติ้ลวาล์วฟิตติ้งแบบ วันทัช ซีรี่ VR1220F-10</td><td>4</td></tr><tr><td>8030492670</td><td>2</td><td>บจ.ชวนันท์ คอร์ปอเรชั่น</td><td>80216123</td><td>SMC ตัวควบคุมปริมาณลมพร้อมฟิตติ้งสวมเร็ว AS2052FG-10A</td><td>8</td></tr></tbody></table>
+
+  <h3>4. กรอกรายละเอียดและสร้าง Job</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/03-admin-create-job.png" alt="ภาพหน้าสร้าง Job จาก PO">
+      <figcaption>ภาพหน้าสร้าง Job จาก PO</figcaption>
+    </figure>
+    
+  <ol><li>ตรวจกรอบ รายการที่เลือกจาก PO รอจัดส่ง ว่ามี PO ครบตามที่เลือก</li><li>กรอก ชื่อห้อง Job เช่น รอบเช้า บางซื่อ-ลาดพร้าว / ส่งของร้าน A</li><li>กรอก รถขนส่ง เช่น 6W-4382 หรือทะเบียนรถจริง</li><li>กรอก คนขับ เช่น สมชาย หรือชื่อคนขับที่รับผิดชอบ</li><li>ตรวจ ต้นทาง ค่าเริ่มต้นคือ DC Bangna; ช่อง GPS ต้นทางจะดึงจากมือถือของผู้เริ่มงานใน Driver Room เท่านั้น</li><li>เพิ่มปลายทาง กรอกชื่อหรือโลเคชันปลายทาง แล้วติ๊ก PO ที่ต้องส่งไปจุดนั้น</li><li>กด สร้าง Job จริงจากรายการที่เลือก ระบบจะพาไปหน้า Monitor ของ Job นั้นทันที</li></ol>
+  <table><thead><tr><th>ช่องกรอก</th><th>ตัวอย่างข้อมูลจำลอง</th></tr></thead><tbody><tr><td>ชื่อห้อง Job</td><td>รอบเช้า บางซื่อ-ลาดพร้าว</td></tr><tr><td>รถขนส่ง</td><td>6W-4382</td></tr><tr><td>คนขับ</td><td>สมชาย</td></tr><tr><td>ต้นทาง</td><td>DC Bangna</td></tr><tr><td>ปลายทาง</td><td>ร้าน A / Mixed Cement, Mortar&Decorative Brand MG</td></tr><tr><td>หมายเหตุ</td><td>ส่งก่อน 10:30 น. ติดต่อคลังปลายทางก่อนลงของ</td></tr></tbody></table>
+
+  <h3>5. Monitor Realtime</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/04-admin-monitor.png" alt="ภาพหน้า Monitor Realtime สำหรับดูสถานะงาน">
+      <figcaption>ภาพหน้า Monitor Realtime สำหรับดูสถานะงาน</figcaption>
+    </figure>
+    
+  <ol><li>เปิดเมนู Monitor Realtime หรือกดปุ่ม Monitor จากหน้ารายการ Job</li><li>เลือก Job ที่ต้องการดู หากเข้าจากปุ่ม Monitor ระบบจะเปิด Job นั้นให้ทันที</li><li>ดูสถานะหลัก เช่น Status, Route, Alerts, จำนวนต้องสแกน, Loaded และ Delivered</li><li>ตรวจแผนส่งตาม Location / PO ว่าปลายทางและ PO ถูกต้อง</li><li>ถ้าต้องการให้คนขับเข้าใช้งาน กด เปิด Driver Room หรือ แสดง QR สำหรับคนขับ</li></ol>
+  <p><b>ข้อมูลตัวอย่างจาก Job ที่ใช้ในคู่มือ</b></p>
+  <table><thead><tr><th>รายการ</th><th>ค่า</th></tr></thead><tbody><tr><td>Job ID</td><td>JOB-20260518-152703-000012</td></tr><tr><td>ห้อง Job</td><td>frt</td></tr><tr><td>Status</td><td>ready</td></tr><tr><td>Route</td><td>1 Locations</td></tr><tr><td>PO</td><td>8030488988</td></tr><tr><td>รหัสวัสดุ</td><td>80215392</td></tr><tr><td>สินค้า</td><td>ตลับเมตรโลโก้ เสือ ยี่ห้อ Stanley</td></tr><tr><td>จำนวนในไฟล์</td><td>5,040</td></tr><tr><td>ต้องสแกน</td><td>1</td></tr></tbody></table>
+
+  <h3>5.1 กติกาล็อกต้นทางและเปิดกรณีพิเศษโดย Admin</h3>
+  <ul><li>เมื่อคนขับเช็กอินต้นทางและสแกนขึ้นรถครบตามจำนวน ต้องสแกน แล้ว ระบบควรถือว่าต้นทางปิดงานทันที</li><li>หลังปิดต้นทาง ไม่ควรให้คนขับกดเช็กอินต้นทางซ้ำหรือเปลี่ยนพิกัดต้นทางเอง เพื่อป้องกันการเช็กอินผิดที่หลังรถออกจากคลัง</li><li>สถานะที่ Admin ควรเห็นคือ ขึ้นรถครบ / ต้นทางปิด / พร้อมไปปลายทาง</li><li>หากมีเหตุผิดปกติ เช่น สแกนขาด, สแกนผิด, ต้องกลับไปโหลดเพิ่ม หรือ GPS ผิด ให้ Admin เป็นคนตรวจ Monitor และเปิดสิทธิ์กรณีพิเศษเท่านั้น</li><li>แนวคิดเดียวกันใช้กับปลายทาง: คนขับทำตามขั้นตอนปกติ ส่วนการเปิดปลายทางกรณีพิเศษหรือปลดล็อกงานต้องเป็นหน้าที่ Admin</li></ul>
+  <table><thead><tr><th>กรณีพิเศษ</th><th>ผู้ทำรายการ</th><th>วิธีจัดการ</th></tr></thead><tbody><tr><td>คนขับสแกนขึ้นรถครบแล้ว แต่กดเช็กอินต้นทางผิดที่ภายหลัง</td><td>Admin</td><td>ไม่ให้คนขับแก้เอง ให้ Admin ตรวจ Monitor และใช้ข้อมูลต้นทางที่ปิดไว้เป็นหลัก</td></tr><tr><td>ต้องกลับไปโหลดสินค้าเพิ่ม</td><td>Admin</td><td>Admin เปิดสิทธิ์/ปลดล็อกต้นทางชั่วคราว แล้วให้คนขับสแกนเพิ่มตามรายการจริง</td></tr><tr><td>ถึงปลายทางแต่ GPS ไม่ตรงหรืออยู่นอกรัศมี</td><td>Admin</td><td>Admin ใช้ปุ่มเปิดปลายทางกรณีพิเศษ หลังตรวจสอบกับคนขับแล้ว</td></tr><tr><td>สแกนผิดสินค้า หรือสแกนรหัสที่ไม่อยู่ใน Job</td><td>Admin</td><td>ดู Alert Queue และตัดสินใจว่าจะให้สแกนใหม่ ลบรายการผิด หรือเปิดกรณีพิเศษ</td></tr><tr><td>มือถือคนขับเสีย/แบตหมด ต้องเปลี่ยนเครื่อง</td><td>Admin</td><td>Admin ตรวจสถานะล่าสุด แล้วส่ง QR/ลิงก์ให้เครื่องใหม่ พร้อมกำชับว่าห้ามเช็กอินต้นทางซ้ำถ้าต้นทางปิดแล้ว</td></tr></tbody></table>
+
+  <h3>6. ส่งลิงก์หรือ QR ให้คนขับ</h3>
+  <ol><li>ในหน้า Monitor หรือหน้ารายการ Job กด แสดง QR สำหรับคนขับ</li><li>ให้คนขับสแกน QR ด้วยมือถือเครื่องที่จะใช้เช็กอิน GPS และสแกนสินค้า</li><li>หากสแกนไม่ได้ ให้ส่งลิงก์ Driver Room โดยตรง เช่น https://project-stock-qr.vercel.app/driver-room?jobId=JOB-20260518-152703-000012</li><li>ย้ำว่าการเช็กอิน GPS ควรทำจากมือถือของคนขับ ไม่ใช่เครื่องของแอดมิน</li></ol>
+
+  <h3>7. ดูประวัติงาน</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/06-admin-history.png" alt="ภาพหน้าประวัติงาน สำหรับค้นหางานที่ปิดจบแล้ว">
+      <figcaption>ภาพหน้าประวัติงาน สำหรับค้นหางานที่ปิดจบแล้ว</figcaption>
+    </figure>
+    
+  <ol><li>กดเมนู ประวัติงาน</li><li>ค้นหาด้วย Job ID, คนขับ, รถ, PO หรือรหัสวัสดุ</li><li>กรองช่วงวันที่ปิดงานหากต้องการดูย้อนหลัง</li><li>เลือกงานจากรายการเพื่อเปิดรายละเอียดงานที่ปิดจบแล้ว</li></ol>
+
+  <h2 class="page-break">คู่มือฝั่งคนขับ</h2>
+  <h3>หลักการหน้าคนขับสำหรับผู้สูงอายุ</h3>
+  <ul><li>ให้คนขับทำทีละขั้นตอนตามตัวเลข 1, 2, 3 บนหน้าจอ ไม่ต้องจำเมนูเยอะ</li><li>ปุ่มหลักที่ต้องกดควรเป็นปุ่มใหญ่ เช่น เช็กอินต้นทางเพื่อเริ่มสแกน, เปิดกล้อง, บันทึก และเช็กอินปลายทาง</li><li>ข้อความบนหน้าจอควรใช้คำสั้น ๆ เช่น รอ GPS, โหลดครบแล้ว, ส่งครบแล้ว, ยังสแกนไม่ครบ</li><li>ถ้าขึ้นข้อความเตือน สีเหลือง หรือสแกนไม่ผ่าน ให้หยุดและโทรหา Admin ไม่ต้องกดซ้ำหลายครั้ง</li><li>หลังสแกนขึ้นรถครบแล้ว คนขับไม่ต้องกลับไปกดเช็กอินต้นทางอีก ระบบจะถือว่าปิดต้นทางแล้ว</li></ul>
+
+  <h3>1. เปิด Driver Room</h3>
+  
+    <figure>
+      <img class="shot" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/07-driver-room-desktop.png" alt="ภาพหน้า Driver Room เมื่อเปิดจากลิงก์ Job">
+      <figcaption>ภาพหน้า Driver Room เมื่อเปิดจากลิงก์ Job</figcaption>
+    </figure>
+    
+  <ol><li>เปิดลิงก์ที่ Admin ส่งให้ หรือสแกน QR ของ Job</li><li>ตรวจหัวหน้าจอว่าห้อง Job, Job ID, รถ และชื่อคนขับถูกต้อง</li><li>ดูตัวเลข ต้องสแกน, ขึ้นรถแล้ว และส่งแล้ว เพื่อรู้จำนวนงานที่ต้องทำ</li></ol>
+  <p><b>ตัวอย่างข้อมูลจำลองที่ใช้สอนคนขับ</b></p>
+  <table><thead><tr><th>รายการ</th><th>ตัวอย่าง</th></tr></thead><tbody><tr><td>ห้อง Job</td><td>A</td></tr><tr><td>Job ID</td><td>JOB-20260518-085654-000014</td></tr><tr><td>รถ</td><td>1234</td></tr><tr><td>คนขับ</td><td>b</td></tr><tr><td>ต้นทาง</td><td>บางซ่อน</td></tr><tr><td>ปลายทาง</td><td>ร้าน A / โซนรับสินค้า 1</td></tr><tr><td>ต้องสแกน</td><td>2 ชิ้นหรือ 2 รอบสแกน</td></tr><tr><td>รหัสตัวอย่างสำหรับสแกน</td><td>8030492670-1 และ 8030492670-2</td></tr></tbody></table>
+
+  <h3>2. เช็กอินต้นทาง</h3>
+  <ol><li>อยู่ที่ต้นทางจริง เช่น DC Bangna</li><li>กด เช็กอินต้นทาง</li><li>อนุญาตให้ browser เข้าถึงตำแหน่ง GPS หากมือถือถามสิทธิ์</li><li>รอจนระบบบันทึกตำแหน่งสำเร็จ ข้อความสถานะจะเปลี่ยนจาก ยังไม่เช็กอินต้นทาง เป็นเช็กอินแล้ว</li><li>หลังเช็กอินสำเร็จ ระบบจะแสดงปุ่ม เปิดกล้อง และช่องกรอกรหัสสำหรับสแกนสินค้า</li></ol>
+
+  <h3>3. สแกนขึ้นรถ</h3>
+  <ol><li>หลังเช็กอินต้นทาง ให้เลือกโหมด ขึ้นรถ หรือ โหลดสินค้าที่คลัง</li><li>กด เปิดกล้อง หากมือถือถามสิทธิ์ Camera ให้กดอนุญาต</li><li>หันกล้องไปที่ QR Code หรือ Barcode ของสินค้า ให้รหัสอยู่กลางกรอบและนิ่งประมาณ 1-2 วินาที</li><li>เมื่อสแกนสำเร็จ ระบบจะบันทึก 1 รายการและตัวเลข ขึ้นรถแล้ว จะเพิ่มขึ้น เช่น จาก 0 เป็น 1</li><li>สแกนชิ้นถัดไปด้วยวิธีเดิม จนตัวเลข ขึ้นรถแล้ว เท่ากับ ต้องสแกน เช่น ต้องสแกน 2 และขึ้นรถแล้ว 2</li><li>เมื่อขึ้นรถครบแล้ว ให้ถือว่าต้นทางปิดทันที คนขับไม่ต้องกดเช็กอินต้นทางซ้ำ และไม่ควรเปิดหน้านี้เพื่อเช็กอินต้นทางจากที่อื่น</li><li>ถ้าสแกนไม่ติด ให้เช็ดเลนส์ เพิ่มแสง ขยับมือถือให้ห่างจากโค้ดเล็กน้อย แล้วลองใหม่</li></ol>
+  <p><b>ตัวอย่างการสแกนขึ้นรถ</b></p>
+  <table><thead><tr><th>รอบ</th><th>สิ่งที่คนขับทำ</th><th>รหัสตัวอย่าง</th><th>ผลที่ควรเห็น</th></tr></thead><tbody><tr><td>1</td><td>สแกน QR ชิ้นแรก</td><td>8030492670-1</td><td>ขึ้นรถแล้ว 0 -> 1</td></tr><tr><td>2</td><td>สแกน QR ชิ้นที่สอง</td><td>8030492670-2</td><td>ขึ้นรถแล้ว 1 -> 2 และสถานะโหลดครบ / ปิดต้นทาง</td></tr><tr><td>กรณีไม่มี QR</td><td>กรอกรหัสในช่อง เลข PO / Barcode / QR / registry key แล้วกด บันทึก</td><td>8030492670-1</td><td>ระบบนับเหมือนการสแกนด้วยกล้อง</td></tr></tbody></table>
+
+  <h3>4. กรอกรหัสแทนการสแกนด้วยกล้อง</h3>
+  <ol><li>ใช้วิธีนี้เมื่อกล้องเปิดไม่ได้, QR เสีย, Barcode เลือน หรือหน้างานแสงน้อย</li><li>เลือกโหมดให้ถูกก่อนเสมอ ถ้ากำลังโหลดขึ้นรถให้เลือก ขึ้นรถ ถ้ากำลังส่งของให้เลือก ส่งปลายทาง</li><li>แตะช่อง เลข PO / Barcode / QR / registry key</li><li>พิมพ์รหัสตามฉลากหรือใบงาน เช่น 8030492670-1 หรือ 8030492670-2</li><li>กด บันทึก แล้วดูว่าตัวเลข ขึ้นรถแล้ว หรือ ส่งแล้ว เพิ่มขึ้นตามโหมดที่เลือก</li></ol>
+
+  <h3>5. เช็กอินและสแกนส่งปลายทาง</h3>
+  <ol><li>เมื่อถึงปลายทาง ให้กด เช็กอินปลายทาง</li><li>อนุญาตตำแหน่ง GPS หากมือถือถามสิทธิ์ และรอจนระบบบันทึกพิกัดปลายทางสำเร็จ</li><li>เลือกโหมด ส่งปลายทาง / ส่งของให้ลูกค้า</li><li>สแกน QR Code หรือ Barcode ของสินค้าที่ส่งจริงทีละชิ้น หรือกรอกรหัสแทนหากกล้องใช้ไม่ได้</li><li>ตรวจตัวเลข ส่งแล้ว ว่าเพิ่มขึ้น เช่น จาก 0 เป็น 1 แล้วเป็น 2</li><li>เมื่อส่งครบ ระบบจะแสดงว่างานปลายทางนั้นส่งครบหรือสถานะเปลี่ยนเป็นส่งแล้ว</li><li>หากมีหลายปลายทาง ให้ทำซ้ำตั้งแต่เช็กอินปลายทางตามลำดับปลายทางที่ระบบแสดง</li></ol>
+  <p><b>ตัวอย่างการสแกนส่งปลายทาง</b></p>
+  <table><thead><tr><th>รอบ</th><th>สิ่งที่คนขับทำ</th><th>รหัสตัวอย่าง</th><th>ผลที่ควรเห็น</th></tr></thead><tbody><tr><td>1</td><td>เลือกโหมดส่งปลายทางแล้วสแกนชิ้นแรก</td><td>8030492670-1</td><td>ส่งแล้ว 0 -> 1</td></tr><tr><td>2</td><td>สแกนชิ้นที่สอง</td><td>8030492670-2</td><td>ส่งแล้ว 1 -> 2</td></tr><tr><td>จบงาน</td><td>ตรวจยอด ต้องสแกน 2 / ขึ้นรถแล้ว 2 / ส่งแล้ว 2</td><td>-</td><td>งานปลายทางครบ ไม่มีรายการค้าง</td></tr></tbody></table>
+
+  <h3>6. ถ้าสแกนผิดหรือสแกนซ้ำ</h3>
+  <table><thead><tr><th>เหตุการณ์</th><th>สิ่งที่ควรทำ</th></tr></thead><tbody><tr><td>สแกนรหัสที่ไม่ได้อยู่ใน Job</td><td>หยุดสแกนรายการนั้น แจ้ง Admin ให้ดู Alert Queue ในหน้า Monitor</td></tr><tr><td>สแกนซ้ำรหัสเดิม</td><td>ตรวจยอดบนหน้าจอ ถ้าระบบแจ้งเตือนหรือยอดไม่เพิ่ม ให้แจ้ง Admin ไม่ต้องสแกนซ้ำหลายครั้ง</td></tr><tr><td>เลือกโหมดผิด เช่น ส่งปลายทางตอนกำลังขึ้นรถ</td><td>เปลี่ยนโหมดให้ถูก แล้วแจ้ง Admin ตรวจประวัติการสแกนใน Monitor</td></tr><tr><td>ยอดขึ้นรถครบแต่ส่งแล้วยังไม่ครบ</td><td>ยังปิดงานไม่ได้ ให้ตรวจว่ายังมีสินค้าที่ปลายทางต้องสแกนส่งอีกหรือไม่</td></tr><tr><td>ขึ้นรถครบแล้ว แต่ต้องแก้ต้นทางหรือโหลดเพิ่ม</td><td>คนขับไม่เปิดเอง ให้โทรหา Admin เพื่อเปิดกรณีพิเศษ</td></tr><tr><td>ถึงปลายทางแล้วระบบไม่ให้เช็กอิน</td><td>อย่ากดมั่ว ให้โทรหา Admin ตรวจ GPS/รัศมี และเปิดปลายทางกรณีพิเศษถ้าจำเป็น</td></tr></tbody></table>
+
+  <h3>7. มุมมองบนมือถือ</h3>
+  
+    <figure>
+      <img class="shot portrait" src="file:///Users/sasitorn/Project_Stock/manual_screenshots/08-driver-room-mobile.png" alt="ภาพตัวอย่าง Driver Room บนหน้าจอมือถือ">
+      <figcaption>ภาพตัวอย่าง Driver Room บนหน้าจอมือถือ</figcaption>
+    </figure>
+    
+  <ul><li>ใช้มือถือเครื่องเดียวกันตลอดงาน เพื่อให้ GPS ต้นทางและปลายทางตรงกับผู้ปฏิบัติงานจริง</li><li>ถ้า browser ขอสิทธิ์กล้องหรือพิกัด ให้กดอนุญาต</li><li>ถ้าสแกนแล้วไม่ผ่าน ให้ตรวจว่าอยู่โหมดถูกต้อง: ขึ้นรถ หรือ ส่งปลายทาง</li><li>ถ้ามี alert หรือสแกนผิดสินค้า ให้แจ้ง Admin ให้ตรวจหน้า Monitor</li></ul>
+
+  <h2 class="page-break">ข้อควรระวังและการแก้ปัญหา</h2>
+  <table><thead><tr><th>อาการ</th><th>วิธีตรวจ / วิธีแก้</th></tr></thead><tbody><tr><td>ปุ่มสร้าง Job กดไม่ได้</td><td>ยังไม่ได้เลือก PO หรือรายการที่เลือกไม่มีในคิว ให้กลับไปหน้า PO รอจัดส่งแล้วติ๊ก checkbox ก่อน</td></tr><tr><td>คนขับเปิด Driver Room แล้วไม่เห็นงาน</td><td>ตรวจว่าใช้ลิงก์ที่มี jobId ถูกต้อง หรือให้สแกน QR ใหม่จากหน้า Monitor</td></tr><tr><td>เช็กอิน GPS ไม่ได้</td><td>เปิดสิทธิ์ Location ในมือถือและ browser แล้วลองกดเช็กอินใหม่จากจุดจริง</td></tr><tr><td>เปิดกล้องไม่ได้</td><td>อนุญาตสิทธิ์ Camera, ปิด browser แล้วเปิดลิงก์ใหม่ หรือกรอกรหัสในช่อง manual แทน</td></tr><tr><td>ยอด Loaded / Delivered ไม่ตรง</td><td>ให้ Admin ตรวจ Monitor เทียบกับรายการในห้อง และดู Alert Queue</td></tr><tr><td>ต้องเปิดปลายทางกรณีพิเศษ</td><td>Admin ใช้ปุ่ม Admin เปิดปลายทางกรณีพิเศษ ในหน้า Monitor เฉพาะกรณีจำเป็น</td></tr><tr><td>คนขับสแกนขึ้นรถครบแล้วแต่ไปเช็กอินต้นทางผิดที่</td><td>ให้ยึดต้นทางที่ปิดตอนโหลดครบ ห้ามให้คนขับแก้เอง Admin ตรวจและเปิดกรณีพิเศษเท่านั้น</td></tr><tr><td>คนขับสูงอายุกดไม่ถูก</td><td>ให้ทำตามเลขขั้นตอนบนหน้าจอ 1 เช็กอินต้นทาง, 2 สแกนขึ้นรถ, 3 สแกนสินค้า และโทรหา Admin เมื่อมีข้อความเตือน</td></tr></tbody></table>
+
+  <h2>Checklist ก่อนใช้งานจริง</h2>
+  <ul><li>ไฟล์ PO ถูกนำเข้าและตรวจข้อมูลหลักครบถ้วน</li><li>Admin เลือก PO ถูกชุดก่อนสร้าง Job</li><li>ชื่อห้อง Job, รถ, คนขับ, ต้นทาง และปลายทางถูกต้อง</li><li>คนขับได้รับ QR หรือลิงก์ Driver Room ของ Job ที่ถูกต้อง</li><li>มือถือคนขับเปิดสิทธิ์ GPS และกล้องเรียบร้อย</li><li>Admin เปิดหน้า Monitor เพื่อตรวจสถานะและ alert ระหว่างงาน</li><li>ตกลงร่วมกันว่าหลังสแกนขึ้นรถครบ ต้นทางถือว่าปิดแล้ว คนขับไม่เช็กอินต้นทางซ้ำ</li><li>กำหนดคนรับผิดชอบฝั่ง Admin สำหรับเปิดกรณีพิเศษ เช่น เปิดปลายทาง/ปลดล็อกต้นทาง</li></ul>
+  <p class="footer">Project Stock QR Manual | 18 May 2026</p>
+</body>
+</html>
