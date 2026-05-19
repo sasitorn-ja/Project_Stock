@@ -253,6 +253,13 @@ function buildAlert(type: string, message: string, severity: JobAlertRecord["sev
   };
 }
 
+function prependAlert(job: JobRecord, type: string, message: string, severity: JobAlertRecord["severity"]) {
+  const alert = buildAlert(type, message, severity);
+  job.alerts.unshift(alert);
+
+  return alert;
+}
+
 function appendScanLog(
   job: JobRecord,
   input: {
@@ -564,7 +571,8 @@ function applyJobScan(
 
   if (!matchingItems.length) {
     const otherJobMatch = findMatchingItemInJobs(input.otherActiveJobs ?? [], job.id, code);
-    const alert = buildAlert(
+    const alert = prependAlert(
+      job,
       "ไม่พบรายการ",
       otherJobMatch
         ? formatWrongJobMessage({
@@ -581,7 +589,6 @@ function applyJobScan(
         : formatUnknownJobMessage(code, job.id),
       "กลาง",
     );
-    job.alerts.unshift(alert);
     appendScanLog(job, {
       code,
       mode: input.mode,
@@ -608,12 +615,12 @@ function applyJobScan(
   if (input.mode === "deliver" && input.destinationId && item.destinationId !== input.destinationId) {
     const selectedDestination = job.destinations.find((currentDestination) => currentDestination.id === input.destinationId);
     const plannedDestination = job.destinations.find((currentDestination) => currentDestination.id === item.destinationId);
-    const alert = buildAlert(
+    const alert = prependAlert(
+      job,
       "ผิดปลายทาง",
       formatWrongDestinationMessage(item, selectedDestination?.name || input.destinationId, plannedDestination?.name || item.destinationName),
       "สูง",
     );
-    job.alerts.unshift(alert);
     appendScanLog(job, {
       code,
       mode: input.mode,
@@ -629,8 +636,7 @@ function applyJobScan(
 
   if (input.mode === "load") {
     if (item.loadedQty >= item.orderQty) {
-      const alert = buildAlert("สแกนซ้ำ", `${getJobItemLabel(item)} โหลดครบตามแผนแล้ว`, "กลาง");
-      job.alerts.unshift(alert);
+      const alert = prependAlert(job, "สแกนซ้ำ", `${getJobItemLabel(item)} โหลดครบตามแผนแล้ว`, "กลาง");
       appendScanLog(job, {
         code,
         mode: input.mode,
@@ -646,8 +652,7 @@ function applyJobScan(
     item.loadedQty += 1;
   } else {
     if (item.loadedQty <= item.deliveredQty) {
-      const alert = buildAlert("ยังไม่โหลดขึ้นรถ", `${getJobItemLabel(item)} ยังไม่มีจำนวนที่พร้อมส่ง`, "สูง");
-      job.alerts.unshift(alert);
+      const alert = prependAlert(job, "ยังไม่โหลดขึ้นรถ", `${getJobItemLabel(item)} ยังไม่มีจำนวนที่พร้อมส่ง`, "สูง");
       appendScanLog(job, {
         code,
         mode: input.mode,
@@ -662,8 +667,7 @@ function applyJobScan(
     }
 
     if (item.deliveredQty >= item.orderQty) {
-      const alert = buildAlert("ส่งซ้ำ", `${getJobItemLabel(item)} ส่งครบตามแผนแล้ว`, "กลาง");
-      job.alerts.unshift(alert);
+      const alert = prependAlert(job, "ส่งซ้ำ", `${getJobItemLabel(item)} ส่งครบตามแผนแล้ว`, "กลาง");
       appendScanLog(job, {
         code,
         mode: input.mode,
@@ -684,14 +688,21 @@ function applyJobScan(
   if (input.mode === "load") {
     lockOriginIfFullyLoaded(job, createdAt);
   }
+  const scanSuccessMessage =
+    input.mode === "load"
+      ? `${getJobItemLabel(item)} ขึ้นรถแล้ว ${item.loadedQty}/${item.orderQty}`
+      : `${getJobItemLabel(item)} ส่งแล้ว ${item.deliveredQty}/${item.orderQty}`;
+  prependAlert(
+    job,
+    input.mode === "load" ? "สแกนขึ้นรถสำเร็จ" : "สแกนส่งสำเร็จ",
+    scanSuccessMessage,
+    "ผ่าน",
+  );
   appendScanLog(job, {
     code,
     mode: input.mode,
     result: "ok",
-    message:
-      input.mode === "load"
-        ? `${getJobItemLabel(item)} บันทึกขึ้นรถแล้ว`
-        : `${getJobItemLabel(item)} บันทึกส่งปลายทางแล้ว`,
+    message: scanSuccessMessage,
     registryKey: item.registryKey,
     destinationId: item.destinationId,
     createdAt,
@@ -699,9 +710,48 @@ function applyJobScan(
   job.updatedAt = createdAt;
   updateJobStatus(job);
 
+  const destination = job.destinations.find((currentDestination) => currentDestination.id === item.destinationId);
+  const progressItems = job.items.filter((currentItem) => currentItem.destinationId === item.destinationId);
+  const isDestinationFullyLoaded =
+    input.mode === "load" &&
+    progressItems.length > 0 &&
+    progressItems.every((currentItem) => currentItem.loadedQty >= currentItem.orderQty);
+  const isDestinationFullyDelivered =
+    input.mode === "deliver" &&
+    progressItems.length > 0 &&
+    progressItems.every((currentItem) => currentItem.deliveredQty >= currentItem.orderQty);
+
+  if (isDestinationFullyLoaded) {
+    prependAlert(
+      job,
+      "โหลดปลายทางครบ",
+      `${destination?.name || item.destinationName} สแกนขึ้นรถครบทุกกล่องแล้ว`,
+      "ผ่าน",
+    );
+  }
+
+  if (input.mode === "load" && isJobFullyLoaded(job)) {
+    prependAlert(
+      job,
+      "โหลดครบทั้งงาน",
+      "สินค้าขึ้นรถครบแล้ว ระบบปิดต้นทางให้อัตโนมัติ ห้ามเช็กอินต้นทางซ้ำ",
+      "ผ่าน",
+    );
+  }
+
+  if (isDestinationFullyDelivered) {
+    prependAlert(
+      job,
+      "ส่งปลายทางครบ",
+      `${destination?.name || item.destinationName} สแกนลงของครบทุกกล่องแล้ว`,
+      "ผ่าน",
+    );
+  }
+
   if (job.status === "completed" && !job.completedAt) {
     job.completedAt = createdAt;
     job.purgeAfterAt = new Date(new Date(createdAt).getTime() + retentionWindowMs).toISOString();
+    prependAlert(job, "ปิดงานสำเร็จ", "ส่งครบทุกปลายทางแล้ว ระบบปิดงานและย้ายเข้าประวัติงาน", "ผ่าน");
   }
 
   return {

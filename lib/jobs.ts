@@ -2,7 +2,7 @@ import { type PORegistryRecord } from "@/lib/po-registry";
 
 export type JobStatus = "ready" | "loading" | "in_transit" | "completed";
 export type ScanMode = "load" | "deliver";
-export type AlertSeverity = "สูง" | "กลาง";
+export type AlertSeverity = "ผ่าน" | "สำเร็จ" | "สูง" | "กลาง";
 
 export type JobItemRecord = {
   registryKey: string;

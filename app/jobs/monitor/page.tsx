@@ -10,9 +10,21 @@ import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobStatusLabel } from "@/lib/job-labels";
-import { getJob, listJobs } from "@/lib/job-store";
+import { getJob, getJobArchive, listJobs } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
+
+function getAlertBadge(alertSeverity: string) {
+  if (alertSeverity === "ผ่าน" || alertSeverity === "สำเร็จ") {
+    return { label: "ผ่าน", variant: "success" as const };
+  }
+
+  if (alertSeverity === "สูง") {
+    return { label: "ผิดปกติ", variant: "danger" as const };
+  }
+
+  return { label: "เตือน", variant: "warning" as const };
+}
 
 export default async function JobMonitorPage({
   searchParams,
@@ -23,8 +35,11 @@ export default async function JobMonitorPage({
   const selectedJobId = jobId ?? null;
   const [jobs, job] = await Promise.all([
     selectedJobId ? Promise.resolve([]) : listJobs(),
-    selectedJobId ? getJob(selectedJobId) : Promise.resolve(null),
+    selectedJobId
+      ? getJob(selectedJobId).then(async (activeJob) => activeJob ?? getJobArchive(selectedJobId))
+      : Promise.resolve(null),
   ]);
+  const isArchivedJob = Boolean(job?.completedAt);
 
   return (
     <div className="space-y-6">
@@ -111,31 +126,51 @@ export default async function JobMonitorPage({
             <CardHeader>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
-                  <CardTitle className="text-sm">ช่องทางเข้าหน้าคนขับ</CardTitle>
-                  <CardDescription>เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ</CardDescription>
+                  <CardTitle className="text-sm">
+                    {isArchivedJob ? "งานนี้ปิดแล้ว" : "ช่องทางเข้าหน้าคนขับ"}
+                  </CardTitle>
+                  <CardDescription>
+                    {isArchivedJob
+                      ? "งานถูกส่งครบและย้ายเข้าเมนูประวัติงานแล้ว หน้านี้ยังแสดงผลต่อเพื่อให้ Admin ที่เปิดค้างอยู่ตรวจสอบสถานะสุดท้ายได้"
+                      : "เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ"}
+                  </CardDescription>
                 </div>
-                <div className="flex flex-col gap-2 sm:items-end">
-                  <JobDestinationOverrideButton
-                    jobId={job.id}
-                    enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
-                    isFullyLoaded={job.isFullyLoaded}
-                  />
-                  <JobOriginOverrideButton
-                    jobId={job.id}
-                    enabled={Boolean(job.allowOriginRecheckAfterLocked)}
-                    isOriginLocked={job.isOriginLocked}
-                  />
-                  <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
-                </div>
+                {isArchivedJob ? (
+                  <div className="flex flex-col gap-2 sm:items-end">
+                    <Badge variant="success">ปิดงานแล้ว</Badge>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/jobs/history/${encodeURIComponent(job.id)}`}>
+                        <History className="mr-1.5 h-3.5 w-3.5" />
+                        เปิดในประวัติงาน
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:items-end">
+                    <JobDestinationOverrideButton
+                      jobId={job.id}
+                      enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
+                      isFullyLoaded={job.isFullyLoaded}
+                    />
+                    <JobOriginOverrideButton
+                      jobId={job.id}
+                      enabled={Boolean(job.allowOriginRecheckAfterLocked)}
+                      isOriginLocked={job.isOriginLocked}
+                    />
+                    <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
+                  </div>
+                )}
               </div>
             </CardHeader>
-            <CardContent>
-              <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} />
-            </CardContent>
+            {!isArchivedJob ? (
+              <CardContent>
+                <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} />
+              </CardContent>
+            ) : null}
           </Card>
 
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <JobProgress job={job} editableScanQty />
+            <JobProgress job={job} editableScanQty={!isArchivedJob} />
             <Card>
               <CardHeader>
               <CardTitle className="text-sm">รายการแจ้งเตือน</CardTitle>
@@ -143,18 +178,22 @@ export default async function JobMonitorPage({
               </CardHeader>
               <CardContent className="space-y-2">
                 {job.alerts.length ? (
-                  job.alerts.map((alert) => (
-                    <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[12.5px] font-semibold text-slate-900">{alert.type}</p>
-                          <p className="mt-0.5 text-[11.5px] text-muted-foreground">{alert.message}</p>
+                  job.alerts.map((alert) => {
+                    const badge = getAlertBadge(alert.severity);
+
+                    return (
+                      <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[12.5px] font-semibold text-slate-900">{alert.type}</p>
+                            <p className="mt-0.5 whitespace-pre-line text-[11.5px] text-muted-foreground">{alert.message}</p>
+                          </div>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
-                        <Badge variant={alert.severity === "สูง" ? "warning" : "secondary"}>{alert.severity}</Badge>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">{alert.time}</p>
                       </div>
-                      <p className="mt-1.5 text-[11px] text-muted-foreground">{alert.time}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-200 p-4 text-[12.5px] text-muted-foreground">
                     ยังไม่มีแจ้งเตือนสำหรับงานนี้
