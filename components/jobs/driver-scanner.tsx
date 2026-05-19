@@ -692,7 +692,7 @@ export function DriverScanner({
             disabled={!job || isCameraScanning || isScanBlocked}
             aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
-            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            <video ref={videoRef} className="h-full w-full bg-black object-contain" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <div className="relative h-[72%] w-[92%] max-w-3xl rounded-[28px] border-2 border-white/85 shadow-[0_0_0_999px_rgba(2,6,23,0.18)]">
