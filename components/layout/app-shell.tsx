@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { BottomNav } from "@/components/layout/bottom-nav";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { cn } from "@/lib/utils";
@@ -39,9 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onMenuClick={() => setIsMobileOpen((value) => !value)}
           onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
         />
-        {/* pb-16 เผื่อ BottomNav บน mobile (lg:pb-0 เมื่อมี sidebar) */}
-        <main className="w-full min-w-0 px-3 py-4 pb-20 sm:px-5 sm:py-6 sm:pb-20 md:px-8 lg:pb-6">{children}</main>
-        <BottomNav />
+        <main className="w-full min-w-0 px-3 py-4 sm:px-5 sm:py-6 md:px-8">{children}</main>
       </div>
     </div>
   );
