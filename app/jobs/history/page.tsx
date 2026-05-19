@@ -44,27 +44,29 @@ export default async function JobHistoryPage({
           <CardDescription className="ml-7">ค้นหาได้จากรหัสงาน คนขับ รถ PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
+          <form className="flex flex-col gap-3">
             <input
               type="text"
               name="query"
               defaultValue={query}
               placeholder="ค้นหารหัสงาน, คนขับ, รถ, PO, รหัสวัสดุ"
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
             />
-            <input
-              type="date"
-              name="dateFrom"
-              defaultValue={dateFrom}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            />
-            <input
-              type="date"
-              name="dateTo"
-              defaultValue={dateTo}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            />
-            <Button type="submit" size="sm">ค้นหา</Button>
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
+              <input
+                type="date"
+                name="dateFrom"
+                defaultValue={dateFrom}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+              <input
+                type="date"
+                name="dateTo"
+                defaultValue={dateTo}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+              <Button type="submit" size="sm" className="col-span-2 sm:col-auto">ค้นหา</Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -114,7 +116,7 @@ export default async function JobHistoryPage({
 
       {job && selectedJobId ? (
         <>
-          <section className="grid gap-3 md:grid-cols-4">
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", getJobStatusLabel(job.status), History],
@@ -138,7 +140,7 @@ export default async function JobHistoryPage({
               <CardTitle>ข้อมูลสรุปงาน</CardTitle>
               <CardDescription>ดูย้อนหลังจากข้อมูลของงานหลังปิดจบแล้ว</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-4">
+            <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="rounded-md border p-4">
                 <p className="text-sm text-muted-foreground">คนขับ</p>
                 <p className="mt-2 font-semibold">{job.driver || "-"}</p>
@@ -173,7 +175,7 @@ export default async function JobHistoryPage({
               <CardTitle>สรุป PO ในงาน</CardTitle>
               <CardDescription>สถานะสุดท้ายของแต่ละ PO จากข้อมูลก่อนย้ายเข้าประวัติ</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
+            <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {job.poStatuses.map((item) => (
                 <div key={item.po} className="rounded-md border p-4">
                   <p className="font-semibold">{item.po}</p>

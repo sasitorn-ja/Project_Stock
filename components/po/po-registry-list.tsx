@@ -337,19 +337,19 @@ export function PORegistryList() {
             />
           </div>
           <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-fit">
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              {selectedKeys.length > 0 ? (
-                /* มีรายการที่เลือก → แสดงจำนวน + ปุ่มลบ */
-                <>
-                  <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
-                    เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
-                  </span>
+            {selectedKeys.length > 0 ? (
+              /* มีรายการที่เลือก → แสดงจำนวน + ปุ่มสองปุ่มในแถวเดียว */
+              <div className="flex flex-col gap-1.5 xl:items-end">
+                <span className="text-sm font-medium text-slate-700">
+                  เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
+                </span>
+                <div className="flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedKeys([])}
-                    className="whitespace-nowrap text-slate-500"
+                    className="flex-1 whitespace-nowrap xl:flex-none"
                   >
                     ยกเลิกการเลือก
                   </Button>
@@ -359,31 +359,31 @@ export function PORegistryList() {
                     size="sm"
                     onClick={deleteSelectedRecords}
                     disabled={isLoading}
-                    className="whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50"
+                    className="flex-1 whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50 xl:flex-none"
                   >
                     <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                     ลบที่เลือก
                   </Button>
-                </>
-              ) : (
-                /* ยังไม่ได้เลือก → แสดงปุ่มเลือกทั้งหมด */
-                <>
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    ยังไม่ได้เลือกรายการ
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={selectAllMatchingRecords}
-                    disabled={!totalCount || isLoading}
-                    className="whitespace-nowrap"
-                  >
-                    เลือกทั้งหมด
-                  </Button>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            ) : (
+              /* ยังไม่ได้เลือก → แสดงปุ่มเลือกทั้งหมด */
+              <div className="flex items-center gap-2 xl:justify-end">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  ยังไม่ได้เลือกรายการ
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllMatchingRecords}
+                  disabled={!totalCount || isLoading}
+                  className="whitespace-nowrap"
+                >
+                  เลือกทั้งหมด
+                </Button>
+              </div>
+            )}
             <Button
               type="button"
               onClick={createJobFromSelection}
