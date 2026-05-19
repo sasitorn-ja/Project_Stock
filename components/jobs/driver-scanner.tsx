@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
-import { type JobRecord, type ScanMode } from "@/lib/jobs";
+import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
 import { createScanHints, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
 
 async function requestCurrentPosition() {
@@ -28,18 +28,26 @@ async function requestCurrentPosition() {
   });
 }
 
-export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
+export function DriverScanner({
+  initialJobId,
+  initialJob = null,
+  initialJobs = [],
+}: {
+  initialJobId?: string;
+  initialJob?: JobSummaryRecord | null;
+  initialJobs?: JobSummaryRecord[];
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const scanLockRef = useRef(false);
-  const [jobs, setJobs] = useState<JobRecord[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState(initialJobId ?? "");
-  const [job, setJob] = useState<JobRecord | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [jobs, setJobs] = useState<JobSummaryRecord[]>(initialJobs);
+  const [selectedJobId, setSelectedJobId] = useState(initialJobId ?? initialJob?.id ?? initialJobs[0]?.id ?? "");
+  const [job, setJob] = useState<JobSummaryRecord | null>(initialJob ?? initialJobs[0] ?? null);
+  const [isLoading, setIsLoading] = useState(!initialJob && !initialJobs.length);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mode, setMode] = useState<ScanMode>("load");
-  const [currentLocation, setCurrentLocation] = useState("");
+  const [currentLocation, setCurrentLocation] = useState(initialJob?.destinations[0]?.id ?? initialJobs[0]?.destinations[0]?.id ?? "");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
@@ -55,28 +63,22 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
   useEffect(() => {
     async function loadJobs() {
+      if (initialJob || initialJobs.length) {
+        return;
+      }
+
       setIsLoading(true);
 
       try {
-        const nextJobs = await getJobs();
-        setJobs(nextJobs);
-
-        const nextSelectedJobId = initialJobId || selectedJobId || nextJobs[0]?.id || "";
-        setSelectedJobId(nextSelectedJobId);
-
-        if (nextSelectedJobId) {
-          const nextJob = await getJob(nextSelectedJobId);
-          setJob(nextJob);
-          setCurrentLocation((current) => {
-            if (current && nextJob?.destinations.some((destination) => destination.id === current)) {
-              return current;
-            }
-
-            return nextJob?.destinations[0]?.id ?? "";
-          });
+        if (initialJobId) {
+          const nextJob = await getJob(initialJobId);
+          setJobs(nextJob ? [nextJob] : []);
+          selectLoadedJob(nextJob);
         } else {
-          setJob(null);
-          setCurrentLocation("");
+          const nextJobs = await getJobs();
+          const nextJob = nextJobs.find((currentJob) => currentJob.id === selectedJobId) ?? nextJobs[0] ?? null;
+          setJobs(nextJobs);
+          selectLoadedJob(nextJob);
         }
       } catch {
         setMessage("โหลดข้อมูลห้องคนขับไม่สำเร็จ");
@@ -87,7 +89,26 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     void loadJobs();
-  }, [initialJobId, selectedJobId]);
+    // โหลดตอนเปิดห้องเท่านั้น ตอนเลือกห้องจะใช้ข้อมูลใน list ที่โหลดมาแล้ว
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialJob, initialJobId, initialJobs.length]);
+
+  function selectLoadedJob(nextJob: JobSummaryRecord | null) {
+    setSelectedJobId(nextJob?.id ?? "");
+    setJob(nextJob);
+    setCurrentLocation((current) => {
+      if (current && nextJob?.destinations.some((destination) => destination.id === current)) {
+        return current;
+      }
+
+      return nextJob?.destinations[0]?.id ?? "";
+    });
+  }
+
+  function selectJobFromList(jobId: string) {
+    const nextJob = jobs.find((currentJob) => currentJob.id === jobId) ?? null;
+    selectLoadedJob(nextJob);
+  }
 
   const currentDestination = useMemo(
     () => job?.destinations.find((destination) => destination.id === currentLocation) ?? job?.destinations[0],
@@ -370,7 +391,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
                       return (
                         <DropdownMenu.Item
                           key={currentJob.id}
-                          onSelect={() => setSelectedJobId(currentJob.id)}
+                          onSelect={() => selectJobFromList(currentJob.id)}
                           className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
                         >
                           <span className="flex size-4 shrink-0 items-center justify-center">

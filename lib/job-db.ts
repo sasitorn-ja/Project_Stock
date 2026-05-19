@@ -1,4 +1,4 @@
-import { type JobRecord, type ScanMode } from "@/lib/jobs";
+import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
 
 async function readResponse<T>(response: Response) {
   if (!response.ok) {
@@ -10,7 +10,7 @@ async function readResponse<T>(response: Response) {
 }
 
 export async function getJobs() {
-  const data = await readResponse<{ jobs: JobRecord[] }>(
+  const data = await readResponse<{ jobs: JobSummaryRecord[] }>(
     await fetch("/api/jobs", {
       cache: "no-store",
     }),
@@ -20,7 +20,7 @@ export async function getJobs() {
 }
 
 export async function getJob(jobId: string) {
-  const data = await readResponse<{ job: JobRecord | null }>(
+  const data = await readResponse<{ job: JobSummaryRecord | null }>(
     await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
       cache: "no-store",
     }),
@@ -45,7 +45,7 @@ export async function createJob(input: {
     radiusMeters?: number;
   }[];
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch("/api/jobs", {
       method: "POST",
       headers: {
@@ -63,7 +63,7 @@ export async function updateJobItemScanQuantity(input: {
   registryKey: string;
   scanQty: number;
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
       method: "PATCH",
       headers: {
@@ -83,7 +83,7 @@ export async function updateJobDestinationOverride(input: {
   jobId: string;
   allowDestinationBeforeFullyLoaded: boolean;
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
       method: "PATCH",
       headers: {
@@ -102,7 +102,7 @@ export async function updateJobOriginOverride(input: {
   jobId: string;
   allowOriginRecheckAfterLocked: boolean;
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
       method: "PATCH",
       headers: {
@@ -131,7 +131,7 @@ export async function checkInJobOrigin(input: {
   longitude: number;
   accuracy?: number;
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-origin`, {
       method: "POST",
       headers: {
@@ -151,7 +151,7 @@ export async function checkInJobDestination(input: {
   longitude: number;
   accuracy?: number;
 }) {
-  const data = await readResponse<{ job: JobRecord }>(
+  const data = await readResponse<{ job: JobSummaryRecord }>(
     await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-destination`, {
       method: "POST",
       headers: {
@@ -171,7 +171,7 @@ export async function submitJobScan(input: {
   destinationId?: string;
 }) {
   return readResponse<{
-    job: JobRecord;
+    job: JobSummaryRecord;
     result: "ok" | "alert";
     message: string;
   }>(
