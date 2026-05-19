@@ -376,7 +376,7 @@ export function DriverScanner({
     try {
       scanLockRef.current = false;
 
-      // Step 1: acquire camera stream
+      // Step 1: acquire camera stream (original constraints — ไม่แตะ)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -386,19 +386,6 @@ export function DriverScanner({
         },
         audio: false,
       });
-
-      // Step 1b: เปิด continuous autofocus (Android/Chrome รองรับ, iOS ignore)
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        try {
-          await videoTrack.applyConstraints({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            advanced: [{ focusMode: "continuous" } as any],
-          });
-        } catch {
-          // focusMode ไม่ supported บน iOS หรือรุ่นเก่า — ไม่ต้อง error
-        }
-      }
 
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
