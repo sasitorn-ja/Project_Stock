@@ -955,7 +955,7 @@ async function createJobInDatabase(input: {
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
   if (!input.registryKeys.length) {
-    throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
+    throw new Error("กรุณากลับไปเลือก PO ที่ต้องการสร้าง Job ก่อน");
   }
 
   assertWritableStorage();
@@ -987,7 +987,7 @@ async function createJobInDatabase(input: {
     const availableRecords = recordsResult.rows.map(mapDatabasePORecord);
 
     if (!availableRecords.length) {
-      throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
+      throw new Error("รายการ PO ที่เลือกถูกใช้สร้าง Job แล้ว หรือไม่พร้อมสร้างงาน กรุณากลับไปเลือก PO ใหม่");
     }
 
     const baseItems = applyDestinationAssignments(
@@ -1836,7 +1836,7 @@ export async function createJob(input: {
   const availableRecords = records.filter((record) => !record.assignedJobId && record.lifecycle === "active");
 
   if (!availableRecords.length) {
-    throw new Error("ไม่พบรายการ PO ที่พร้อมสร้าง Job");
+    throw new Error("รายการ PO ที่เลือกถูกใช้สร้าง Job แล้ว หรือไม่พร้อมสร้างงาน กรุณากลับไปเลือก PO ใหม่");
   }
 
   const now = new Date().toISOString();

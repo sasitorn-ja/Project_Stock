@@ -58,10 +58,19 @@ export function JobCreator() {
 
         const existingRecords = await getExistingPORecords(selectedKeys);
         const nextRecords = selectedKeys.map((key) => existingRecords.get(key)).filter(Boolean) as PORegistryRecord[];
-        setRecords(nextRecords);
+        const readyRecords = nextRecords.filter((record) => record.lifecycle === "active" && !record.assignedJobId);
+
+        if (selectedKeys.length && !readyRecords.length) {
+          window.sessionStorage.removeItem(storageKey);
+          setRecords([]);
+          setError("รายการ PO ที่เลือกไว้ถูกใช้สร้าง Job แล้ว หรือไม่พร้อมสร้างงาน กรุณากลับไปเลือก PO ใหม่");
+          return;
+        }
+
+        setRecords(readyRecords);
         setDestinationAssignments((currentAssignments) =>
           Object.fromEntries(
-            nextRecords.map((record) => [
+            readyRecords.map((record) => [
               record.registryKey,
               currentAssignments[record.registryKey] ?? createDestinationId(record.unitName.trim() || "ไม่ระบุปลายทาง"),
             ]),
@@ -71,7 +80,7 @@ export function JobCreator() {
           const nextDrafts = { ...currentDrafts };
           const nextOrder: string[] = [];
 
-          nextRecords.forEach((record) => {
+          readyRecords.forEach((record) => {
             const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
             const id = createDestinationId(name);
             nextDrafts[id] = nextDrafts[id] ?? { name, address: name };
@@ -92,7 +101,7 @@ export function JobCreator() {
           return nextDrafts;
         });
         setScanQuantities((currentQuantities) =>
-          Object.fromEntries(nextRecords.map((record) => [record.registryKey, currentQuantities[record.registryKey] ?? 1])),
+          Object.fromEntries(readyRecords.map((record) => [record.registryKey, currentQuantities[record.registryKey] ?? 1])),
         );
       } catch {
         setError("โหลดรายการ PO ที่เลือกไม่สำเร็จ กรุณากลับไปเลือกใหม่");

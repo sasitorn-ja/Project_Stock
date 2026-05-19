@@ -104,7 +104,6 @@ export function Sidebar({
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={onCloseMobile}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "group relative flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-3 text-[13.5px] font-medium transition-colors",
