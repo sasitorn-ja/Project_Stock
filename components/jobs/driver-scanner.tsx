@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
-import { createScanHints, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
+import { createScanHints, MIN_SCAN_CODE_LENGTH, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
 
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
@@ -396,8 +396,8 @@ export function DriverScanner({
 
       // Step 2: attach ZXing decoder to the live stream
       const reader = new BrowserMultiFormatReader(createScanHints(), {
-        delayBetweenScanAttempts: 100,
-        delayBetweenScanSuccess: 800,
+        delayBetweenScanAttempts: 200,   // เพิ่มจาก 100 → 200ms ลด false-positive
+        delayBetweenScanSuccess: 1000,
         tryPlayVideoTimeout: 8000,
       });
 
@@ -409,7 +409,9 @@ export function DriverScanner({
           if (!result || scanLockRef.current) return;
 
           const scannedCode = result.getText().trim();
-          if (!scannedCode) return;
+
+          // ป้องกัน false-positive: ข้ามรหัสที่สั้นเกินไป (ไม่น่าใช่บาร์โค้ดจริง)
+          if (!scannedCode || scannedCode.length < MIN_SCAN_CODE_LENGTH) return;
 
           scanLockRef.current = true;
           setCode(scannedCode);
