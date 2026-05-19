@@ -326,8 +326,9 @@ export function PORegistryList() {
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="relative w-full xl:max-w-md xl:flex-1">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          {/* ช่องค้นหา */}
+          <div className="relative w-full xl:max-w-sm xl:shrink-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
@@ -336,66 +337,69 @@ export function PORegistryList() {
               className="pl-9"
             />
           </div>
-          <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-fit">
-            {selectedKeys.length > 0 ? (
-              /* มีรายการที่เลือก → แสดงจำนวน + ปุ่มสองปุ่มในแถวเดียว */
-              <div className="flex flex-col gap-1.5 xl:items-end">
-                <span className="text-sm font-medium text-slate-700">
-                  เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedKeys([])}
-                    className="flex-1 whitespace-nowrap xl:flex-none"
-                  >
-                    ยกเลิกการเลือก
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={deleteSelectedRecords}
-                    disabled={isLoading}
-                    className="flex-1 whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50 xl:flex-none"
-                  >
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    ลบที่เลือก
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* ยังไม่ได้เลือก → แสดงปุ่มเลือกทั้งหมด */
-              <div className="flex items-center gap-2 xl:justify-end">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  ยังไม่ได้เลือกรายการ
-                </span>
+
+          {/* Actions — mobile: flex-col | desktop: flex-row เป็นแถวเดียว */}
+          {selectedKeys.length > 0 ? (
+            <div className="flex flex-col gap-2 xl:flex-1 xl:flex-row xl:items-center xl:justify-end">
+              <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
+              </span>
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={selectAllMatchingRecords}
-                  disabled={!totalCount || isLoading}
-                  className="whitespace-nowrap"
+                  onClick={() => setSelectedKeys([])}
+                  className="flex-1 whitespace-nowrap xl:flex-none"
                 >
-                  เลือกทั้งหมด
+                  ยกเลิกการเลือก
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={deleteSelectedRecords}
+                  disabled={isLoading}
+                  className="flex-1 whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50 xl:flex-none"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  ลบที่เลือก
                 </Button>
               </div>
-            )}
-            <Button
-              type="button"
-              onClick={createJobFromSelection}
-              disabled={!selectedKeys.length}
-              className="h-auto min-h-11 w-full whitespace-normal"
-            >
-              <FilePlus2 className="mr-2 h-4 w-4" />
-              {selectedKeys.length > 0
-                ? `สร้าง Job จาก ${selectedKeys.length.toLocaleString("th-TH")} รายการที่เลือก`
-                : "สร้าง Job จากรายการที่เลือก"}
-            </Button>
-          </div>
+              <Button
+                type="button"
+                onClick={createJobFromSelection}
+                className="h-auto min-h-9 w-full whitespace-nowrap xl:w-auto"
+              >
+                <FilePlus2 className="mr-2 h-4 w-4 shrink-0" />
+                สร้าง Job จาก {selectedKeys.length.toLocaleString("th-TH")} รายการที่เลือก
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 xl:flex-1 xl:flex-row xl:items-center xl:justify-end">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                ยังไม่ได้เลือกรายการ
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={selectAllMatchingRecords}
+                disabled={!totalCount || isLoading}
+                className="whitespace-nowrap"
+              >
+                เลือกทั้งหมด
+              </Button>
+              <Button
+                type="button"
+                disabled
+                className="h-auto min-h-9 w-full whitespace-nowrap xl:w-auto"
+              >
+                <FilePlus2 className="mr-2 h-4 w-4 shrink-0" />
+                สร้าง Job จากรายการที่เลือก
+              </Button>
+            </div>
+          )}
         </div>
 
         {successMessage ? (
