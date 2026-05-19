@@ -3,23 +3,12 @@ import { CalendarClock, History, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobAlertList } from "@/components/jobs/job-alert-list";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJobArchive, listJobArchives } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
-
-function getAlertBadge(alertSeverity: string) {
-  if (alertSeverity === "ผ่าน" || alertSeverity === "สำเร็จ") {
-    return { label: "ผ่าน", variant: "success" as const };
-  }
-
-  if (alertSeverity === "สูง") {
-    return { label: "ผิดปกติ", variant: "danger" as const };
-  }
-
-  return { label: "เตือน", variant: "warning" as const };
-}
 
 export default async function JobHistoryPage({
   searchParams,
@@ -177,28 +166,7 @@ export default async function JobHistoryPage({
                 <CardDescription>บันทึกเหตุการณ์ระหว่างงาน ทั้งสแกนผ่าน คำเตือน และความผิดปกติ</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {job.alerts.length ? (
-                  job.alerts.map((alert) => {
-                    const badge = getAlertBadge(alert.severity);
-
-                    return (
-                      <div key={alert.id} className="rounded-md border p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-semibold">{alert.type}</p>
-                            <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{alert.message}</p>
-                          </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="mt-2 text-xs text-muted-foreground">{alert.time}</p>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-lg border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-                    ไม่มีแจ้งเตือนในงานนี้
-                  </div>
-                )}
+                <JobAlertList alerts={job.alerts} />
               </CardContent>
             </Card>
           </section>

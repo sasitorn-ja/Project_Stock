@@ -126,6 +126,7 @@ export function DriverScanner({
   const deliveredTotal = job?.items.reduce((sum, item) => sum + item.deliveredQty, 0) ?? 0;
   const isFullyLoaded = requiredTotal > 0 && loadedTotal >= requiredTotal;
   const canOpenDestinationEarly = Boolean(job?.allowDestinationBeforeFullyLoaded);
+  const shouldShowDestinationOnly = Boolean(job) && (isFullyLoaded || canOpenDestinationEarly);
   const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || (!isFullyLoaded && !canOpenDestinationEarly));
   const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
   const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้องงาน";
@@ -136,17 +137,22 @@ export function DriverScanner({
     ? "กดเช็กอินต้นทาง"
     : !isFullyLoaded
       ? "สแกนขึ้นรถให้ครบ"
-      : mode === "deliver"
-        ? hasDestinationCheckIn
-          ? "สแกนส่งของ"
-          : "กดเช็กอินปลายทาง"
-        : "ไปปลายทาง";
+      : hasDestinationCheckIn
+        ? "สแกนส่งของ"
+        : "กดเช็กอินปลายทาง";
 
   useEffect(() => {
     if (mode === "deliver" && isDeliverModeLocked) {
       setMode("load");
     }
   }, [isDeliverModeLocked, mode]);
+
+  useEffect(() => {
+    if (shouldShowDestinationOnly && mode !== "deliver") {
+      setMode("deliver");
+      stopCamera();
+    }
+  }, [mode, shouldShowDestinationOnly]);
 
   async function captureOriginGps() {
     if (!job) {
@@ -266,6 +272,13 @@ export function DriverScanner({
       setMessage(response.message);
       setScanResult(response.result);
       setCode("");
+      const nextRequiredTotal = response.job.items.reduce((sum, item) => sum + item.orderQty, 0);
+      const nextLoadedTotal = response.job.items.reduce((sum, item) => sum + item.loadedQty, 0);
+
+      if (nextRequiredTotal > 0 && nextLoadedTotal >= nextRequiredTotal) {
+        setMode("deliver");
+        stopCamera();
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "บันทึกการสแกนไม่สำเร็จ");
       setScanResult("alert");
@@ -426,14 +439,14 @@ export function DriverScanner({
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 lg:w-[520px]">
-            <Badge variant={mode === "load" ? "warning" : "success"} className="w-fit self-start lg:self-end">
-              {mode === "load" ? "โหมดขึ้นรถ" : "โหมดส่งปลายทาง"}
+            <Badge variant={shouldShowDestinationOnly ? "success" : "warning"} className="w-fit self-start lg:self-end">
+              {shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}
             </Badge>
             <div className="rounded-md border-2 border-slate-900 bg-slate-950 px-3 py-2 text-white">
               <p className="text-[11px] text-slate-300">ขั้นตอนต่อไป</p>
               <p className="text-lg font-bold">{nextActionText}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className={`grid grid-cols-2 gap-2 ${shouldShowDestinationOnly ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
               <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
                 <p className="text-[11px] text-slate-500">ต้องสแกน</p>
                 <p className="text-base font-semibold text-slate-950">{requiredTotal.toLocaleString("th-TH")}</p>
@@ -446,10 +459,12 @@ export function DriverScanner({
                 <p className="text-[11px] text-slate-500">ส่งแล้ว</p>
                 <p className="text-base font-semibold text-slate-950">{deliveredTotal.toLocaleString("th-TH")}</p>
               </div>
-              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
-                <p className="text-[11px] text-slate-500">ต้นทาง</p>
-                <p className="text-sm font-semibold text-slate-950">{originStatusText}</p>
-              </div>
+              {!shouldShowDestinationOnly ? (
+                <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] text-slate-500">ต้นทาง</p>
+                  <p className="text-sm font-semibold text-slate-950">{originStatusText}</p>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -497,73 +512,19 @@ export function DriverScanner({
         </Card>
       ) : null}
 
-      <Card className="order-4">
-        <CardContent className="grid gap-2 p-3 md:grid-cols-3">
-          {[
-            ["1", "เช็กอินต้นทาง", hasOriginCheckIn ? "เสร็จแล้ว" : "รอดึง GPS"],
-            [
-              "2",
-              "สแกนขึ้นรถ",
-              isFullyLoaded ? "โหลดครบ / ปิดต้นทาง" : canOpenDestinationEarly ? "ผู้ดูแลเปิดปลายทาง" : "ยังโหลดไม่ครบ",
-            ],
-            ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
-          ].map(([step, label, status]) => (
-            <div
-              key={step}
-              className={`rounded-md border px-3 py-2 ${
-                Number(step) <= activeStep ? "border-slate-900 bg-slate-950 text-white" : "border-[#d8dde6] bg-white text-slate-700"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex size-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-950">{step}</span>
-                <span className="text-sm font-medium">{label}</span>
-              </div>
-              <p className={Number(step) <= activeStep ? "mt-2 text-xs text-slate-200" : "mt-2 text-xs text-slate-500"}>{status}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {!isOriginGpsRequired ? (
+      {!isOriginGpsRequired && shouldShowDestinationOnly ? (
       <Card className="order-5">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <MapPin className="h-4 w-4" />
-            จุดเช็กอิน
+            ปลายทาง
           </CardTitle>
-          <CardDescription>ใช้พิกัดจากมือถือเครื่องนี้เท่านั้น</CardDescription>
+          <CardDescription>เลือกปลายทางแล้วกดเช็กอิน GPS ก่อนสแกนส่งของ</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 p-3 md:grid-cols-2">
-          <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
-            <p className="text-sm font-medium">ต้นทาง</p>
-            <p className="mt-1 text-sm text-slate-500">{job?.origin || "-"}</p>
-            <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">{job?.originGps || "ยังไม่เช็กอิน"}</p>
-            {isOriginLocked && !canRecheckOrigin ? (
-              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                ปิดต้นทางแล้ว ห้ามเช็กอินต้นทางซ้ำ
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              variant={canRecheckOrigin ? "default" : "outline"}
-              className="mt-3 h-12 w-full text-base"
-              onClick={captureOriginGps}
-              disabled={!job || isFetchingOriginGps || (isOriginLocked && !canRecheckOrigin)}
-            >
-              {isFetchingOriginGps
-                ? "กำลังดึง GPS"
-                : canRecheckOrigin
-                ? "ผู้ดูแลเปิดแล้ว: เช็กอินต้นทางใหม่"
-                  : hasOriginCheckIn
-                    ? "เช็กอินต้นทางใหม่"
-                    : "เช็กอินต้นทาง"}
-            </Button>
-          </div>
-
+        <CardContent className="space-y-3 p-3">
           <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">ปลายทางปัจจุบัน</p>
-              {isDeliverModeLocked ? <Badge variant="outline">ล็อกอยู่</Badge> : null}
             </div>
             {job?.destinations.length ? (
               <DropdownMenu.Root>
@@ -612,26 +573,21 @@ export function DriverScanner({
             </p>
             <Button
               type="button"
-              variant="outline"
-              className="mt-3 w-full"
+              className="mt-3 h-12 w-full text-base"
               onClick={captureDestinationGps}
-              disabled={!job || !currentDestination || isDeliverModeLocked || isFetchingDestinationGps}
+              disabled={!job || !currentDestination || isFetchingDestinationGps}
             >
               {isFetchingDestinationGps ? "กำลังดึง GPS" : hasDestinationCheckIn ? "เช็กอินปลายทางใหม่" : "เช็กอินปลายทาง"}
             </Button>
           </div>
 
-          {(isOriginGpsRequired || isDeliverModeLocked || isDestinationGpsRequired) && job ? (
-            <div className="md:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {isOriginGpsRequired
-                ? "ต้องเช็กอิน GPS ต้นทางก่อน จึงจะเปิดให้สแกนสินค้า"
-                : isDeliverModeLocked
-                  ? "ต้องสแกนสินค้าขึ้นรถให้ครบก่อน ระบบจึงจะเปิดส่วนปลายทาง หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ"
-                : `ต้องเช็กอิน GPS ปลายทาง ${currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้`}
+          {isDestinationGpsRequired && job ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              ต้องเช็กอิน GPS ปลายทาง {currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้
             </div>
           ) : null}
           {latestGps ? (
-            <div className="md:col-span-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
               พิกัดล่าสุด: {latestGps}
             </div>
           ) : null}
@@ -644,9 +600,9 @@ export function DriverScanner({
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
-            สแกนสินค้า
+            {shouldShowDestinationOnly ? "สแกนส่งของ" : "สแกนขึ้นรถ"}
           </CardTitle>
-          <CardDescription>เลือกโหมดให้ตรงกับงานที่ทำอยู่ แล้วสแกนหรือกรอกรหัส</CardDescription>
+          <CardDescription>{shouldShowDestinationOnly ? "สแกนเฉพาะของปลายทางที่เลือก" : "สแกนสินค้าเข้ารถให้ครบก่อนออกจากต้นทาง"}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-3">
           {/* Video — full card width, no column constraint */}
@@ -694,47 +650,22 @@ export function DriverScanner({
             }
           `}</style>
 
-          {/* Controls — mode buttons + camera buttons + input */}
-          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]">
-            <button
-              type="button"
-              onClick={() => setMode("load")}
-              disabled={!job || isOriginGpsRequired}
-              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
-                mode === "load"
-                  ? "border-amber-500 bg-amber-500 text-white shadow-sm"
-                  : "border-[#d8dde6] bg-white text-slate-600 hover:border-amber-400 hover:bg-amber-50"
+          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto]">
+            <div
+              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${
+                shouldShowDestinationOnly
+                  ? "border-emerald-500 bg-emerald-500 text-white"
+                  : "border-amber-500 bg-amber-500 text-white"
               }`}
             >
-              <Truck className="h-5 w-5 shrink-0" />
+              {shouldShowDestinationOnly ? <QrCode className="h-5 w-5 shrink-0" /> : <Truck className="h-5 w-5 shrink-0" />}
               <div className="text-left">
-                <div>ขึ้นรถ</div>
-                <div className="text-[10px] font-normal opacity-75">โหลดสินค้าที่คลัง</div>
+                <div>{shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}</div>
+                <div className="text-[10px] font-normal opacity-80">
+                  {shouldShowDestinationOnly ? currentDestination?.name || "เลือกปลายทาง" : "โหลดสินค้าที่ต้นทาง"}
+                </div>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (isDeliverModeLocked) {
-                  setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเลือกโหมดส่งปลายทางได้");
-                  setScanResult("alert");
-                  return;
-                }
-                setMode("deliver");
-              }}
-              disabled={!job || isDeliverModeLocked}
-              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
-                mode === "deliver"
-                  ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
-                  : "border-[#d8dde6] bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50"
-              }`}
-            >
-              <QrCode className="h-5 w-5 shrink-0" />
-              <div className="text-left">
-                <div>ส่งปลายทาง</div>
-                <div className="text-[10px] font-normal opacity-75">ส่งของให้ลูกค้า</div>
-              </div>
-            </button>
+            </div>
             <Button type="button" onClick={startCamera} disabled={!job || isCameraScanning || isScanBlocked} className="gap-2">
               <Camera className="h-4 w-4" />
               เปิดกล้อง
@@ -782,11 +713,11 @@ export function DriverScanner({
             <FileText className="h-4 w-4" />
             รายการในห้อง
           </CardTitle>
-          <CardDescription>แสดงแบบสรุปตามปลายทาง ลดเหลือเฉพาะที่ต้องใช้หน้างาน</CardDescription>
+          <CardDescription>{shouldShowDestinationOnly ? "แสดงเฉพาะปลายทางที่กำลังส่ง" : "แสดงสรุปตามปลายทาง"}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {job?.destinations.length ? (
-            job.destinations.map((destination) => {
+            (shouldShowDestinationOnly && currentDestination ? [currentDestination] : job.destinations).map((destination) => {
               const items = job.items.filter((item) => item.destinationId === destination.id);
               const total = items.reduce((sum, item) => sum + item.orderQty, 0);
               const loaded = items.reduce((sum, item) => sum + item.loadedQty, 0);

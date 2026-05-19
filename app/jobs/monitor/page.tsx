@@ -3,6 +3,8 @@ import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobAddPOPanel } from "@/components/jobs/job-add-po-panel";
+import { JobAlertList } from "@/components/jobs/job-alert-list";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
@@ -13,18 +15,6 @@ import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJob, getJobArchive, listJobs } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
-
-function getAlertBadge(alertSeverity: string) {
-  if (alertSeverity === "ผ่าน" || alertSeverity === "สำเร็จ") {
-    return { label: "ผ่าน", variant: "success" as const };
-  }
-
-  if (alertSeverity === "สูง") {
-    return { label: "ผิดปกติ", variant: "danger" as const };
-  }
-
-  return { label: "เตือน", variant: "warning" as const };
-}
 
 export default async function JobMonitorPage({
   searchParams,
@@ -169,6 +159,8 @@ export default async function JobMonitorPage({
             ) : null}
           </Card>
 
+          {!isArchivedJob ? <JobAddPOPanel job={job} /> : null}
+
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} editableScanQty={!isArchivedJob} />
             <Card>
@@ -177,28 +169,7 @@ export default async function JobMonitorPage({
                 <CardDescription>เมื่อระบบเจอความผิดปกติจากการสแกน จะเก็บเหตุการณ์ไว้ที่นี่ทันที</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {job.alerts.length ? (
-                  job.alerts.map((alert) => {
-                    const badge = getAlertBadge(alert.severity);
-
-                    return (
-                      <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[12.5px] font-semibold text-slate-900">{alert.type}</p>
-                            <p className="mt-0.5 whitespace-pre-line text-[11.5px] text-muted-foreground">{alert.message}</p>
-                          </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </div>
-                        <p className="mt-1.5 text-[11px] text-muted-foreground">{alert.time}</p>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-lg border border-dashed border-slate-200 p-4 text-[12.5px] text-muted-foreground">
-                    ยังไม่มีแจ้งเตือนสำหรับงานนี้
-                  </div>
-                )}
+                <JobAlertList alerts={job.alerts} />
               </CardContent>
             </Card>
           </section>

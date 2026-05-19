@@ -125,6 +125,31 @@ export async function deleteJob(jobId: string) {
   );
 }
 
+export async function addPORecordsToJob(input: {
+  jobId: string;
+  registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
+  destinationOverrides?: {
+    id: string;
+    name?: string;
+    address?: string;
+    radiusMeters?: number;
+  }[];
+}) {
+  const data = await readResponse<{ job: JobSummaryRecord }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
+  );
+
+  return data.job;
+}
+
 export async function checkInJobOrigin(input: {
   jobId: string;
   latitude: number;

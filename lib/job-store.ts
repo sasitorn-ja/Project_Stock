@@ -240,6 +240,62 @@ function applyDestinationAssignments(
   });
 }
 
+function mergeJobDestinations(
+  existingDestinations: JobRecord["destinations"],
+  items: JobRecord["items"],
+  overrides: JobDestinationOverrideInput[] = [],
+) {
+  const existingById = new Map(existingDestinations.map((destination) => [destination.id, destination]));
+  const rebuilt = buildJobDestinations(items).map((destination) => ({
+    ...destination,
+    ...existingById.get(destination.id),
+    name: existingById.get(destination.id)?.name || destination.name,
+    address: existingById.get(destination.id)?.address || destination.address,
+  }));
+
+  return applyDestinationOverrides(items, rebuilt, overrides);
+}
+
+function addPORecordsToJobRecord(
+  job: JobRecord,
+  records: Awaited<ReturnType<typeof getPORecordsByKeys>>,
+  input: {
+    itemScanQuantities?: Record<string, number>;
+    destinationAssignments?: Record<string, string>;
+    destinationOverrides?: JobDestinationOverrideInput[];
+  } = {},
+) {
+  const existingKeys = new Set(job.items.map((item) => item.registryKey));
+  const nextRecords = records.filter((record) => !existingKeys.has(record.registryKey));
+
+  if (!nextRecords.length) {
+    throw new Error("ไม่มี PO ใหม่ที่เพิ่มเข้า Job นี้ได้");
+  }
+
+  const nextItems = applyDestinationAssignments(
+    buildJobItems(nextRecords, input.itemScanQuantities),
+    input.destinationAssignments,
+    input.destinationOverrides,
+  );
+  const mergedItems = [...job.items, ...nextItems];
+  const { items, destinations } = mergeJobDestinations(job.destinations, mergedItems, input.destinationOverrides);
+  const now = new Date().toISOString();
+
+  job.items = items;
+  job.destinations = destinations;
+  job.poRegistryKeys = items.map((item) => item.registryKey);
+  job.updatedAt = now;
+  updateJobStatus(job);
+  prependAlert(
+    job,
+    "Admin เพิ่ม PO",
+    `เพิ่มสินค้าเข้า Job ระหว่างปฏิบัติงาน ${nextItems.length.toLocaleString("th-TH")} รายการ`,
+    "ผ่าน",
+  );
+
+  return nextItems;
+}
+
 function buildAlert(type: string, message: string, severity: JobAlertRecord["severity"]): JobAlertRecord {
   const createdAt = new Date().toISOString();
 
@@ -1036,6 +1092,88 @@ async function createJobInDatabase(input: {
   });
 }
 
+async function addPORecordsToJobInDatabase(input: {
+  jobId: string;
+  registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
+  destinationOverrides?: JobDestinationOverrideInput[];
+}) {
+  if (!input.registryKeys.length) {
+    throw new Error("กรุณาเลือก PO ที่ต้องการเพิ่มเข้า Job");
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  return withPostgresTransaction(async (client) => {
+    const jobResult = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = jobResult.rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+    }
+
+    const recordsResult = await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'assigned',
+          assigned_delivery_job_id = $2,
+          assigned_to_job_at = NOW()
+        WHERE line_registry_key = ANY($1::text[])
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+        RETURNING *
+      `,
+      [input.registryKeys, input.jobId],
+    );
+    const records = recordsResult.rows.map(mapDatabasePORecord);
+
+    if (!records.length) {
+      throw new Error("ไม่พบ PO ที่ยังว่างสำหรับเพิ่มเข้า Job");
+    }
+
+    const job = mapDatabaseJob(row);
+    addPORecordsToJobRecord(job, records, input);
+    const payload = serializeJobRecordForDatabase(job);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          updated_at = $2::timestamptz,
+          job_status = $3,
+          selected_line_registry_keys = $4::text[],
+          job_items_json = $5::jsonb,
+          delivery_destinations_json = $6::jsonb,
+          job_alerts_json = $7::jsonb
+        WHERE delivery_job_id = $1
+      `,
+      [
+        payload.delivery_job_id,
+        payload.updated_at,
+        payload.job_status,
+        payload.selected_line_registry_keys,
+        JSON.stringify(payload.job_items_json),
+        JSON.stringify(payload.delivery_destinations_json),
+        JSON.stringify(payload.job_alerts_json),
+      ],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
 async function updateJobDestinationOverrideInDatabase(input: {
   jobId: string;
   allowDestinationBeforeFullyLoaded: boolean;
@@ -1741,6 +1879,43 @@ export async function createJob(input: {
   await writeStore({
     jobs: [...store.jobs, job],
   });
+
+  return summarizeJob(job);
+}
+
+export async function addPORecordsToJob(input: {
+  jobId: string;
+  registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
+  destinationOverrides?: JobDestinationOverrideInput[];
+}) {
+  if (hasSharedDatabase()) {
+    return addPORecordsToJobInDatabase(input);
+  }
+
+  if (!input.registryKeys.length) {
+    throw new Error("กรุณาเลือก PO ที่ต้องการเพิ่มเข้า Job");
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === input.jobId && currentJob.status !== "completed");
+
+  if (!job) {
+    throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+  }
+
+  const records = await getPORecordsByKeys(input.registryKeys);
+  const availableRecords = records.filter((record) => !record.assignedJobId && record.lifecycle === "active");
+
+  if (!availableRecords.length) {
+    throw new Error("ไม่พบ PO ที่ยังว่างสำหรับเพิ่มเข้า Job");
+  }
+
+  const addedItems = addPORecordsToJobRecord(job, availableRecords, input);
+  await markPORecordsAssigned(addedItems.map((item) => item.registryKey), job.id);
+  await writeStore(store);
 
   return summarizeJob(job);
 }
