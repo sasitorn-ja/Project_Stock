@@ -376,16 +376,30 @@ export function DriverScanner({
     try {
       scanLockRef.current = false;
 
-      // Step 1: acquire camera stream independently (more reliable than decodeFromConstraints)
+      // Step 1: acquire camera stream
+      // - ขอ 1280×720 แทน 1920×1080 เพราะ resolution สูงเกินไปบางรุ่นทำให้ focus ช้า
+      // - ไม่บังคับ frameRate เพื่อให้ camera เลือก mode ที่ focus ได้ดีที่สุด
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
         audio: false,
       });
+
+      // Step 1b: เปิด continuous autofocus (Android/Chrome รองรับ, iOS ignore)
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        try {
+          await videoTrack.applyConstraints({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            advanced: [{ focusMode: "continuous" } as any],
+          });
+        } catch {
+          // focusMode ไม่ supported บน iOS หรือรุ่นเก่า — ไม่ต้อง error
+        }
+      }
 
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
