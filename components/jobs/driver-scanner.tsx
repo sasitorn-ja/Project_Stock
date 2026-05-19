@@ -615,19 +615,19 @@ export function DriverScanner({
       ) : null}
 
       {!isOriginGpsRequired ? (
-      <Card className="order-6">
-        <CardHeader className="pb-2">
+      <Card className="order-6 overflow-hidden">
+        <CardHeader className="px-3 pb-2 pt-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
             {shouldShowDestinationOnly ? "สแกนส่งของ" : "สแกนขึ้นรถ"}
           </CardTitle>
           <CardDescription>{shouldShowDestinationOnly ? "สแกนเฉพาะของปลายทางที่เลือก" : "สแกนสินค้าเข้ารถให้ครบก่อนออกจากต้นทาง"}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 p-3">
+        <CardContent className="space-y-3 p-0">
           <button
             type="button"
-            className="relative mx-auto block w-full max-w-4xl overflow-hidden rounded-lg border bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
-            style={{ aspectRatio: "1/1", minHeight: "360px", maxHeight: "680px" }}
+            className="relative block w-full overflow-hidden bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
+            style={{ height: "min(74vh, 760px)", minHeight: "500px" }}
             onClick={() => {
               if (!isCameraScanning) {
                 void startCamera();
@@ -636,14 +636,18 @@ export function DriverScanner({
             disabled={!job || isCameraScanning || isScanBlocked}
             aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
-            <video ref={videoRef} className="h-full w-full object-contain" playsInline muted />
+            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[78%] w-[88%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
+              <div className="relative h-[72%] w-[92%] max-w-3xl rounded-[28px] border-2 border-white/85 shadow-[0_0_0_999px_rgba(2,6,23,0.18)]">
+                <span className="absolute -left-0.5 -top-0.5 h-10 w-10 rounded-tl-[28px] border-l-4 border-t-4 border-cyan-300" />
+                <span className="absolute -right-0.5 -top-0.5 h-10 w-10 rounded-tr-[28px] border-r-4 border-t-4 border-cyan-300" />
+                <span className="absolute -bottom-0.5 -left-0.5 h-10 w-10 rounded-bl-[28px] border-b-4 border-l-4 border-cyan-300" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-10 w-10 rounded-br-[28px] border-b-4 border-r-4 border-cyan-300" />
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
-                    className="absolute left-0 right-0 h-0.5 bg-cyan-400 opacity-80"
+                    className="absolute left-8 right-8 h-0.5 bg-cyan-300 opacity-90 shadow-[0_0_18px_rgba(103,232,249,0.9)]"
                     style={{ animation: "scanLine 2s linear infinite", top: "50%" }}
                   />
                 )}
@@ -663,8 +667,8 @@ export function DriverScanner({
             )}
             {/* Live camera message */}
             {isCameraScanning && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cyan-200">{cameraMessage}</span>
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center px-4">
+                <span className="rounded-full bg-black/65 px-4 py-2 text-sm text-cyan-100">{cameraMessage}</span>
               </div>
             )}
           </button>
@@ -678,7 +682,7 @@ export function DriverScanner({
             }
           `}</style>
 
-          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="mx-auto grid w-full max-w-4xl gap-3 px-3 sm:grid-cols-[1fr_auto]">
             <div
               className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${
                 shouldShowDestinationOnly
@@ -702,7 +706,7 @@ export function DriverScanner({
             ) : null}
           </div>
 
-          <div className="mx-auto w-full max-w-4xl space-y-2">
+          <div className="mx-auto w-full max-w-4xl space-y-2 px-3 pb-3">
             <Label htmlFor="scan-code">เลข PO / บาร์โค้ด / QR / รหัสรายการ</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
