@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { createJob } from "@/lib/job-db";
 import { getExistingPORecords, type PORegistryRecord } from "@/lib/po-import-db";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,13 @@ export function JobCreator() {
       }),
     );
   }, [destinationAssignments, destinationDrafts, records]);
+
+  function updateScanQuantity(registryKey: string, value: number) {
+    setScanQuantities((currentQuantities) => ({
+      ...currentQuantities,
+      [registryKey]: Math.max(0, Math.ceil(value || 0)),
+    }));
+  }
 
   function updateDestinationDraft(destinationId: string, field: "name" | "address", value: string) {
     clearFieldError(`destination.${destinationId}.${field}`);
@@ -352,17 +360,12 @@ export function JobCreator() {
                             <td className="max-w-72 break-words px-3 py-3.5 align-top">{record.materialName || "-"}</td>
                             <td className="whitespace-nowrap px-3 py-3.5 align-top">{record.orderQty || "-"}</td>
                             <td className="px-3 py-3.5 align-top">
-                              <Input
-                                type="number"
-                                min="0"
+                              <QuantityStepper
                                 value={scanQuantities[record.registryKey] ?? 1}
-                                onChange={(event) =>
-                                  setScanQuantities((currentQuantities) => ({
-                                    ...currentQuantities,
-                                    [record.registryKey]: Math.max(0, Math.ceil(Number(event.target.value) || 0)),
-                                  }))
-                                }
-                                className="h-9 w-24"
+                                min={0}
+                                onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                                className="w-36"
+                                inputClassName="h-9 text-sm"
                               />
                             </td>
                           </tr>
@@ -392,17 +395,11 @@ export function JobCreator() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor={`scan-qty-${record.registryKey}`}>จำนวนที่ต้องสแกน</Label>
-                          <Input
+                          <QuantityStepper
                             id={`scan-qty-${record.registryKey}`}
-                            type="number"
-                            min="0"
                             value={scanQuantities[record.registryKey] ?? 1}
-                            onChange={(event) =>
-                              setScanQuantities((currentQuantities) => ({
-                                ...currentQuantities,
-                                [record.registryKey]: Math.max(0, Math.ceil(Number(event.target.value) || 0)),
-                              }))
-                            }
+                            min={0}
+                            onChange={(value) => updateScanQuantity(record.registryKey, value)}
                           />
                         </div>
                         <div>
