@@ -164,13 +164,7 @@ export default async function JobMonitorPage({
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} editableScanQty={!isArchivedJob} />
             <Card>
-              <CardHeader>
-              <CardTitle className="text-sm">รายการแจ้งเตือน</CardTitle>
-                <CardDescription>เมื่อระบบเจอความผิดปกติจากการสแกน จะเก็บเหตุการณ์ไว้ที่นี่ทันที</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <JobAlertList alerts={job.alerts} />
-              </CardContent>
+              <JobAlertList alerts={job.alerts} />
             </Card>
           </section>
 

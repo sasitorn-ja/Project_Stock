@@ -161,13 +161,10 @@ export default async function JobHistoryPage({
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} />
             <Card>
-              <CardHeader>
-                <CardTitle>รายการแจ้งเตือน</CardTitle>
-                <CardDescription>บันทึกเหตุการณ์ระหว่างงาน ทั้งสแกนผ่าน คำเตือน และความผิดปกติ</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <JobAlertList alerts={job.alerts} />
-              </CardContent>
+              <JobAlertList
+                alerts={job.alerts}
+                description="บันทึกเหตุการณ์ระหว่างงาน ทั้งสแกนผ่าน คำเตือน และความผิดปกติ"
+              />
             </Card>
           </section>
 
