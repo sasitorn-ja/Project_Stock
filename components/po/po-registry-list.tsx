@@ -309,16 +309,18 @@ export function PORegistryList() {
             <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
               รีเฟรชรายการ
             </Button>
+            {/* ล้างคิวทั้งหมด — ซ่อนข้อความ เหลือแค่ไอคอน + tooltip เพื่อลด confusion */}
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
+              title="ล้างคิวทั้งหมด (ลบ PO ทุกรายการออกจากคิว)"
+              aria-label="ล้างคิวทั้งหมด"
               onClick={clearAllRecords}
               disabled={!totalCount || isLoading}
-              className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+              className="h-8 w-8 shrink-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              ล้างคิวทั้งหมด
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -336,30 +338,51 @@ export function PORegistryList() {
           </div>
           <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-fit">
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={selectAllMatchingRecords}
-                disabled={!totalCount || isLoading}
-                className="whitespace-nowrap"
-              >
-                เลือกทั้งหมด
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={deleteSelectedRecords}
-                disabled={!selectedKeys.length || isLoading}
-                className="whitespace-nowrap"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                ลบที่เลือก
-              </Button>
+              {selectedKeys.length > 0 ? (
+                /* มีรายการที่เลือก → แสดงจำนวน + ปุ่มลบ */
+                <>
+                  <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                    เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedKeys([])}
+                    className="whitespace-nowrap text-slate-500"
+                  >
+                    ยกเลิกการเลือก
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={deleteSelectedRecords}
+                    disabled={isLoading}
+                    className="whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    ลบที่เลือก
+                  </Button>
+                </>
+              ) : (
+                /* ยังไม่ได้เลือก → แสดงปุ่มเลือกทั้งหมด */
+                <>
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    ยังไม่ได้เลือกรายการ
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllMatchingRecords}
+                    disabled={!totalCount || isLoading}
+                    className="whitespace-nowrap"
+                  >
+                    เลือกทั้งหมด
+                  </Button>
+                </>
+              )}
             </div>
             <Button
               type="button"
@@ -368,7 +391,9 @@ export function PORegistryList() {
               className="h-auto min-h-11 w-full whitespace-normal"
             >
               <FilePlus2 className="mr-2 h-4 w-4" />
-              สร้าง Job จากรายการที่เลือก
+              {selectedKeys.length > 0
+                ? `สร้าง Job จาก ${selectedKeys.length.toLocaleString("th-TH")} รายการที่เลือก`
+                : "สร้าง Job จากรายการที่เลือก"}
             </Button>
           </div>
         </div>
