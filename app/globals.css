@@ -68,6 +68,8 @@
     font-size: 14px;
     font-feature-settings: "tnum";
     text-rendering: optimizeLegibility;
+    /* safe-area สำหรับ notch / home indicator */
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* compact card headers */
@@ -100,6 +102,8 @@
   textarea {
     background-color: #ffffff;
     color: #111827;
+    /* ป้องกัน iOS auto-zoom เมื่อ focus input */
+    font-size: 16px;
   }
 
   input:hover,

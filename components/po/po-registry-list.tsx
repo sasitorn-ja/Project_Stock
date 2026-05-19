@@ -304,7 +304,8 @@ export function PORegistryList() {
             <CardTitle>คิวจากไฟล์ GR</CardTitle>
             <CardDescription>ค้นหาและเลือกรายการที่ต้องนำไปสร้าง Job</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
             <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
               รีเฟรชรายการ
             </Button>
@@ -319,7 +320,6 @@ export function PORegistryList() {
               <Trash2 className="mr-2 h-4 w-4" />
               ล้างคิวทั้งหมด
             </Button>
-            <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
           </div>
         </div>
       </CardHeader>
@@ -335,8 +335,8 @@ export function PORegistryList() {
             />
           </div>
           <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-fit">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:justify-end">
-              <span className="text-sm text-muted-foreground sm:whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
                 เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
               </span>
               <Button
@@ -345,9 +345,9 @@ export function PORegistryList() {
                 size="sm"
                 onClick={selectAllMatchingRecords}
                 disabled={!totalCount || isLoading}
-                className="sm:whitespace-nowrap"
+                className="whitespace-nowrap"
               >
-                เลือกทั้งหมดตามผลค้นหา
+                เลือกทั้งหมด
               </Button>
               <Button
                 type="button"
@@ -355,17 +355,17 @@ export function PORegistryList() {
                 size="sm"
                 onClick={deleteSelectedRecords}
                 disabled={!selectedKeys.length || isLoading}
-                className="sm:whitespace-nowrap"
+                className="whitespace-nowrap"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                ลบรายการที่เลือก
+                ลบที่เลือก
               </Button>
             </div>
             <Button
               type="button"
               onClick={createJobFromSelection}
               disabled={!selectedKeys.length}
-              className="h-auto min-h-10 w-full whitespace-normal sm:w-auto sm:self-end"
+              className="h-auto min-h-11 w-full whitespace-normal"
             >
               <FilePlus2 className="mr-2 h-4 w-4" />
               สร้าง Job จากรายการที่เลือก

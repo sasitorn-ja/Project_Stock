@@ -92,7 +92,7 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
             {[
               ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", getJobStatusLabel(job.status), Radio],
