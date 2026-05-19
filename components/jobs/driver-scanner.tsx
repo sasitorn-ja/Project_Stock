@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import Link from "next/link";
-import { Camera, Check, ChevronDown, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
+import { Camera, Check, CheckCircle2, ChevronDown, FileText, Flashlight, FlashlightOff, MapPin, QrCode, ScanLine, Square, Truck, ZoomIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,15 +34,17 @@ function getScannerVideoConstraints(): MediaTrackConstraints {
   return isNarrowScreen
     ? {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1080 },
-        height: { ideal: 1920 },
+        width: { ideal: 1440 },
+        height: { ideal: 2560 },
         aspectRatio: { ideal: 9 / 16 },
+        frameRate: { ideal: 30 },
       }
     : {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
+        width: { ideal: 2560 },
+        height: { ideal: 1440 },
         aspectRatio: { ideal: 16 / 9 },
+        frameRate: { ideal: 30 },
       };
 }
 
@@ -58,7 +60,10 @@ export function DriverScanner({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const scanLockRef = useRef(false);
+  const completionAlertShownRef = useRef("");
+  const tapIndicatorTimeoutRef = useRef<number | null>(null);
   const [jobs, setJobs] = useState<JobSummaryRecord[]>(initialJobs);
   const [selectedJobId, setSelectedJobId] = useState(initialJobId ?? initialJob?.id ?? initialJobs[0]?.id ?? "");
   const [job, setJob] = useState<JobSummaryRecord | null>(initialJob ?? initialJobs[0] ?? null);
@@ -72,6 +77,11 @@ export function DriverScanner({
   const [latestGps, setLatestGps] = useState("");
   const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน QR หรือบาร์โค้ด");
   const [isCameraScanning, setIsCameraScanning] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [zoomCapability, setZoomCapability] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [tapIndicator, setTapIndicator] = useState<{ x: number; y: number; id: number } | null>(null);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
   const autoStartAttemptRef = useRef("");
@@ -150,47 +160,59 @@ export function DriverScanner({
     [currentLocation, openDestinations],
   );
   const isDedicatedDriverMode = Boolean(initialJobId);
+  const isJobCompleted = Boolean(job?.completedAt || job?.status === "completed");
   const hasOriginCheckIn = Boolean(job?.originCheckedInAt && job.originGps);
   const isOriginLocked = Boolean(job?.originLockedAt);
   const canRecheckOrigin = Boolean(job?.allowOriginRecheckAfterLocked);
-  const isOriginGpsRequired = Boolean(job) && !hasOriginCheckIn;
+  const isOriginGpsRequired = Boolean(job) && !isJobCompleted && !hasOriginCheckIn;
   const hasDestinationCheckIn = Boolean(currentDestination?.deliveryCheckedInAt && currentDestination.deliveryGps);
-  const isDestinationGpsRequired = mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
+  const isDestinationGpsRequired = !isJobCompleted && mode === "deliver" && Boolean(job) && Boolean(currentDestination) && !hasDestinationCheckIn;
   const requiredTotal = job?.items.reduce((sum, item) => sum + item.orderQty, 0) ?? 0;
   const loadedTotal = job?.items.reduce((sum, item) => sum + item.loadedQty, 0) ?? 0;
   const deliveredTotal = job?.items.reduce((sum, item) => sum + item.deliveredQty, 0) ?? 0;
   const isFullyLoaded = requiredTotal > 0 && loadedTotal >= requiredTotal;
   const canOpenDestinationEarly = Boolean(job?.allowDestinationBeforeFullyLoaded);
-  const shouldShowDestinationOnly = Boolean(job) && (isFullyLoaded || canOpenDestinationEarly);
+  const shouldShowDestinationOnly = !isJobCompleted && Boolean(job) && (isFullyLoaded || canOpenDestinationEarly);
   const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || (!isFullyLoaded && !canOpenDestinationEarly));
-  const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
+  const isScanBlocked = !job || isJobCompleted || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
   const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้องงาน";
   const selectedJobLabel = job ? `${job.roomName?.trim() || job.id} - ${job.vehicle || "ไม่ระบุรถ"}` : "เลือกห้องงาน";
-  const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !isFullyLoaded && !canOpenDestinationEarly ? 2 : isDestinationGpsRequired ? 2 : 3;
+  const activeStep = !job ? 0 : isJobCompleted ? 4 : isOriginGpsRequired ? 1 : !isFullyLoaded && !canOpenDestinationEarly ? 2 : isDestinationGpsRequired ? 2 : 3;
   const originStatusText = isOriginLocked ? "ต้นทางปิดแล้ว" : hasOriginCheckIn ? "เช็กอินแล้ว" : "รอ GPS";
-  const nextActionText = isOriginGpsRequired
+  const nextActionText = isJobCompleted
+    ? "จบงานแล้ว"
+    : isOriginGpsRequired
     ? "กดเช็กอินต้นทาง"
     : !isFullyLoaded
       ? "สแกนขึ้นรถให้ครบ"
       : hasDestinationCheckIn
         ? "สแกนส่งของ"
         : "กดเช็กอินปลายทาง";
+  const isDedicatedJobUnavailable = Boolean(initialJobId) && !isLoading && !job;
 
   useEffect(() => {
+    if (isJobCompleted) {
+      return;
+    }
+
     if (mode === "deliver" && isDeliverModeLocked) {
       setMode("load");
     }
-  }, [isDeliverModeLocked, mode]);
+  }, [isDeliverModeLocked, isJobCompleted, mode]);
 
   useEffect(() => {
+    if (isJobCompleted) {
+      return;
+    }
+
     if (shouldShowDestinationOnly && mode !== "deliver") {
       setMode("deliver");
       stopCamera();
     }
-  }, [mode, shouldShowDestinationOnly]);
+  }, [isJobCompleted, mode, shouldShowDestinationOnly]);
 
   useEffect(() => {
-    if (!job || !shouldShowDestinationOnly) {
+    if (isJobCompleted || !job || !shouldShowDestinationOnly) {
       return;
     }
 
@@ -204,7 +226,26 @@ export function DriverScanner({
       setCurrentLocation(openDestinations[0].id);
       stopCamera();
     }
-  }, [currentLocation, job, openDestinations, shouldShowDestinationOnly]);
+  }, [currentLocation, isJobCompleted, job, openDestinations, shouldShowDestinationOnly]);
+
+  useEffect(() => {
+    if (!isJobCompleted || !job) {
+      return;
+    }
+
+    stopCamera();
+    setScanResult("ok");
+    setMessage("จบงานแล้ว ส่งครบทุกปลายทาง ระบบบันทึกและปิดงานให้เรียบร้อย");
+
+    if (completionAlertShownRef.current === job.id) {
+      return;
+    }
+
+    completionAlertShownRef.current = job.id;
+    window.setTimeout(() => {
+      window.alert("จบงานแล้ว\nส่งครบทุกปลายทาง ระบบบันทึกและปิดงานให้เรียบร้อย");
+    }, 100);
+  }, [isJobCompleted, job]);
 
   useEffect(() => {
     if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || !job) {
@@ -402,14 +443,44 @@ export function DriverScanner({
 
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
+        videoTrackRef.current = videoTrack;
+
         try {
           await videoTrack.applyConstraints({
-            // Browser บางตัวรองรับ continuous focus ช่วยให้ภาพคมขึ้นตอนถือกล้องขยับ
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            advanced: [{ focusMode: "continuous" } as any],
+            // Browser บางตัวรองรับ continuous focus/exposure/white-balance ช่วยให้ภาพคมขึ้น
+            // และปรับแสงให้พอดีตอนสแกนในที่แสงน้อย
+            advanced: [
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { focusMode: "continuous" } as any,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { exposureMode: "continuous" } as any,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { whiteBalanceMode: "continuous" } as any,
+            ],
           });
         } catch {
           // บางเครื่องไม่รองรับ focusMode ปล่อยให้ browser ใช้ autofocus ปกติ
+        }
+
+        // ตรวจจับความสามารถ torch/zoom ของกล้องเพื่อแสดงปุ่ม/แถบเลื่อน
+        try {
+          const capabilities = videoTrack.getCapabilities() as MediaTrackCapabilities & {
+            torch?: boolean;
+            zoom?: { min?: number; max?: number; step?: number };
+          };
+          setTorchSupported(Boolean(capabilities.torch));
+
+          if (capabilities.zoom && typeof capabilities.zoom.max === "number") {
+            const min = typeof capabilities.zoom.min === "number" ? capabilities.zoom.min : 1;
+            const max = capabilities.zoom.max;
+            const step = typeof capabilities.zoom.step === "number" && capabilities.zoom.step > 0 ? capabilities.zoom.step : 0.1;
+            if (max > min) {
+              setZoomCapability({ min, max, step });
+              setZoomLevel(min);
+            }
+          }
+        } catch {
+          // บาง browser ไม่รองรับ getCapabilities — ข้ามได้
         }
       }
 
@@ -440,6 +511,16 @@ export function DriverScanner({
           if (!scannedCode || scannedCode.length < MIN_SCAN_CODE_LENGTH) return;
 
           scanLockRef.current = true;
+
+          // Haptic feedback ให้ผู้ใช้รู้ทันทีว่าจับโค้ดได้ (Android Chrome ส่วนใหญ่รองรับ)
+          if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+            try {
+              navigator.vibrate(80);
+            } catch {
+              // ignore
+            }
+          }
+
           setCode(scannedCode);
           setCameraMessage(`พบรหัส ${scannedCode} กำลังบันทึก`);
           stopCamera();
@@ -459,10 +540,112 @@ export function DriverScanner({
   function stopCamera() {
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
+
+    // ปิดไฟฉายก่อนหยุดกล้อง — กล้องบางรุ่นไฟค้างถ้าไม่สั่งปิด
+    const track = videoTrackRef.current;
+    if (track && torchOn) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        void track.applyConstraints({ advanced: [{ torch: false } as any] }).catch(() => {});
+      } catch {
+        // ignore
+      }
+    }
+    videoTrackRef.current = null;
+
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     scanLockRef.current = false;
+
+    if (tapIndicatorTimeoutRef.current !== null) {
+      window.clearTimeout(tapIndicatorTimeoutRef.current);
+      tapIndicatorTimeoutRef.current = null;
+    }
+
     setIsCameraScanning(false);
+    setTorchSupported(false);
+    setTorchOn(false);
+    setZoomCapability(null);
+    setZoomLevel(1);
+    setTapIndicator(null);
+  }
+
+  async function toggleTorch() {
+    const track = videoTrackRef.current;
+    if (!track || !torchSupported) {
+      return;
+    }
+
+    const nextOn = !torchOn;
+    try {
+      await track.applyConstraints({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        advanced: [{ torch: nextOn } as any],
+      });
+      setTorchOn(nextOn);
+    } catch {
+      // อุปกรณ์ไม่รองรับการเปิด torch (เช่น iOS Safari) — ปล่อยให้เงียบ
+      setTorchSupported(false);
+    }
+  }
+
+  async function applyZoom(value: number) {
+    const track = videoTrackRef.current;
+    if (!track || !zoomCapability) {
+      return;
+    }
+
+    const clamped = Math.min(Math.max(value, zoomCapability.min), zoomCapability.max);
+
+    try {
+      await track.applyConstraints({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        advanced: [{ zoom: clamped } as any],
+      });
+      setZoomLevel(clamped);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleTapToFocus(event: React.PointerEvent<HTMLDivElement>) {
+    const track = videoTrackRef.current;
+    if (!track) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    const normalizedX = Math.min(Math.max(offsetX / rect.width, 0), 1);
+    const normalizedY = Math.min(Math.max(offsetY / rect.height, 0), 1);
+
+    setTapIndicator({ x: offsetX, y: offsetY, id: Date.now() });
+    if (tapIndicatorTimeoutRef.current !== null) {
+      window.clearTimeout(tapIndicatorTimeoutRef.current);
+    }
+    tapIndicatorTimeoutRef.current = window.setTimeout(() => {
+      setTapIndicator(null);
+      tapIndicatorTimeoutRef.current = null;
+    }, 900);
+
+    try {
+      await track.applyConstraints({
+        advanced: [
+          // โฟกัสจุดที่แตะ แล้วค่อย switch กลับ continuous ให้ผู้ใช้ขยับกล้องได้ปกติ
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { pointsOfInterest: [{ x: normalizedX, y: normalizedY }], focusMode: "single-shot" } as any,
+        ],
+      });
+      window.setTimeout(() => {
+        track
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .applyConstraints({ advanced: [{ focusMode: "continuous" } as any] })
+          .catch(() => {});
+      }, 1500);
+    } catch {
+      // อุปกรณ์ไม่รองรับ tap-to-focus — เงียบไว้
+    }
   }
 
   return (
@@ -527,8 +710,8 @@ export function DriverScanner({
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 lg:w-[520px]">
-            <Badge variant={shouldShowDestinationOnly ? "success" : "warning"} className="w-fit self-start lg:self-end">
-              {shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}
+            <Badge variant={isJobCompleted || shouldShowDestinationOnly ? "success" : "warning"} className="w-fit self-start lg:self-end">
+              {isJobCompleted ? "จบงาน" : shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}
             </Badge>
             <div className="rounded-md border-2 border-slate-900 bg-slate-950 px-3 py-2 text-white">
               <p className="text-[11px] text-slate-300">ขั้นตอนต่อไป</p>
@@ -558,7 +741,53 @@ export function DriverScanner({
         </div>
       </section>
 
-      {isOriginGpsRequired && job ? (
+      {isJobCompleted && job ? (
+        <Card className="order-3 border-2 border-emerald-500 bg-emerald-50">
+          <CardContent className="space-y-4 p-5 text-center">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <CheckCircle2 className="h-9 w-9" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-emerald-950">จบงานแล้ว</h3>
+              <p className="mt-2 text-base text-emerald-800">ส่งครบทุกปลายทาง ระบบบันทึกและปิดงานเรียบร้อยแล้ว</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-md border border-emerald-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-emerald-700">ต้องสแกน</p>
+                <p className="text-lg font-bold text-emerald-950">{requiredTotal.toLocaleString("th-TH")}</p>
+              </div>
+              <div className="rounded-md border border-emerald-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-emerald-700">ขึ้นรถแล้ว</p>
+                <p className="text-lg font-bold text-emerald-950">{loadedTotal.toLocaleString("th-TH")}</p>
+              </div>
+              <div className="rounded-md border border-emerald-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-emerald-700">ส่งแล้ว</p>
+                <p className="text-lg font-bold text-emerald-950">{deliveredTotal.toLocaleString("th-TH")}</p>
+              </div>
+            </div>
+            <p className="text-sm font-medium text-emerald-900">ไม่ต้องสแกนเพิ่มแล้ว สามารถปิดหน้านี้ได้</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isDedicatedJobUnavailable ? (
+        <Card className="order-3 border-2 border-emerald-500 bg-emerald-50">
+          <CardContent className="space-y-3 p-5 text-center">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h3 className="text-xl font-bold text-emerald-950">งานนี้ปิดแล้ว</h3>
+            <p className="text-sm leading-6 text-emerald-800">
+              ถ้าเพิ่งสแกนส่งครบ แปลว่าระบบบันทึกจบงานแล้วและย้ายงานเข้าประวัติเรียบร้อย
+            </p>
+            <Button asChild variant="outline">
+              <Link href="/driver">กลับหน้าเลือกงาน</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isJobCompleted && isOriginGpsRequired && job ? (
         <Card className="order-3 border-slate-950">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -600,7 +829,7 @@ export function DriverScanner({
         </Card>
       ) : null}
 
-      {!isOriginGpsRequired && shouldShowDestinationOnly ? (
+      {!isJobCompleted && !isOriginGpsRequired && shouldShowDestinationOnly ? (
       <Card className="order-5">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -683,7 +912,7 @@ export function DriverScanner({
       </Card>
       ) : null}
 
-      {!isOriginGpsRequired ? (
+      {job && !isJobCompleted && !isOriginGpsRequired ? (
       <Card className="order-6 overflow-hidden">
         <CardHeader className="px-3 pb-2 pt-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -693,22 +922,15 @@ export function DriverScanner({
           <CardDescription>{shouldShowDestinationOnly ? "สแกนเฉพาะของปลายทางที่เลือก" : "สแกนสินค้าเข้ารถให้ครบก่อนออกจากต้นทาง"}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-3 sm:p-5">
-          <button
-            type="button"
-            className="relative block w-full overflow-hidden rounded-lg border bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
+          <div
+            className="relative block w-full overflow-hidden rounded-lg border bg-slate-950 text-left"
             style={{ height: "clamp(420px, 72vh, 680px)" }}
-            onClick={() => {
-              if (!isCameraScanning) {
-                void startCamera();
-              }
-            }}
-            disabled={!job || isCameraScanning || isScanBlocked}
-            aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
-            <video ref={videoRef} className="h-full w-full bg-black object-contain" playsInline muted />
+            <video ref={videoRef} className="h-full w-full bg-black object-cover" playsInline muted />
+
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[68%] w-[84%] max-w-2xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.34)]">
+              <div className="relative h-[78%] w-[92%] max-w-3xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.34)]">
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
@@ -718,24 +940,96 @@ export function DriverScanner({
                 )}
               </div>
             </div>
-            {/* Overlay shown when camera is off */}
+
+            {/* Tap-to-focus overlay (only when scanning) */}
+            {isCameraScanning && (
+              <div
+                className="absolute inset-0 cursor-crosshair"
+                onPointerDown={handleTapToFocus}
+                role="button"
+                aria-label="แตะเพื่อโฟกัสกล้อง"
+                tabIndex={-1}
+              >
+                {tapIndicator ? (
+                  <div
+                    key={tapIndicator.id}
+                    className="pointer-events-none absolute h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300 motion-safe:animate-ping"
+                    style={{ left: tapIndicator.x, top: tapIndicator.y }}
+                  />
+                ) : null}
+              </div>
+            )}
+
+            {/* Torch toggle */}
+            {isCameraScanning && torchSupported ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void toggleTorch();
+                }}
+                className={`absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full border-2 backdrop-blur transition ${
+                  torchOn
+                    ? "border-amber-300 bg-amber-300 text-amber-950"
+                    : "border-white/40 bg-black/55 text-white hover:bg-black/70"
+                }`}
+                aria-label={torchOn ? "ปิดไฟฉาย" : "เปิดไฟฉาย"}
+                aria-pressed={torchOn}
+              >
+                {torchOn ? <Flashlight className="h-5 w-5" /> : <FlashlightOff className="h-5 w-5" />}
+              </button>
+            ) : null}
+
+            {/* Zoom slider */}
+            {isCameraScanning && zoomCapability ? (
+              <div
+                className="absolute bottom-12 left-1/2 z-10 flex w-[82%] max-w-md -translate-x-1/2 items-center gap-3 rounded-full bg-black/55 px-4 py-2 text-xs font-medium text-white backdrop-blur"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <ZoomIn className="h-4 w-4 shrink-0 text-cyan-200" />
+                <input
+                  type="range"
+                  min={zoomCapability.min}
+                  max={zoomCapability.max}
+                  step={zoomCapability.step}
+                  value={zoomLevel}
+                  onChange={(event) => {
+                    void applyZoom(Number(event.target.value));
+                  }}
+                  className="flex-1 accent-cyan-300"
+                  aria-label="ปรับซูมกล้อง"
+                />
+                <span className="w-10 shrink-0 text-right tabular-nums">{zoomLevel.toFixed(1)}x</span>
+              </div>
+            ) : null}
+
+            {/* Overlay shown when camera is off (acts as the start button) */}
             {!isCameraScanning && (
-              <div className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  void startCamera();
+                }}
+                disabled={!job || isScanBlocked}
+                className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200 disabled:cursor-not-allowed disabled:opacity-80"
+                aria-label="แตะเพื่อเปิดกล้องสแกน"
+              >
                 <div>
                   <Camera className="mx-auto mb-2 h-10 w-10" />
                   <p className="text-base font-semibold">แตะเพื่อสแกน</p>
                   <p className="mt-1 text-sm">{cameraMessage}</p>
                   <p className="mt-1 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
                 </div>
-              </div>
+              </button>
             )}
+
             {/* Live camera message */}
             {isCameraScanning && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+              <div className="pointer-events-none absolute bottom-2 left-0 right-0 flex justify-center">
                 <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cyan-200">{cameraMessage}</span>
               </div>
             )}
-          </button>
+          </div>
 
           {/* Scan line animation keyframes */}
           <style>{`
@@ -799,6 +1093,7 @@ export function DriverScanner({
       </Card>
       ) : null}
 
+      {job ? (
       <Card className="order-7">
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -852,6 +1147,7 @@ export function DriverScanner({
           ) : null}
         </CardContent>
       </Card>
+      ) : null}
 
       {isLoading ? <div className="order-8 text-sm text-muted-foreground">กำลังโหลดข้อมูลห้องคนขับ</div> : null}
     </div>

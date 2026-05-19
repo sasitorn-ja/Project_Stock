@@ -205,6 +205,21 @@ function lockOriginIfFullyLoaded(job: JobRecord, lockedAt = new Date().toISOStri
   }
 }
 
+function getCompletedRegistryKeysForArchive(job: JobRecord) {
+  return Array.from(
+    new Set(
+      job.items
+        .filter((item) => item.orderQty > 0 || item.loadedQty > 0 || item.deliveredQty > 0)
+        .map((item) => item.registryKey),
+    ),
+  );
+}
+
+function getSkippedRegistryKeysForRelease(job: JobRecord) {
+  const completedKeys = new Set(getCompletedRegistryKeysForArchive(job));
+  return job.poRegistryKeys.filter((registryKey) => !completedKeys.has(registryKey));
+}
+
 function assertDestinationModeUnlocked(job: JobRecord) {
   if (!isJobFullyLoaded(job) && !job.allowDestinationBeforeFullyLoaded) {
     throw new Error("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดโหมดปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
@@ -1445,6 +1460,8 @@ async function registerJobScanInDatabase(input: {
     });
 
     if (response.job.status === "completed" && response.job.completedAt) {
+      const completedRegistryKeys = getCompletedRegistryKeysForArchive(response.job);
+      const skippedRegistryKeys = getSkippedRegistryKeysForRelease(response.job);
       const poRecordsResult = await client.query(
         `
           SELECT *
@@ -1456,14 +1473,18 @@ async function registerJobScanInDatabase(input: {
       );
       const archiveJob = buildJobArchiveRecord(response.job);
       const archivePayload = serializeJobArchiveRecordForDatabase(archiveJob);
-      const archivePORecords = poRecordsResult.rows.map(mapDatabasePORecord).map((record) => ({
-        ...record,
-        lifecycle: "completed" as const,
-        archivedFromJobId: response.job.id,
-        archivedAt: archiveJob.archivedAt,
-        completedAt: response.job.completedAt,
-        deleteAfterAt: archiveJob.deleteAfterAt,
-      }));
+      const completedKeySet = new Set(completedRegistryKeys);
+      const archivePORecords = poRecordsResult.rows
+        .map(mapDatabasePORecord)
+        .filter((record) => completedKeySet.has(record.registryKey))
+        .map((record) => ({
+          ...record,
+          lifecycle: "completed" as const,
+          archivedFromJobId: response.job.id,
+          archivedAt: archiveJob.archivedAt,
+          completedAt: response.job.completedAt,
+          deleteAfterAt: archiveJob.deleteAfterAt,
+        }));
 
       await client.query(
         `
@@ -1690,13 +1711,33 @@ async function registerJobScanInDatabase(input: {
         [response.job.id],
       );
 
-      await client.query(
-        `
-          DELETE FROM purchase_order_queue
-          WHERE line_registry_key = ANY($1::text[])
-        `,
-        [response.job.poRegistryKeys],
-      );
+      if (completedRegistryKeys.length) {
+        await client.query(
+          `
+            DELETE FROM purchase_order_queue
+            WHERE line_registry_key = ANY($1::text[])
+          `,
+          [completedRegistryKeys],
+        );
+      }
+
+      if (skippedRegistryKeys.length) {
+        await client.query(
+          `
+            UPDATE purchase_order_queue
+            SET
+              record_state = 'active',
+              assigned_delivery_job_id = NULL,
+              assigned_to_job_at = NULL,
+              archived_at = NULL,
+              completed_at = NULL,
+              cleanup_after_at = NULL
+            WHERE line_registry_key = ANY($1::text[])
+              AND assigned_delivery_job_id = $2
+          `,
+          [skippedRegistryKeys, response.job.id],
+        );
+      }
     } else {
       const payload = serializeJobRecordForDatabase(response.job);
 
@@ -2078,14 +2119,17 @@ export async function registerJobScan(input: {
   if (response.job.status === "completed") {
     const archiveJob = buildJobArchiveRecord(response.job);
     const archiveStore = await readArchiveStore();
+    const completedRegistryKeys = getCompletedRegistryKeysForArchive(response.job);
+    const skippedRegistryKeys = getSkippedRegistryKeysForRelease(response.job);
 
     await archivePORecordsForCompletedJob({
-      registryKeys: response.job.poRegistryKeys,
+      registryKeys: completedRegistryKeys,
       jobId: response.job.id,
       archivedAt: archiveJob.archivedAt,
       completedAt: response.job.completedAt ?? archiveJob.archivedAt,
       deleteAfterAt: archiveJob.deleteAfterAt,
     });
+    await releasePORecordsFromJob(skippedRegistryKeys, response.job.id);
     await writeArchiveStore({
       jobs: [...archiveStore.jobs.filter((currentJob) => currentJob.id !== response.job.id), archiveJob],
     });
