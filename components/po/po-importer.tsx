@@ -274,10 +274,10 @@ export function POImporter() {
 
   return (
     <Card className="rounded-md">
-      <CardHeader className="border-b-0 px-4 pb-2 pt-4">
+      <CardHeader className="border-b-0 px-6 pb-3 pt-5">
         <CardTitle className="text-[15px] font-bold leading-5 text-slate-950">อัปโหลด PO จาก SAP</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 px-4 pb-4 pt-2">
+      <CardContent className="space-y-5 px-6 pb-5 pt-3">
         <div
           className="flex min-h-36 items-center justify-center rounded-md border border-dashed border-[#cfd8e3] bg-[#fafafa] px-4 py-8"
           onDragOver={(event) => event.preventDefault()}
@@ -321,21 +321,21 @@ export function POImporter() {
         ) : null}
 
         {preview ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-md border p-4">
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-md border p-5">
                 <p className="text-xs text-muted-foreground">ไฟล์</p>
                 <p className="mt-1 truncate font-medium">{preview.fileName}</p>
               </div>
-              <div className="rounded-md border p-4">
+              <div className="rounded-md border p-5">
                 <p className="text-xs text-muted-foreground">Sheet</p>
                 <p className="mt-1 font-medium">{preview.sheetName}</p>
               </div>
-              <div className="rounded-md border p-4">
+              <div className="rounded-md border p-5">
                 <p className="text-xs text-muted-foreground">รายการใหม่</p>
                 <p className="mt-1 text-2xl font-bold text-emerald-600">{preview.newPOs.length}</p>
               </div>
-              <div className="rounded-md border p-4">
+              <div className="rounded-md border p-5">
                 <p className="text-xs text-muted-foreground">มีอยู่แล้ว ไม่นำเข้าซ้ำ</p>
                 <p className="mt-1 text-2xl font-bold text-amber-600">{preview.skippedExistingCount}</p>
               </div>
@@ -474,7 +474,7 @@ function ImportTable({
           </div>
           <div className="divide-y md:hidden">
             {visibleRecords.map((record) => (
-              <div key={record.registryKey} className="space-y-3 p-3 text-sm">
+              <div key={record.registryKey} className="space-y-3 p-4 text-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>

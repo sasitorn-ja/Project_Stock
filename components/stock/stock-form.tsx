@@ -34,7 +34,7 @@ export function StockForm({ mode }: { mode: StockFormMode }) {
       <CardContent>
         <form className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="sku">รหัสสินค้า / Barcode</Label>
+            <Label htmlFor="sku">รหัสสินค้า / บาร์โค้ด</Label>
             <Input
               id="sku"
               value={sku}
@@ -57,7 +57,7 @@ export function StockForm({ mode }: { mode: StockFormMode }) {
           {isStockIn ? (
             <>
               <div className="space-y-2">
-                <Label htmlFor="supplier">ผู้ขาย / Supplier</Label>
+                <Label htmlFor="supplier">ผู้ขาย</Label>
                 <Input id="supplier" placeholder="ชื่อผู้ขาย" />
               </div>
               <div className="space-y-2">

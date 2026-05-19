@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobProgress } from "@/components/jobs/job-progress";
+import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJobArchive, listJobArchives } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
@@ -24,22 +25,22 @@ export default async function JobHistoryPage({
   const job = selectedJobId ? await getJobArchive(selectedJobId) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold tracking-normal">ประวัติงาน</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           งานที่ปิดจบแล้วจะถูกย้ายมาเก็บในประวัติ 100 วัน และไม่อยู่ในคิวปฏิบัติการหลักอีกต่อไป
         </p>
       </div>
 
       {/* ── ขั้นตอน 1: ค้นหา ── */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader>
           <div className="flex items-center gap-2">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">1</span>
             <CardTitle className="text-sm">ค้นหางานย้อนหลัง</CardTitle>
           </div>
-          <CardDescription className="ml-7">ค้นหาได้จาก Job ID, คนขับ, รถ, PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
+          <CardDescription className="ml-7">ค้นหาได้จากรหัสงาน คนขับ รถ PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_auto]">
@@ -47,7 +48,7 @@ export default async function JobHistoryPage({
               type="text"
               name="query"
               defaultValue={query}
-              placeholder="ค้นหา job id, driver, vehicle, PO, material"
+              placeholder="ค้นหารหัสงาน, คนขับ, รถ, PO, รหัสวัสดุ"
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             />
             <input
@@ -69,7 +70,7 @@ export default async function JobHistoryPage({
 
       {/* ── ขั้นตอน 2: เลือกงาน ── */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader>
           <div className="flex items-center gap-2">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">2</span>
             <CardTitle className="text-sm">เลือกงานที่ต้องการดู</CardTitle>
@@ -112,15 +113,15 @@ export default async function JobHistoryPage({
 
       {job && selectedJobId ? (
         <>
-          <section className="grid gap-4 md:grid-cols-4">
+          <section className="grid gap-3 md:grid-cols-4">
             {[
-              ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
-              ["สถานะ", job.status, History],
-              ["Archived", new Date(job.archivedAt).toLocaleString("th-TH"), CalendarClock],
+              ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
+              ["สถานะ", getJobStatusLabel(job.status), History],
+              ["เก็บเข้าประวัติ", new Date(job.archivedAt).toLocaleString("th-TH"), CalendarClock],
               ["ลบอัตโนมัติ", new Date(job.deleteAfterAt).toLocaleDateString("th-TH"), CalendarClock],
             ].map(([label, value, Icon]) => (
               <Card key={String(label)}>
-                <CardContent className="flex items-center justify-between p-5">
+                <CardContent className="flex min-h-20 items-center justify-between gap-3 p-4">
                   <div>
                     <p className="text-sm text-muted-foreground">{String(label)}</p>
                     <p className="mt-2 text-sm font-semibold">{String(value)}</p>
@@ -134,39 +135,39 @@ export default async function JobHistoryPage({
           <Card>
             <CardHeader>
               <CardTitle>ข้อมูลสรุปงาน</CardTitle>
-              <CardDescription>ดูย้อนหลังจาก snapshot ของงานหลังปิดจบแล้ว</CardDescription>
+              <CardDescription>ดูย้อนหลังจากข้อมูลของงานหลังปิดจบแล้ว</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-lg border p-4">
+              <div className="rounded-md border p-4">
                 <p className="text-sm text-muted-foreground">คนขับ</p>
                 <p className="mt-2 font-semibold">{job.driver || "-"}</p>
               </div>
-              <div className="rounded-lg border p-4">
+              <div className="rounded-md border p-4">
                 <p className="text-sm text-muted-foreground">รถ</p>
                 <p className="mt-2 font-semibold">{job.vehicle || "-"}</p>
               </div>
-              <div className="rounded-lg border p-4">
+              <div className="rounded-md border p-4">
                 <p className="text-sm text-muted-foreground">ต้นทาง</p>
                 <p className="mt-2 font-semibold">{job.origin || "-"}</p>
               </div>
-              <div className="rounded-lg border p-4">
+              <div className="rounded-md border p-4">
                 <p className="text-sm text-muted-foreground">GPS ต้นทางจริง</p>
                 <p className="mt-2 text-sm font-semibold">{job.originGps || "-"}</p>
               </div>
             </CardContent>
           </Card>
 
-          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} />
             <Card>
               <CardHeader>
-                <CardTitle>Alert Queue</CardTitle>
+                <CardTitle>รายการแจ้งเตือน</CardTitle>
                 <CardDescription>เหตุการณ์ผิดปกติที่เกิดขึ้นระหว่างงานนี้ก่อนปิดจบ</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {job.alerts.length ? (
                   job.alerts.map((alert) => (
-                    <div key={alert.id} className="rounded-lg border p-3">
+                    <div key={alert.id} className="rounded-md border p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-semibold">{alert.type}</p>
@@ -179,7 +180,7 @@ export default async function JobHistoryPage({
                   ))
                 ) : (
                   <div className="rounded-lg border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-                    ไม่มี alert ในงานนี้
+                    ไม่มีแจ้งเตือนในงานนี้
                   </div>
                 )}
               </CardContent>
@@ -188,12 +189,12 @@ export default async function JobHistoryPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>สรุป PO ใน Job</CardTitle>
-              <CardDescription>สถานะสุดท้ายของแต่ละ PO จาก snapshot ก่อนย้ายเข้า archive</CardDescription>
+              <CardTitle>สรุป PO ในงาน</CardTitle>
+              <CardDescription>สถานะสุดท้ายของแต่ละ PO จากข้อมูลก่อนย้ายเข้าประวัติ</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
               {job.poStatuses.map((item) => (
-                <div key={item.po} className="rounded-lg border p-4">
+                <div key={item.po} className="rounded-md border p-4">
                   <p className="font-semibold">{item.po}</p>
                   <Badge className="mt-3" variant={item.variant}>
                     {item.status}

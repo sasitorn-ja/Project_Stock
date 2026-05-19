@@ -17,19 +17,19 @@ import { Button } from "@/components/ui/button";
 
 const sections = [
   {
-    title: "JOB TRANSPORT",
+    title: "งานขนส่ง",
     items: [
       { name: "นำเข้า PO", href: "/po/import", icon: Upload },
       { name: "PO รอจัดส่ง", href: "/po", icon: FileText },
-      { name: "สร้าง Job", href: "/jobs/new", icon: FilePlus2 },
-      { name: "Monitor Realtime", href: "/jobs/monitor", icon: Activity },
-      { name: "Driver Room", href: "/driver", icon: QrCode },
+      { name: "สร้างงาน", href: "/jobs/new", icon: FilePlus2 },
+      { name: "ติดตามงาน", href: "/jobs/monitor", icon: Activity },
+      { name: "ห้องคนขับ", href: "/driver", icon: QrCode },
     ],
   },
   {
-    title: "MANAGEMENT",
+    title: "จัดการงาน",
     items: [
-      { name: "รายการ Job", href: "/jobs", icon: Truck },
+      { name: "รายการงาน", href: "/jobs", icon: Truck },
       { name: "ประวัติงาน", href: "/jobs/history", icon: History },
     ],
   },
@@ -65,13 +65,13 @@ export function Sidebar({
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#d8dde6] bg-white px-4 py-0">
+          <div className="flex h-[60px] shrink-0 items-center justify-between gap-2 border-b border-[#d8dde6] bg-white px-4 py-0">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#d8dde6] bg-[#171717] text-xs font-bold text-white">
                 ST
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">Job Transport</p>
+                <p className="truncate text-sm font-semibold text-slate-900">Job Transport QR System</p>
                 <p className="truncate text-[11px] text-slate-500">Store QR System</p>
               </div>
             </div>
@@ -89,10 +89,10 @@ export function Sidebar({
             </div>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-2 py-2">
+          <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-white px-2.5 py-3">
             {sections.map((section) => (
               <div key={section.title}>
-                <div className="mb-1 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+                <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                   {section.title}
                 </div>
                 <div className="space-y-0.5">
@@ -107,16 +107,16 @@ export function Sidebar({
                         onClick={onCloseMobile}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
-                          "group relative flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-3 text-[13px] font-medium transition-colors",
+                          "group relative flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-3 text-[13.5px] font-medium transition-colors",
                           isActive
                             ? "bg-[#f0faf7] text-[#0d7a5f]"
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
                         )}
                       >
                         {isActive && (
-                          <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[#0d7a5f]" />
+                          <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#0d7a5f]" />
                         )}
-                        <item.icon className="size-[15px] shrink-0" />
+                        <item.icon className="size-4 shrink-0" />
                         <span className="truncate">{item.name}</span>
                       </Link>
                     );

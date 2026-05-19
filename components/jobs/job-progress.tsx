@@ -12,15 +12,15 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>แผนส่งตาม Location / PO</CardTitle>
-        <CardDescription>จำนวนที่ต้องสแกนเป็นจำนวนกล่อง/รอบสแกนที่ Admin ยืนยัน ไม่ใช่จำนวนสั่งซื้อหรือราคาในไฟล์</CardDescription>
+        <CardTitle>แผนส่งตามปลายทาง / PO</CardTitle>
+        <CardDescription>จำนวนที่ต้องสแกนเป็นจำนวนกล่อง/รอบสแกนที่ผู้ดูแลยืนยัน ไม่ใช่จำนวนสั่งซื้อหรือราคาในไฟล์</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {job.destinations.map((location, index) => {
           const complete = location.delivered >= location.required && location.required > 0;
 
           return (
-            <div key={location.id} className="rounded-lg border p-4">
+            <div key={location.id} className="rounded-md border p-3 sm:p-4">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div className="flex gap-3">
                   <div className="mt-1 text-cyan-700 dark:text-cyan-300">
@@ -34,24 +34,24 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                     <p className="mt-1 text-sm text-muted-foreground">{location.address}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
-                      {location.gps} / radius {location.radiusMeters} m
+                      {location.gps} / รัศมี {location.radiusMeters} ม.
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       GPS ส่งของ: {location.deliveryGps || "ยังไม่เช็กอินปลายทาง"}
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm sm:min-w-72">
                   <div className="rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-900">
                     <p className="text-xs text-muted-foreground">ต้องสแกน</p>
                     <p className="font-semibold">{location.required}</p>
                   </div>
                   <div className="rounded-md bg-cyan-50 px-3 py-2 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
-                    <p className="text-xs">Loaded</p>
+                    <p className="text-xs">ขึ้นรถแล้ว</p>
                     <p className="font-semibold">{location.loaded}</p>
                   </div>
                   <div className="rounded-md bg-emerald-50 px-3 py-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <p className="text-xs">Delivered</p>
+                    <p className="text-xs">ลงของแล้ว</p>
                     <p className="font-semibold">{location.delivered}</p>
                   </div>
                 </div>
@@ -99,7 +99,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                 </div>
                 <div className="divide-y md:hidden">
                   {location.items.map((item) => (
-                    <div key={item.registryKey} className="space-y-2 p-3 text-sm">
+                    <div key={item.registryKey} className="space-y-2 p-4 text-sm">
                       <div>
                         <p className="break-words font-semibold">{item.poSapNo}</p>
                         <p className="mt-0.5 break-words text-xs text-muted-foreground">{item.materialCode || "-"}</p>

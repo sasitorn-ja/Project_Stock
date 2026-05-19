@@ -323,7 +323,7 @@ export function PORegistryList() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative w-full xl:max-w-md xl:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -456,7 +456,7 @@ export function PORegistryList() {
             </div>
             <div className="divide-y md:hidden">
               {records.map((record) => (
-                <div key={record.registryKey} className="space-y-3 p-3">
+                <div key={record.registryKey} className="space-y-4 p-4">
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -510,7 +510,7 @@ export function PORegistryList() {
               ))}
             </div>
             {totalCount > pageSize ? (
-              <div className="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-t px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                 <p>
                   แสดง {startIndex + 1}-{Math.min(startIndex + pageSize, totalCount)} จาก{" "}
                   {totalCount.toLocaleString("th-TH")} รายการ

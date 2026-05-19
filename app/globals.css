@@ -77,9 +77,9 @@
     letter-spacing: -0.01em;
   }
 
-  /* tighter table rows */
+  /* table rows */
   table th {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -87,7 +87,7 @@
   }
 
   table td {
-    font-size: 12.5px;
+    font-size: 13px;
   }
 
   .dark body {

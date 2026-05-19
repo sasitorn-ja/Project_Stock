@@ -23,8 +23,8 @@ export function JobDestinationOverrideButton({
     const nextEnabled = !enabled;
     const confirmed = window.confirm(
       nextEnabled
-        ? `เปิดปลายทางกรณีพิเศษให้ Job ${jobId} ใช่ไหม?\n\nคนขับจะเช็กอินและสแกนส่งปลายทางได้ แม้สินค้ายังขึ้นรถไม่ครบ`
-        : `ปิดสิทธิ์เปิดปลายทางกรณีพิเศษของ Job ${jobId} ใช่ไหม?`,
+        ? `เปิดปลายทางกรณีพิเศษให้งาน ${jobId} ใช่ไหม?\n\nคนขับจะเช็กอินและสแกนส่งปลายทางได้ แม้สินค้ายังขึ้นรถไม่ครบ`
+        : `ปิดสิทธิ์เปิดปลายทางกรณีพิเศษของงาน ${jobId} ใช่ไหม?`,
     );
 
     if (!confirmed) {
@@ -58,7 +58,7 @@ export function JobDestinationOverrideButton({
         className="w-full gap-2 sm:w-auto"
       >
         {enabled ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดสิทธิ์ปลายทางพิเศษ" : "Admin เปิดปลายทางกรณีพิเศษ"}
+        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดสิทธิ์ปลายทางพิเศษ" : "ผู้ดูแลเปิดปลายทางกรณีพิเศษ"}
       </Button>
       {isFullyLoaded ? <p className="text-xs text-muted-foreground">โหลดครบแล้ว ไม่ต้องใช้สิทธิ์พิเศษ</p> : null}
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}

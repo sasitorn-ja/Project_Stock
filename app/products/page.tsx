@@ -11,11 +11,11 @@ export default function ProductsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>ยังไม่เปิดใช้งาน production</CardTitle>
-          <CardDescription>เมื่อพร้อมเชื่อม stock master และ barcode registry จริงแล้ว หน้านี้จะกลับมาใช้งานได้</CardDescription>
+          <CardTitle>ยังไม่เปิดใช้งานจริง</CardTitle>
+          <CardDescription>เมื่อพร้อมเชื่อมข้อมูลสินค้าและทะเบียนบาร์โค้ดจริงแล้ว หน้านี้จะกลับมาใช้งานได้</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          ตอนนี้เส้นทางที่พร้อมใช้งานจริงคือ PO รอจัดส่ง, สร้าง Job, ห้องคนขับ และ Monitor
+          ตอนนี้เมนูที่พร้อมใช้งานจริงคือ PO รอจัดส่ง, สร้างงาน, ห้องคนขับ และติดตามงาน
         </CardContent>
       </Card>
     </div>

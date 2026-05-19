@@ -17,7 +17,7 @@ export function MobileScanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [lastCode, setLastCode] = useState("");
-  const [message, setMessage] = useState("พร้อมสแกน QR Code / Barcode รับสินค้าเข้าคลัง");
+  const [message, setMessage] = useState("พร้อมสแกน QR / บาร์โค้ดรับสินค้าเข้าคลัง");
 
   useEffect(() => {
     return () => stopCamera();
@@ -37,7 +37,7 @@ export function MobileScanner() {
     try {
       scanLockRef.current = false;
       setIsScanning(true);
-      setMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ให้เต็มกรอบ");
+      setMessage("เล็งกรอบไปที่ QR หรือบาร์โค้ดให้เต็มกรอบ");
 
       const reader = new BrowserMultiFormatReader(createScanHints(), {
         delayBetweenScanAttempts: 100,
@@ -97,7 +97,7 @@ export function MobileScanner() {
               <ScanLine className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>สแกน QR / Barcode รับสินค้า</CardTitle>
+              <CardTitle>สแกน QR / บาร์โค้ดรับสินค้า</CardTitle>
               <CardDescription>
                 รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}
               </CardDescription>

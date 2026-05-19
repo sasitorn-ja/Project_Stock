@@ -13,7 +13,7 @@ function FlowList({ title, items }: { title: string; items: string[] }) {
         <div className="space-y-2">
           {items.map((item, index) => (
             <div key={`${item}-${index}`}>
-              <div className="flex items-center gap-3 rounded-lg border p-3 text-sm">
+              <div className="flex items-center gap-3 rounded-lg border p-4 text-sm">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
                 <span>{item}</span>
               </div>
@@ -34,16 +34,16 @@ export default function FlowPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-normal">Flow การทำงาน</h2>
+        <h2 className="text-2xl font-bold tracking-normal">ขั้นตอนการทำงาน</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          ภาพรวมขั้นตอนของ Admin และคนขับในงานขนส่ง
+          ภาพรวมขั้นตอนของผู้ดูแลและคนขับในงานขนส่ง
         </p>
       </div>
 
       <FlowList title="ภาพรวมระบบ" items={systemFlow} />
       <div className="grid gap-6 xl:grid-cols-2">
-        <FlowList title="Flow ฝั่ง Admin" items={adminFlow} />
-        <FlowList title="Flow ฝั่งคนขับ/คนสแกน" items={driverFlow} />
+        <FlowList title="ขั้นตอนฝั่งผู้ดูแล" items={adminFlow} />
+        <FlowList title="ขั้นตอนฝั่งคนขับ/คนสแกน" items={driverFlow} />
       </div>
     </div>
   );

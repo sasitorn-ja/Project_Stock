@@ -6,7 +6,7 @@ export default function StockInPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-normal">รับสินค้าเข้า</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          บันทึกสินค้าเข้าคลังพร้อมข้อมูล Lot, Supplier และตำแหน่งจัดเก็บ
+          บันทึกสินค้าเข้าคลังพร้อมข้อมูลล็อต ผู้ขาย และตำแหน่งจัดเก็บ
         </p>
       </div>
       <StockForm mode="in" />

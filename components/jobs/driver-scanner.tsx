@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import Link from "next/link";
-import { Camera, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
+import { Camera, Check, ChevronDown, FileText, MapPin, QrCode, ScanLine, Square, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
   const [latestGps, setLatestGps] = useState("");
-  const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน QR Code หรือ Barcode");
+  const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน QR หรือบาร์โค้ด");
   const [isCameraScanning, setIsCameraScanning] = useState(false);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
@@ -106,7 +107,8 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
   const canOpenDestinationEarly = Boolean(job?.allowDestinationBeforeFullyLoaded);
   const isDeliverModeLocked = Boolean(job) && (!hasOriginCheckIn || (!isFullyLoaded && !canOpenDestinationEarly));
   const isScanBlocked = !job || isOriginGpsRequired || (mode === "deliver" && (isDeliverModeLocked || isDestinationGpsRequired));
-  const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้อง Job";
+  const roomTitle = job?.roomName?.trim() || job?.id || "ยังไม่ได้เลือกห้องงาน";
+  const selectedJobLabel = job ? `${job.roomName?.trim() || job.id} - ${job.vehicle || "ไม่ระบุรถ"}` : "เลือกห้องงาน";
   const activeStep = !job ? 0 : isOriginGpsRequired ? 1 : !isFullyLoaded && !canOpenDestinationEarly ? 2 : isDestinationGpsRequired ? 2 : 3;
   const originStatusText = isOriginLocked ? "ต้นทางปิดแล้ว" : hasOriginCheckIn ? "เช็กอินแล้ว" : "รอ GPS";
   const nextActionText = isOriginGpsRequired
@@ -133,7 +135,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     if (isOriginLocked && !canRecheckOrigin) {
-      setMessage("ต้นทางปิดแล้วหลังสแกนขึ้นรถครบ หากต้องแก้ไขให้โทรหา Admin เพื่อเปิดต้นทางกรณีพิเศษ");
+      setMessage("ต้นทางปิดแล้วหลังสแกนขึ้นรถครบ หากต้องแก้ไขให้โทรหาผู้ดูแลเพื่อเปิดต้นทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -156,7 +158,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
       setJob(nextJob);
       setLatestGps(nextJob.originGps || gpsText);
-      setMessage(canRecheckOrigin ? "Admin เปิดต้นทางกรณีพิเศษ: เช็กอินต้นทางใหม่เรียบร้อยแล้ว" : "ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
+      setMessage(canRecheckOrigin ? "ผู้ดูแลเปิดต้นทางกรณีพิเศษ: เช็กอินต้นทางใหม่เรียบร้อยแล้ว" : "ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
       setScanResult("ok");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
@@ -174,7 +176,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     if (isDeliverModeLocked) {
-      setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
+      setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -224,7 +226,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
     }
 
     if (mode === "deliver" && isDeliverModeLocked) {
-      setMessage("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะบันทึกส่งปลายทางได้ หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ");
+      setMessage("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะบันทึกส่งปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ");
       setScanResult("alert");
       return;
     }
@@ -296,7 +298,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       await videoRef.current.play();
 
       setIsCameraScanning(true);
-      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มีเลข PO/รหัสสินค้า");
+      setCameraMessage("เล็งกรอบไปที่ QR หรือบาร์โค้ดที่มีเลข PO/รหัสสินค้า");
 
       // Step 2: attach ZXing decoder to the live stream
       const reader = new BrowserMultiFormatReader(createScanHints(), {
@@ -346,20 +348,49 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       {!isDedicatedDriverMode ? (
         <Card className="order-1">
           <CardContent className="space-y-2 p-3">
-            <Label htmlFor="job-selector">เลือกห้อง Job</Label>
-            <select
-              id="job-selector"
-              value={selectedJobId}
-              onChange={(event) => setSelectedJobId(event.target.value)}
-              className="h-10 w-full rounded-md border border-[#cfd6df] bg-white px-3 text-sm text-slate-900"
-            >
-              <option value="">เลือกห้อง Job</option>
-              {jobs.map((currentJob) => (
-                <option key={currentJob.id} value={currentJob.id}>
-                  {(currentJob.roomName?.trim() || currentJob.id)} - {currentJob.vehicle || "ไม่ระบุรถ"}
-                </option>
-              ))}
-            </select>
+            <Label>เลือกห้องงาน</Label>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger
+                className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#cfd6df] bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
+                disabled={isLoading || !jobs.length}
+              >
+                <span className="min-w-0 truncate">{isLoading ? "กำลังโหลดห้องงาน" : selectedJobLabel}</span>
+                <ChevronDown className="size-4 shrink-0 text-slate-500 transition-transform data-[state=open]:rotate-180" />
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="start"
+                  sideOffset={8}
+                  className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+                >
+                  {jobs.length ? (
+                    jobs.map((currentJob) => {
+                      const isSelected = selectedJobId === currentJob.id;
+
+                      return (
+                        <DropdownMenu.Item
+                          key={currentJob.id}
+                          onSelect={() => setSelectedJobId(currentJob.id)}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
+                        >
+                          <span className="flex size-4 shrink-0 items-center justify-center">
+                            {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold">{currentJob.roomName?.trim() || currentJob.id}</span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              {currentJob.vehicle || "ไม่ระบุรถ"} / {currentJob.driver || "ไม่ระบุคนขับ"}
+                            </span>
+                          </span>
+                        </DropdownMenu.Item>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-lg px-3 py-2.5 text-sm text-slate-500">ยังไม่มีห้องงานให้เลือก</div>
+                  )}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </CardContent>
         </Card>
       ) : null}
@@ -367,10 +398,10 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       <section className="order-2 rounded-md border border-[#d8dde6] bg-white px-3 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Driver Room</p>
+            <p className="text-xs font-semibold text-slate-500">ห้องคนขับ</p>
             <h2 className="mt-1 break-words text-lg font-bold tracking-normal text-slate-950 sm:text-xl">{roomTitle}</h2>
             <p className="mt-1 break-words text-sm text-slate-500">
-              {job ? `${job.id} / รถ ${job.vehicle || "-"} / คนขับ ${job.driver || "-"}` : "เลือกห้อง Job เพื่อเริ่มงาน"}
+              {job ? `${job.id} / รถ ${job.vehicle || "-"} / คนขับ ${job.driver || "-"}` : "เลือกห้องงานเพื่อเริ่มงาน"}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 lg:w-[520px]">
@@ -452,7 +483,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
             [
               "2",
               "สแกนขึ้นรถ",
-              isFullyLoaded ? "โหลดครบ / ปิดต้นทาง" : canOpenDestinationEarly ? "Admin เปิดปลายทาง" : "ยังโหลดไม่ครบ",
+              isFullyLoaded ? "โหลดครบ / ปิดต้นทาง" : canOpenDestinationEarly ? "ผู้ดูแลเปิดปลายทาง" : "ยังโหลดไม่ครบ",
             ],
             ["3", "สแกนสินค้า", activeStep === 3 ? "พร้อมสแกน" : "ยังล็อกอยู่"],
           ].map(([step, label, status]) => (
@@ -501,7 +532,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               {isFetchingOriginGps
                 ? "กำลังดึง GPS"
                 : canRecheckOrigin
-                  ? "Admin เปิดแล้ว: เช็กอินต้นทางใหม่"
+                ? "ผู้ดูแลเปิดแล้ว: เช็กอินต้นทางใหม่"
                   : hasOriginCheckIn
                     ? "เช็กอินต้นทางใหม่"
                     : "เช็กอินต้นทาง"}
@@ -514,18 +545,44 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               {isDeliverModeLocked ? <Badge variant="outline">ล็อกอยู่</Badge> : null}
             </div>
             {job?.destinations.length ? (
-              <select
-                value={currentLocation}
-                onChange={(event) => setCurrentLocation(event.target.value)}
-                disabled={isDeliverModeLocked}
-                className="mt-2 h-10 w-full rounded-md border border-[#cfd6df] bg-white px-3 text-sm text-slate-900"
-              >
-                {job.destinations.map((destination) => (
-                  <option key={destination.id} value={destination.id}>
-                    {destination.name}
-                  </option>
-                ))}
-              </select>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger
+                  className="mt-2 flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#cfd6df] bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
+                  disabled={isDeliverModeLocked}
+                >
+                  <span className="min-w-0 truncate">{currentDestination?.name || "เลือกปลายทาง"}</span>
+                  <ChevronDown className="size-4 shrink-0 text-slate-500" />
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    align="start"
+                    sideOffset={8}
+                    className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+                  >
+                    {job.destinations.map((destination) => {
+                      const isSelected = currentLocation === destination.id;
+
+                      return (
+                        <DropdownMenu.Item
+                          key={destination.id}
+                          onSelect={() => setCurrentLocation(destination.id)}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
+                        >
+                          <span className="flex size-4 shrink-0 items-center justify-center">
+                            {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold">{destination.name}</span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              {destination.address || "ไม่มีที่อยู่ปลายทาง"}
+                            </span>
+                          </span>
+                        </DropdownMenu.Item>
+                      );
+                    })}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
             ) : (
               <p className="mt-2 text-sm text-slate-500">ยังไม่มีปลายทาง</p>
             )}
@@ -548,7 +605,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
               {isOriginGpsRequired
                 ? "ต้องเช็กอิน GPS ต้นทางก่อน จึงจะเปิดให้สแกนสินค้า"
                 : isDeliverModeLocked
-                  ? "ต้องสแกนสินค้าขึ้นรถให้ครบก่อน ระบบจึงจะเปิดส่วนปลายทาง หากมีเหตุจำเป็นให้ Admin เปิดปลายทางกรณีพิเศษ"
+                  ? "ต้องสแกนสินค้าขึ้นรถให้ครบก่อน ระบบจึงจะเปิดส่วนปลายทาง หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ"
                 : `ต้องเช็กอิน GPS ปลายทาง ${currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้`}
             </div>
           ) : null}
@@ -668,7 +725,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
           </div>
 
           <div className="mx-auto w-full max-w-4xl space-y-2">
-            <Label htmlFor="scan-code">เลข PO / Barcode / QR / registry key</Label>
+            <Label htmlFor="scan-code">เลข PO / บาร์โค้ด / QR / รหัสรายการ</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="scan-code"
@@ -699,7 +756,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
       ) : null}
 
       <Card className="order-7">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4" />
             รายการในห้อง
@@ -744,7 +801,7 @@ export function DriverScanner({ initialJobId }: { initialJobId?: string }) {
 
           {job && !isDedicatedDriverMode ? (
             <Button asChild variant="outline">
-              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>เปิด Monitor ของ Job นี้</Link>
+              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>เปิดหน้าติดตามงานนี้</Link>
             </Button>
           ) : null}
         </CardContent>

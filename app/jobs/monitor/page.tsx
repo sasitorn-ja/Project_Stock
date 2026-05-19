@@ -9,6 +9,7 @@ import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
 import { JobProgress } from "@/components/jobs/job-progress";
+import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJob, listJobs } from "@/lib/job-store";
 
 export const dynamic = "force-dynamic";
@@ -26,20 +27,20 @@ export default async function JobMonitorPage({
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <JobAutoRefresh />
 
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-tight text-slate-900">Monitor Realtime</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            ดูสถานะโหลดต้นทาง ส่งปลายทาง และ alert ของ Job ที่สร้างจากข้อมูลจริง
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">ติดตามงาน</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            ดูสถานะโหลดต้นทาง ส่งปลายทาง และแจ้งเตือนของงานที่สร้างจากข้อมูลจริง
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="success" className="shrink-0">
             <Radio className="mr-1 h-3 w-3" />
-            Live Data
+            ข้อมูลสด
           </Badge>
           <Button asChild variant="outline" size="sm">
             <Link href="/jobs/history">
@@ -50,13 +51,13 @@ export default async function JobMonitorPage({
         </div>
       </div>
 
-      {/* เลือก Job */}
+      {/* เลือกงาน */}
       {jobs.length ? (
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader>
             <div className="flex items-center gap-2">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">1</span>
-              <CardTitle className="text-sm">เลือก Job ที่ต้องการ monitor</CardTitle>
+              <CardTitle className="text-sm">เลือกงานที่ต้องการติดตาม</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -73,12 +74,12 @@ export default async function JobMonitorPage({
         </Card>
       ) : selectedJobId && job ? (
         <Card>
-          <CardContent className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
+          <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
             <p className="text-sm text-muted-foreground">
               กำลังดู {job.roomName?.trim() || job.id}
             </p>
             <Button asChild variant="outline" size="sm">
-              <Link href="/jobs/monitor">เลือก Job อื่น</Link>
+              <Link href="/jobs/monitor">เลือกงานอื่น</Link>
             </Button>
           </CardContent>
         </Card>
@@ -86,18 +87,18 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              ["ห้อง Job", job.roomName?.trim() || job.id, Truck],
-              ["Status", job.status, Radio],
+              ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
+              ["สถานะ", getJobStatusLabel(job.status), Radio],
               ["ต้นทาง", job.isOriginLocked ? "ปิดแล้ว" : job.originCheckedInAt ? "เช็กอินแล้ว" : "รอเช็กอิน", MapPin],
-              ["Route", `${job.destinations.length} Locations`, Route],
-              ["Alerts", String(job.alerts.length), AlertTriangle],
+              ["เส้นทาง", `${job.destinations.length.toLocaleString("th-TH")} ปลายทาง`, Route],
+              ["แจ้งเตือน", String(job.alerts.length), AlertTriangle],
             ].map(([label, value, Icon]) => (
               <Card key={String(label)}>
-                <CardContent className="flex items-center justify-between p-4">
+                <CardContent className="flex min-h-20 items-center justify-between gap-3 p-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{String(label)}</p>
+                    <p className="text-[11px] font-semibold text-slate-400">{String(label)}</p>
                     <p className="mt-1 break-words text-[15px] font-bold text-slate-900">{String(value)}</p>
                   </div>
                   <Icon className="h-4 w-4 text-[#0d7a5f]" />
@@ -107,7 +108,7 @@ export default async function JobMonitorPage({
           </section>
 
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
                   <CardTitle className="text-sm">ช่องทางเข้าหน้าคนขับ</CardTitle>
@@ -136,14 +137,14 @@ export default async function JobMonitorPage({
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} editableScanQty />
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Alert Queue</CardTitle>
+              <CardHeader>
+              <CardTitle className="text-sm">รายการแจ้งเตือน</CardTitle>
                 <CardDescription>เมื่อระบบเจอความผิดปกติจากการสแกน จะเก็บเหตุการณ์ไว้ที่นี่ทันที</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {job.alerts.length ? (
                   job.alerts.map((alert) => (
-                    <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-3">
+                    <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-[12.5px] font-semibold text-slate-900">{alert.type}</p>
@@ -156,7 +157,7 @@ export default async function JobMonitorPage({
                   ))
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-200 p-4 text-[12.5px] text-muted-foreground">
-                    ยังไม่มี alert สำหรับ Job นี้
+                    ยังไม่มีแจ้งเตือนสำหรับงานนี้
                   </div>
                 )}
               </CardContent>
@@ -164,13 +165,13 @@ export default async function JobMonitorPage({
           </section>
 
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">สรุป PO ใน Job</CardTitle>
-              <CardDescription>ระบบสรุปตามจำนวนรอบสแกน/กล่องที่ Admin ยืนยัน แยกจากจำนวนสั่งซื้อและราคาในไฟล์</CardDescription>
+            <CardHeader>
+              <CardTitle className="text-sm">สรุป PO ในงาน</CardTitle>
+              <CardDescription>ระบบสรุปตามจำนวนรอบสแกน/กล่องที่ผู้ดูแลยืนยัน แยกจากจำนวนสั่งซื้อและราคาในไฟล์</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 md:grid-cols-3">
               {job.poStatuses.map((item) => (
-                <div key={item.po} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-3">
+                <div key={item.po} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
                   <p className="text-[12.5px] font-semibold text-slate-900">{item.po}</p>
                   <Badge className="mt-2" variant={item.variant}>
                     {item.status}
@@ -183,7 +184,7 @@ export default async function JobMonitorPage({
       ) : (
         !selectedJobId && (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-muted-foreground">
-            เลือก Job จากรายการด้านบนเพื่อเริ่ม monitor
+            เลือกงานจากรายการด้านบนเพื่อเริ่มติดตาม
           </div>
         )
       )}
