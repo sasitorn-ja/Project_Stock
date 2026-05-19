@@ -351,7 +351,7 @@ export function DriverScanner({
       await videoRef.current.play();
 
       setIsCameraScanning(true);
-      setCameraMessage("เล็งกรอบไปที่ QR หรือบาร์โค้ดที่มีเลข PO/รหัสสินค้า");
+      setCameraMessage("วาง QR หรือบาร์โค้ดไว้ในกรอบ จะเป็นแนวตั้งหรือแนวนอนก็ได้");
 
       // Step 2: attach ZXing decoder to the live stream
       const reader = new BrowserMultiFormatReader(createScanHints(), {
@@ -627,7 +627,7 @@ export function DriverScanner({
           <button
             type="button"
             className="relative mx-auto block w-full max-w-4xl overflow-hidden rounded-lg border bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
-            style={{ aspectRatio: "3/4", minHeight: "430px", maxHeight: "720px" }}
+            style={{ aspectRatio: "1/1", minHeight: "360px", maxHeight: "680px" }}
             onClick={() => {
               if (!isCameraScanning) {
                 void startCamera();
@@ -636,10 +636,10 @@ export function DriverScanner({
             disabled={!job || isCameraScanning || isScanBlocked}
             aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
-            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            <video ref={videoRef} className="h-full w-full object-contain" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[68%] w-[82%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
+              <div className="relative h-[78%] w-[88%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
@@ -656,6 +656,7 @@ export function DriverScanner({
                   <Camera className="mx-auto mb-3 h-14 w-14" />
                   <p className="text-xl font-bold">แตะเพื่อสแกน</p>
                   <p className="mt-2 text-sm">{cameraMessage}</p>
+                  <p className="mt-2 text-xs text-cyan-200">สแกนได้ทั้งแนวนอนและแนวตั้ง</p>
                   <p className="mt-2 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
                 </div>
               </div>
