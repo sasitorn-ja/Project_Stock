@@ -377,13 +377,12 @@ export function DriverScanner({
       scanLockRef.current = false;
 
       // Step 1: acquire camera stream
-      // - ขอ 1280×720 แทน 1920×1080 เพราะ resolution สูงเกินไปบางรุ่นทำให้ focus ช้า
-      // - ไม่บังคับ frameRate เพื่อให้ camera เลือก mode ที่ focus ได้ดีที่สุด
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
         },
         audio: false,
       });
