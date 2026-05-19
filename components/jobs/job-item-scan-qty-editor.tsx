@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save } from "lucide-react";
+import { Ban, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { updateJobItemScanQuantity } from "@/lib/job-db";
@@ -24,10 +24,9 @@ export function JobItemScanQtyEditor({
   const [message, setMessage] = useState("");
   const safeMinimum = Math.max(0, Math.ceil(minimum));
   const hasChanged = Math.ceil(nextValue) !== value;
+  const canSkipThisRound = safeMinimum === 0 && value > 0;
 
-  async function handleSave() {
-    const scanQty = Math.max(safeMinimum, Math.ceil(Number(nextValue) || 0));
-
+  async function saveQuantity(scanQty: number) {
     setIsSaving(true);
     setMessage("");
 
@@ -46,6 +45,15 @@ export function JobItemScanQtyEditor({
     }
   }
 
+  async function handleSave() {
+    await saveQuantity(Math.max(safeMinimum, Math.ceil(Number(nextValue) || 0)));
+  }
+
+  async function skipThisRound() {
+    setNextValue(0);
+    await saveQuantity(0);
+  }
+
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -60,6 +68,23 @@ export function JobItemScanQtyEditor({
           <Save className="h-4 w-4" />
         </Button>
       </div>
+      {canSkipThisRound ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 w-full gap-1.5 text-xs text-slate-600"
+          onClick={skipThisRound}
+          disabled={isSaving}
+          title="ไม่ต้องสแกนรายการนี้ในรอบนี้"
+        >
+          <Ban className="h-3.5 w-3.5" />
+          ไม่ส่งรอบนี้
+        </Button>
+      ) : null}
+      {safeMinimum > 0 ? (
+        <p className="text-xs text-muted-foreground">ลดต่ำกว่า {safeMinimum} ไม่ได้ เพราะมีการสแกนแล้ว</p>
+      ) : null}
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
     </div>
   );

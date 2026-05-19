@@ -28,6 +28,24 @@ async function requestCurrentPosition() {
   });
 }
 
+function getScannerVideoConstraints(): MediaTrackConstraints {
+  const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 768;
+
+  return isNarrowScreen
+    ? {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1080 },
+        height: { ideal: 1920 },
+        aspectRatio: { ideal: 9 / 16 },
+      }
+    : {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 16 / 9 },
+      };
+}
+
 export function DriverScanner({
   initialJobId,
   initialJob = null,
@@ -121,7 +139,7 @@ export function DriverScanner({
       const required = items.reduce((sum, item) => sum + item.orderQty, 0);
       const delivered = items.reduce((sum, item) => sum + item.deliveredQty, 0);
 
-      return required <= 0 || delivered < required;
+      return required > 0 && delivered < required;
     });
   }
 
@@ -378,13 +396,22 @@ export function DriverScanner({
 
       // Step 1: acquire camera stream
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
+        video: getScannerVideoConstraints(),
         audio: false,
       });
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        try {
+          await videoTrack.applyConstraints({
+            // Browser บางตัวรองรับ continuous focus ช่วยให้ภาพคมขึ้นตอนถือกล้องขยับ
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            advanced: [{ focusMode: "continuous" } as any],
+          });
+        } catch {
+          // บางเครื่องไม่รองรับ focusMode ปล่อยให้ browser ใช้ autofocus ปกติ
+        }
+      }
 
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
@@ -669,7 +696,7 @@ export function DriverScanner({
           <button
             type="button"
             className="relative block w-full overflow-hidden rounded-lg border bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
-            style={{ height: "clamp(320px, 58vh, 560px)" }}
+            style={{ height: "clamp(420px, 72vh, 680px)" }}
             onClick={() => {
               if (!isCameraScanning) {
                 void startCamera();
@@ -678,7 +705,7 @@ export function DriverScanner({
             disabled={!job || isCameraScanning || isScanBlocked}
             aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
-            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            <video ref={videoRef} className="h-full w-full bg-black object-contain" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <div className="relative h-[68%] w-[84%] max-w-2xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.34)]">
