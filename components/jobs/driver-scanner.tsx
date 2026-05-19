@@ -49,6 +49,7 @@ export function DriverScanner({
   const [mode, setMode] = useState<ScanMode>("load");
   const [currentLocation, setCurrentLocation] = useState(initialJob?.destinations[0]?.id ?? initialJobs[0]?.destinations[0]?.id ?? "");
   const [code, setCode] = useState("");
+  const [pendingCode, setPendingCode] = useState<string | null>(null); // รหัสที่สแกนได้ รอยืนยัน
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
   const [latestGps, setLatestGps] = useState("");
@@ -351,6 +352,18 @@ export function DriverScanner({
     await submitScannedCode(code);
   }
 
+  async function confirmPendingCode() {
+    if (!pendingCode) return;
+    const confirmed = pendingCode;
+    setPendingCode(null);
+    await submitScannedCode(confirmed);
+  }
+
+  function dismissPendingCode() {
+    setPendingCode(null);
+    setCode("");
+  }
+
   async function startCamera() {
     if (isScanBlocked) {
       setCameraMessage(
@@ -414,10 +427,10 @@ export function DriverScanner({
           if (!scannedCode || scannedCode.length < MIN_SCAN_CODE_LENGTH) return;
 
           scanLockRef.current = true;
-          setCode(scannedCode);
-          setCameraMessage(`พบรหัส ${scannedCode} — กำลังบันทึก`);
           stopCamera();
-          void submitScannedCode(scannedCode);
+          // ไม่ submit ทันที — รอให้ผู้ใช้ยืนยันก่อน ป้องกัน false-positive
+          setPendingCode(scannedCode);
+          setCode(scannedCode);
         },
       );
     } catch (err) {
@@ -749,6 +762,35 @@ export function DriverScanner({
             ) : null}
           </div>
 
+          {/* ── Confirmation panel — แสดงเมื่อกล้องอ่านได้ รอยืนยันก่อน submit ── */}
+          {pendingCode ? (
+            <div className="mx-auto w-full max-w-4xl px-3">
+              <div className="rounded-xl border-2 border-cyan-400 bg-cyan-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">กล้องอ่านได้ — ยืนยันก่อนบันทึก</p>
+                <p className="mt-1 break-all text-2xl font-bold text-slate-900">{pendingCode}</p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    className="flex-1 h-12 text-base"
+                    onClick={confirmPendingCode}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "กำลังบันทึก…" : "✓ ยืนยันบันทึก"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 h-12 text-base"
+                    onClick={dismissPendingCode}
+                    disabled={isSubmitting}
+                  >
+                    สแกนใหม่
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="mx-auto w-full max-w-4xl space-y-2 px-3 pb-3">
             <Label htmlFor="scan-code">เลข PO / บาร์โค้ด / QR / รหัสรายการ</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -756,13 +798,13 @@ export function DriverScanner({
                 id="scan-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
-                disabled={!job || isScanBlocked}
+                disabled={!job || isScanBlocked || Boolean(pendingCode)}
                 placeholder="สแกนหรือกรอกรหัส"
               />
-                <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">
-                  {isSubmitting ? "กำลังบันทึก" : "บันทึก"}
-                </Button>
-              </div>
+              <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked || Boolean(pendingCode)} className="sm:w-32">
+                {isSubmitting ? "กำลังบันทึก" : "บันทึก"}
+              </Button>
+            </div>
           </div>
 
           {message ? (
