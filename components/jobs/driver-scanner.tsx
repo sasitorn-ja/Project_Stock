@@ -56,6 +56,7 @@ export function DriverScanner({
   const [isCameraScanning, setIsCameraScanning] = useState(false);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
+  const autoStartAttemptRef = useRef("");
 
   useEffect(() => {
     return () => stopCamera();
@@ -153,6 +154,24 @@ export function DriverScanner({
       stopCamera();
     }
   }, [mode, shouldShowDestinationOnly]);
+
+  useEffect(() => {
+    if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || !job) {
+      return;
+    }
+
+    const key = `${job.id}:${mode}:${currentDestination?.id ?? "load"}:${hasDestinationCheckIn ? "gps" : "nogps"}`;
+    if (autoStartAttemptRef.current === key) {
+      return;
+    }
+
+    autoStartAttemptRef.current = key;
+    const timeoutId = window.setTimeout(() => {
+      void startCamera();
+    }, 450);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentDestination?.id, hasDestinationCheckIn, isCameraScanning, isDedicatedDriverMode, isScanBlocked, job, mode]);
 
   async function captureOriginGps() {
     if (!job) {
@@ -605,15 +624,22 @@ export function DriverScanner({
           <CardDescription>{shouldShowDestinationOnly ? "สแกนเฉพาะของปลายทางที่เลือก" : "สแกนสินค้าเข้ารถให้ครบก่อนออกจากต้นทาง"}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-3">
-          {/* Video — full card width, no column constraint */}
-          <div
-            className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-lg border bg-slate-950"
-            style={{ aspectRatio: "16/9", minHeight: "300px", maxHeight: "560px" }}
+          <button
+            type="button"
+            className="relative mx-auto block w-full max-w-4xl overflow-hidden rounded-lg border bg-slate-950 text-left disabled:cursor-not-allowed disabled:opacity-80"
+            style={{ aspectRatio: "3/4", minHeight: "430px", maxHeight: "720px" }}
+            onClick={() => {
+              if (!isCameraScanning) {
+                void startCamera();
+              }
+            }}
+            disabled={!job || isCameraScanning || isScanBlocked}
+            aria-label="แตะเพื่อเปิดกล้องสแกน"
           >
             <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
             {/* Scan frame — decorative guide for user */}
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[70%] w-[76%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
+              <div className="relative h-[68%] w-[82%] max-w-2xl rounded-md border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.32)]">
                 {/* Animated scan line when camera is on */}
                 {isCameraScanning && (
                   <div
@@ -627,9 +653,10 @@ export function DriverScanner({
             {!isCameraScanning && (
               <div className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200">
                 <div>
-                  <Camera className="mx-auto mb-2 h-10 w-10" />
-                  <p className="text-sm">{cameraMessage}</p>
-                  <p className="mt-1 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
+                  <Camera className="mx-auto mb-3 h-14 w-14" />
+                  <p className="text-xl font-bold">แตะเพื่อสแกน</p>
+                  <p className="mt-2 text-sm">{cameraMessage}</p>
+                  <p className="mt-2 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
                 </div>
               </div>
             )}
@@ -639,7 +666,7 @@ export function DriverScanner({
                 <span className="rounded-full bg-black/60 px-3 py-1 text-xs text-cyan-200">{cameraMessage}</span>
               </div>
             )}
-          </div>
+          </button>
 
           {/* Scan line animation keyframes */}
           <style>{`
@@ -650,7 +677,7 @@ export function DriverScanner({
             }
           `}</style>
 
-          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto]">
+          <div className="mx-auto grid w-full max-w-4xl gap-3 sm:grid-cols-[1fr_auto]">
             <div
               className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${
                 shouldShowDestinationOnly
@@ -666,14 +693,12 @@ export function DriverScanner({
                 </div>
               </div>
             </div>
-            <Button type="button" onClick={startCamera} disabled={!job || isCameraScanning || isScanBlocked} className="gap-2">
-              <Camera className="h-4 w-4" />
-              เปิดกล้อง
-            </Button>
-            <Button type="button" variant="outline" onClick={stopCamera} disabled={!isCameraScanning} className="gap-2">
-              <Square className="h-4 w-4" />
-              หยุด
-            </Button>
+            {isCameraScanning ? (
+              <Button type="button" variant="outline" onClick={stopCamera} className="gap-2">
+                <Square className="h-4 w-4" />
+                หยุด
+              </Button>
+            ) : null}
           </div>
 
           <div className="mx-auto w-full max-w-4xl space-y-2">
