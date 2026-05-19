@@ -111,9 +111,25 @@ export function DriverScanner({
     selectLoadedJob(nextJob);
   }
 
+  function getOpenDestinations(nextJob: JobSummaryRecord | null) {
+    if (!nextJob) {
+      return [];
+    }
+
+    return nextJob.destinations.filter((destination) => {
+      const items = nextJob.items.filter((item) => item.destinationId === destination.id);
+      const required = items.reduce((sum, item) => sum + item.orderQty, 0);
+      const delivered = items.reduce((sum, item) => sum + item.deliveredQty, 0);
+
+      return required <= 0 || delivered < required;
+    });
+  }
+
+  const openDestinations = useMemo(() => getOpenDestinations(job), [job]);
+
   const currentDestination = useMemo(
-    () => job?.destinations.find((destination) => destination.id === currentLocation) ?? job?.destinations[0],
-    [currentLocation, job],
+    () => openDestinations.find((destination) => destination.id === currentLocation) ?? openDestinations[0],
+    [currentLocation, openDestinations],
   );
   const isDedicatedDriverMode = Boolean(initialJobId);
   const hasOriginCheckIn = Boolean(job?.originCheckedInAt && job.originGps);
@@ -154,6 +170,23 @@ export function DriverScanner({
       stopCamera();
     }
   }, [mode, shouldShowDestinationOnly]);
+
+  useEffect(() => {
+    if (!job || !shouldShowDestinationOnly) {
+      return;
+    }
+
+    if (!openDestinations.length) {
+      setCurrentLocation("");
+      stopCamera();
+      return;
+    }
+
+    if (!openDestinations.some((destination) => destination.id === currentLocation)) {
+      setCurrentLocation(openDestinations[0].id);
+      stopCamera();
+    }
+  }, [currentLocation, job, openDestinations, shouldShowDestinationOnly]);
 
   useEffect(() => {
     if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || !job) {
@@ -291,6 +324,14 @@ export function DriverScanner({
       setMessage(response.message);
       setScanResult(response.result);
       setCode("");
+      const nextOpenDestinations = getOpenDestinations(response.job);
+      const nextCurrentDestination = nextOpenDestinations.find((destination) => destination.id === currentDestination?.id);
+
+      if (!nextCurrentDestination) {
+        setCurrentLocation(nextOpenDestinations[0]?.id ?? "");
+        stopCamera();
+      }
+
       const nextRequiredTotal = response.job.items.reduce((sum, item) => sum + item.orderQty, 0);
       const nextLoadedTotal = response.job.items.reduce((sum, item) => sum + item.loadedQty, 0);
 
@@ -545,7 +586,7 @@ export function DriverScanner({
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">ปลายทางปัจจุบัน</p>
             </div>
-            {job?.destinations.length ? (
+            {openDestinations.length ? (
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger
                   className="mt-2 flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#cfd6df] bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
@@ -560,7 +601,7 @@ export function DriverScanner({
                     sideOffset={8}
                     className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
                   >
-                    {job.destinations.map((destination) => {
+                    {openDestinations.map((destination) => {
                       const isSelected = currentLocation === destination.id;
 
                       return (
@@ -585,7 +626,7 @@ export function DriverScanner({
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
             ) : (
-              <p className="mt-2 text-sm text-slate-500">ยังไม่มีปลายทาง</p>
+              <p className="mt-2 text-sm text-slate-500">ส่งครบทุกปลายทางแล้ว</p>
             )}
             <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">
               {currentDestination?.deliveryGps || "ยังไม่เช็กอินปลายทาง"}
@@ -600,7 +641,7 @@ export function DriverScanner({
             </Button>
           </div>
 
-          {isDestinationGpsRequired && job ? (
+          {isDestinationGpsRequired && job && currentDestination ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               ต้องเช็กอิน GPS ปลายทาง {currentDestination?.name || ""} ก่อน จึงจะสแกนส่งของได้
             </div>
@@ -747,7 +788,7 @@ export function DriverScanner({
         </CardHeader>
         <CardContent className="space-y-3">
           {job?.destinations.length ? (
-            (shouldShowDestinationOnly && currentDestination ? [currentDestination] : job.destinations).map((destination) => {
+            (shouldShowDestinationOnly ? openDestinations : job.destinations).map((destination) => {
               const items = job.items.filter((item) => item.destinationId === destination.id);
               const total = items.reduce((sum, item) => sum + item.orderQty, 0);
               const loaded = items.reduce((sum, item) => sum + item.loadedQty, 0);
@@ -778,7 +819,9 @@ export function DriverScanner({
               );
             })
           ) : (
-            <div className="rounded-md border bg-slate-50 p-4 text-sm text-slate-500">ยังไม่มีรายการในห้องนี้</div>
+            <div className="rounded-md border bg-slate-50 p-4 text-sm text-slate-500">
+              {shouldShowDestinationOnly ? "ส่งครบทุกปลายทางแล้ว" : "ยังไม่มีรายการในห้องนี้"}
+            </div>
           )}
 
           {job && !isDedicatedDriverMode ? (
