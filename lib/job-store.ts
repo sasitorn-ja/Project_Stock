@@ -443,6 +443,7 @@ function formatWrongDestinationMessage(
     `รายการ ${getJobItemLabel(item)} ไม่ใช่ของปลายทางที่เลือกตอนนี้`,
     `ต้องส่งที่: ${plannedDestinationName}`,
     `คุณกำลังอยู่ที่: ${currentDestinationName}`,
+    "ให้หยุดสแกนรายการนี้ แล้วเลือกปลายทางให้ถูกต้องก่อนสแกนต่อ",
   ].join("\n");
 }
 

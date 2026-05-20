@@ -9,6 +9,7 @@ import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
+import { JobMonitorSelector } from "@/components/jobs/job-monitor-selector";
 import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobStatusLabel } from "@/lib/job-labels";
@@ -24,7 +25,7 @@ export default async function JobMonitorPage({
   const { jobId } = await searchParams;
   const selectedJobId = jobId ?? null;
   const [jobs, job] = await Promise.all([
-    selectedJobId ? Promise.resolve([]) : listJobs(),
+    listJobs(),
     selectedJobId
       ? getJob(selectedJobId).then(async (activeJob) => activeJob ?? getJobArchive(selectedJobId))
       : Promise.resolve(null),
@@ -42,7 +43,12 @@ export default async function JobMonitorPage({
             ดูสถานะโหลดต้นทาง ส่งปลายทาง และแจ้งเตือนของงานที่สร้างจากข้อมูลจริง
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {!isArchivedJob ? (
+            <div className="w-full sm:w-72">
+              <JobMonitorSelector jobs={jobs} selectedJobId={selectedJobId} compact />
+            </div>
+          ) : null}
           <Badge variant="success" className="shrink-0">
             <Radio className="mr-1 h-3 w-3" />
             ข้อมูลสด
@@ -56,28 +62,7 @@ export default async function JobMonitorPage({
         </div>
       </div>
 
-      {/* เลือกงาน */}
-      {jobs.length ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">1</span>
-              <CardTitle className="text-sm">เลือกงานที่ต้องการติดตาม</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {jobs.map((currentJob) => (
-                <Button key={currentJob.id} asChild variant={currentJob.id === selectedJobId ? "default" : "outline"} size="sm" className="h-8 text-[12.5px]">
-                  <Link href={`/jobs/monitor?jobId=${encodeURIComponent(currentJob.id)}`}>
-                    {currentJob.roomName?.trim() || currentJob.id}
-                  </Link>
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : selectedJobId && job ? (
+      {isArchivedJob && selectedJobId && job ? (
         <Card>
           <CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
             <p className="text-sm text-muted-foreground">

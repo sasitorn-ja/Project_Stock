@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { CalendarClock, History, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
+import { JobHistorySelector } from "@/components/jobs/job-history-selector";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJobArchive, listJobArchives } from "@/lib/job-store";
@@ -34,17 +34,13 @@ export default async function JobHistoryPage({
         </p>
       </div>
 
-      {/* ── ขั้นตอน 1: ค้นหา ── */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">1</span>
-            <CardTitle className="text-sm">ค้นหางานย้อนหลัง</CardTitle>
-          </div>
-          <CardDescription className="ml-7">ค้นหาได้จากรหัสงาน คนขับ รถ PO หรือรหัสวัสดุ พร้อมกรองช่วงวันที่ปิดงาน</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">ค้นหาและเลือกงานย้อนหลัง</CardTitle>
+          <CardDescription>ค้นหาได้จากรหัสงาน คนขับ รถ PO หรือรหัสวัสดุ แล้วเลือกงานจากรายการแบบ dropdown</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-3">
+        <CardContent className="space-y-3">
+          <form className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_180px_180px_auto]">
             <input
               type="text"
               name="query"
@@ -52,62 +48,30 @@ export default async function JobHistoryPage({
               placeholder="ค้นหารหัสงาน, คนขับ, รถ, PO, รหัสวัสดุ"
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
             />
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
-              <input
-                type="date"
-                name="dateFrom"
-                defaultValue={dateFrom}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              />
-              <input
-                type="date"
-                name="dateTo"
-                defaultValue={dateTo}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              />
-              <Button type="submit" size="sm" className="col-span-2 sm:col-auto">ค้นหา</Button>
-            </div>
+            <input
+              type="date"
+              name="dateFrom"
+              defaultValue={dateFrom}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <input
+              type="date"
+              name="dateTo"
+              defaultValue={dateTo}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <Button type="submit" size="sm">ค้นหา</Button>
           </form>
+          <JobHistorySelector
+            jobs={jobs}
+            selectedJobId={selectedJobId}
+            query={query}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+          />
         </CardContent>
       </Card>
 
-      {/* ── ขั้นตอน 2: เลือกงาน ── */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">2</span>
-            <CardTitle className="text-sm">เลือกงานที่ต้องการดู</CardTitle>
-          </div>
-          <CardDescription className="ml-7">
-            {jobs.length > 0
-              ? `พบ ${jobs.length} งานในประวัติ — กดเลือกงานเพื่อดูรายละเอียด`
-              : "ยังไม่มีงานในประวัติย้อนหลังตามเงื่อนไขที่ค้นหา"}
-          </CardDescription>
-        </CardHeader>
-        {jobs.length > 0 && (
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {jobs.map((currentJob) => (
-                <Button
-                  key={currentJob.id}
-                  asChild
-                  variant={currentJob.id === selectedJobId ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 text-sm"
-                >
-                  <Link
-                    href={`/jobs/history?jobId=${encodeURIComponent(currentJob.id)}&query=${encodeURIComponent(query)}&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`}
-                  >
-                    {currentJob.roomName?.trim() || currentJob.id}
-                  </Link>
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* ── ขั้นตอน 3: รายละเอียด (แสดงเมื่อเลือกแล้ว) ── */}
       {!selectedJobId && (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-muted-foreground">
           เลือกงานจากรายการด้านบนเพื่อดูรายละเอียด
