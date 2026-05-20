@@ -372,6 +372,7 @@ function applyOriginCheckIn(
 
   job.originGps = formatGpsText(input);
   job.originCheckedInAt = checkedInAt;
+  prependAlert(job, "เช็กอินต้นทาง", `คนขับเช็กอินต้นทาง ${job.origin || "-"}\n${job.originGps}`, "ผ่าน");
   if (job.allowOriginRecheckAfterLocked) {
     job.allowOriginRecheckAfterLocked = false;
   }
@@ -411,6 +412,7 @@ function applyDestinationCheckIn(
 
   destination.deliveryGps = formatGpsText(input);
   destination.deliveryCheckedInAt = checkedInAt;
+  prependAlert(job, "เช็กอินปลายทาง", `คนขับเช็กอินปลายทาง ${destination.name || destination.address || "-"}\n${destination.deliveryGps}`, "ผ่าน");
   job.updatedAt = checkedInAt;
 
   return job;
@@ -1309,7 +1311,8 @@ async function checkInJobOriginInDatabase(input: {
           origin_checked_in_at = $3::timestamptz,
           origin_locked_at = $4::timestamptz,
           allow_origin_recheck_after_locked = $5,
-          updated_at = $6::timestamptz
+          updated_at = $6::timestamptz,
+          job_alerts_json = $7::jsonb
         WHERE delivery_job_id = $1
       `,
       [
@@ -1319,6 +1322,7 @@ async function checkInJobOriginInDatabase(input: {
         job.originLockedAt ?? null,
         Boolean(job.allowOriginRecheckAfterLocked),
         job.updatedAt,
+        JSON.stringify(job.alerts),
       ],
     );
 
@@ -1410,10 +1414,11 @@ async function checkInJobDestinationInDatabase(input: {
         UPDATE delivery_jobs
         SET
           delivery_destinations_json = $2::jsonb,
-          updated_at = $3::timestamptz
+          updated_at = $3::timestamptz,
+          job_alerts_json = $4::jsonb
         WHERE delivery_job_id = $1
       `,
-      [job.id, JSON.stringify(job.destinations), job.updatedAt],
+      [job.id, JSON.stringify(job.destinations), job.updatedAt, JSON.stringify(job.alerts)],
     );
 
     return summarizeJob(job);

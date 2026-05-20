@@ -1,6 +1,8 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useMemo, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type JobAlertRecord } from "@/lib/jobs";
@@ -41,9 +43,16 @@ function formatAlertDateTime(value: string) {
   return `${getPart("day")}/${getPart("month")}/${String(buddhistYear).padStart(2, "0")} ${getPart("hour")}:${getPart("minute")} น.`;
 }
 
+const filterOptions = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "pass", label: "ผ่าน" },
+  { value: "warning", label: "เตือน" },
+  { value: "critical", label: "ผิดปกติ" },
+] as const;
+
 export function JobAlertList({
   alerts,
-  description = "เมื่อระบบเจอความผิดปกติจากการสแกน จะเก็บเหตุการณ์ไว้ที่นี่ทันที",
+  description = "บันทึกเหตุการณ์ระหว่างงาน เช่น เช็กอิน สแกนผ่าน คำเตือน และความผิดปกติ",
 }: {
   alerts: JobAlertRecord[];
   description?: string;
@@ -68,6 +77,8 @@ export function JobAlertList({
     setPage(1);
   }
 
+  const selectedFilterLabel = filterOptions.find((option) => option.value === filter)?.label ?? "ทั้งหมด";
+
   return (
     <>
       <div className="flex flex-col justify-between gap-3 border-b border-[#d8dde6] px-6 py-5 sm:flex-row sm:items-start">
@@ -75,24 +86,39 @@ export function JobAlertList({
           <h3 className="text-sm font-semibold leading-none tracking-tight">รายการแจ้งเตือน</h3>
           <p className="mt-2 text-sm text-muted-foreground">{description}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {[
-            ["all", "ทั้งหมด"],
-            ["pass", "ผ่าน"],
-            ["warning", "เตือน"],
-            ["critical", "ผิดปกติ"],
-          ].map(([value, label]) => (
-            <Button
-              key={value}
-              type="button"
-              variant={filter === value ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-[12px]"
-              onClick={() => updateFilter(value as typeof filter)}
+        <div className="w-full sm:w-36">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger
+              className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-[#cfd6df] bg-white px-2.5 text-left text-xs font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
             >
-              {label}
-            </Button>
-          ))}
+              <span className="truncate">{selectedFilterLabel}</span>
+              <ChevronDown className="size-4 shrink-0 text-slate-500" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={8}
+                className="z-50 w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+              >
+                {filterOptions.map((option) => {
+                  const isSelected = filter === option.value;
+
+                  return (
+                    <DropdownMenu.Item
+                      key={option.value}
+                      onSelect={() => updateFilter(option.value)}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
+                    >
+                      <span className="flex size-4 shrink-0 items-center justify-center">
+                        {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                      </span>
+                      <span className="truncate">{option.label}</span>
+                    </DropdownMenu.Item>
+                  );
+                })}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </div>
 

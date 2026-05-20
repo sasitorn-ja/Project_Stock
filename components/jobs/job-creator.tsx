@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, FileWarning, MapPinned, Plus, Save, Truck } from "lucide-react";
+import { AlertCircle, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, Save, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -322,134 +322,34 @@ export function JobCreator() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_460px] 2xl:items-start">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader className="px-5 py-4 sm:px-6 sm:py-5">
-            <CardTitle>รายการที่เลือกจาก PO รอจัดส่ง</CardTitle>
-            <CardDescription>ระบบจะใช้รายการจริงเหล่านี้ไปสร้างงานและตัดออกจากคิวรอจัดส่งทันที</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5 px-5 py-4 sm:px-6 sm:py-5">
-            {isLoading ? (
-              <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-                กำลังโหลดรายการ PO ที่เลือก
-              </div>
-            ) : records.length ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{records.length.toLocaleString("th-TH")} รายการ</Badge>
-                  <Badge variant="secondary">{groupedDestinations.length.toLocaleString("th-TH")} ปลายทาง</Badge>
-                </div>
-                <div className="overflow-hidden rounded-md border">
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className="w-full min-w-[900px] text-sm">
-                      <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                        <tr>
-                          <th className="px-3 py-3.5 font-medium">PO SAP No.</th>
-                          <th className="px-3 py-3.5 font-medium">Item</th>
-                          <th className="px-3 py-3.5 font-medium">ปลายทาง</th>
-                          <th className="px-3 py-3.5 font-medium">รหัสวัสดุ</th>
-                          <th className="px-3 py-3.5 font-medium">ชื่อวัสดุ</th>
-                          <th className="w-28 whitespace-nowrap px-3 py-3.5 font-medium">จำนวนในไฟล์</th>
-                          <th className="w-36 whitespace-nowrap px-3 py-3.5 font-medium">จำนวนที่ต้องสแกน</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {records.map((record) => (
-                          <tr key={record.registryKey}>
-                            <td className="whitespace-nowrap px-3 py-3.5 align-top font-medium">{record.poSapNo}</td>
-                            <td className="whitespace-nowrap px-3 py-3.5 align-top">{record.poSapItem}</td>
-                            <td className="max-w-64 break-words px-3 py-3.5 align-top">
-                              <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
-                              {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
-                                <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
-                              ) : null}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-3.5 align-top">{record.materialCode || "-"}</td>
-                            <td className="max-w-72 break-words px-3 py-3.5 align-top">{record.materialName || "-"}</td>
-                            <td className="whitespace-nowrap px-3 py-3.5 align-top">{record.orderQty || "-"}</td>
-                            <td className="px-3 py-3.5 align-top">
-                              <QuantityStepper
-                                value={scanQuantities[record.registryKey] ?? 1}
-                                min={0}
-                                onChange={(value) => updateScanQuantity(record.registryKey, value)}
-                                className="w-36"
-                                inputClassName="h-9 text-sm"
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="divide-y lg:hidden">
-                    {records.map((record) => (
-                      <div key={record.registryKey} className="space-y-3 p-4 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem}</p>
-                          </div>
-                          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                            สแกน {scanQuantities[record.registryKey] ?? 1} รอบ
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">ปลายทาง</p>
-                          <p className="break-words">{destinationNameByRecordKey[record.registryKey] || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อในไฟล์</p>
-                          <p>{record.orderQty || "-"}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`scan-qty-${record.registryKey}`}>จำนวนที่ต้องสแกน</Label>
-                          <QuantityStepper
-                            id={`scan-qty-${record.registryKey}`}
-                            value={scanQuantities[record.registryKey] ?? 1}
-                            min={0}
-                            onChange={(value) => updateScanQuantity(record.registryKey, value)}
-                          />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">วัสดุ</p>
-                          <p className="break-words font-medium">{record.materialCode || "-"}</p>
-                          <p className="mt-0.5 break-words text-muted-foreground">{record.materialName || "-"}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3 rounded-md border bg-slate-50 p-6 text-sm text-muted-foreground dark:bg-slate-900">
-                <div className="flex items-center gap-3">
-                  <FileWarning className="h-5 w-5" />
-                  <p>ยังไม่มีรายการ PO ที่ถูกเลือกจากหน้าคิวรอจัดส่ง</p>
-                </div>
-                <Button type="button" variant="outline" onClick={() => router.push("/po")}>
-                  กลับไปเลือก PO
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="space-y-4 pb-24">
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{error}</p>
+          </div>
+        </div>
+      ) : null}
 
-        <Card className="min-w-0 overflow-hidden 2xl:sticky 2xl:top-4">
-          <CardHeader className="px-5 py-4 sm:px-6 sm:py-5">
-            <CardTitle>รายละเอียดงานขนส่ง</CardTitle>
-            <CardDescription>กำหนดผู้รับผิดชอบงานจริง และปรับชื่อปลายทาง/ที่อยู่ก่อนบันทึกเข้าระบบ โดยค่าเริ่มต้นจะอ้างอิงจากชื่อหน่วยงานในไฟล์ GR</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5 px-5 py-4 sm:grid-cols-2 sm:px-6 sm:py-5 2xl:grid-cols-1">
-            {error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200 sm:col-span-2 2xl:col-span-1">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>{error}</p>
-                </div>
-              </div>
-            ) : null}
-            <div className="space-y-2 sm:col-span-2 2xl:col-span-1">
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="px-5 py-4 sm:px-6 sm:py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
+                รายละเอียดงานขนส่ง
+              </CardTitle>
+              <CardDescription className="mt-1">
+                กำหนดผู้รับผิดชอบงานจริง และต้นทาง — ปลายทางจะใช้ตามไฟล์ GR โดยอัตโนมัติ
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="shrink-0">ขั้นที่ 1 จาก 2</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 px-5 py-4 sm:px-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
               <Label htmlFor="room-name">ชื่อห้องงาน</Label>
               <Input
                 id="room-name"
@@ -459,12 +359,12 @@ export function JobCreator() {
                   clearFieldError("roomName");
                   setRoomName(event.target.value);
                 }}
-                placeholder="เช่น รอบเช้า บางซื่อ-ลาดพร้าว / ส่งของร้าน A"
+                placeholder="เช่น รอบเช้า บางซื่อ"
                 className={getInputClassName("roomName")}
               />
               {renderFieldError("roomName")}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="vehicle">รถขนส่ง</Label>
               <Input
                 id="vehicle"
@@ -479,7 +379,7 @@ export function JobCreator() {
               />
               {renderFieldError("vehicle")}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="driver">คนขับ</Label>
               <Input
                 id="driver"
@@ -494,7 +394,7 @@ export function JobCreator() {
               />
               {renderFieldError("driver")}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="origin">ต้นทาง</Label>
               <Input
                 id="origin"
@@ -508,77 +408,201 @@ export function JobCreator() {
               />
               {renderFieldError("origin")}
             </div>
-            <div className="space-y-2">
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label>GPS ต้นทาง</Label>
               <div className="flex min-h-10 items-center rounded-md border bg-slate-50 px-3 text-sm text-muted-foreground dark:bg-slate-900">
                 ระบบจะดึงจากมือถือของผู้เริ่มงานในห้องคนขับเท่านั้น
               </div>
             </div>
-            <div className="space-y-2 sm:col-span-2 2xl:col-span-1">
+            <div className="space-y-1.5">
               <Label htmlFor="note">หมายเหตุ</Label>
               <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="ข้อมูลเสริมของงานนี้" />
             </div>
-            <div className="min-w-0 sm:col-span-2 2xl:col-span-1">
-              <div className="rounded-lg border bg-slate-50 p-4 text-sm dark:bg-slate-900 sm:p-5">
-                <div className="flex items-center gap-2 font-medium">
-                  <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
-                  สรุปปลายทาง
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <Card>
+          <CardContent className="px-5 py-4 sm:px-6">
+            <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
+              กำลังโหลดรายการ PO ที่เลือก
+            </div>
+          </CardContent>
+        </Card>
+      ) : records.length ? (
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="px-5 py-4 sm:px-6 sm:py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
+                    รายการที่เลือกจาก PO รอจัดส่ง
+                  </CardTitle>
+                  <CardDescription className="mt-1">ปรับจำนวนที่ต้องสแกนได้ก่อนยืนยันสร้างงาน</CardDescription>
                 </div>
-                <p className="mt-2 text-muted-foreground">
-                  พิมพ์ชื่อ/โลเคชันครั้งเดียวต่อปลายทาง แล้วติ๊กเพื่อย้ายรายการ PO SAP No. ไปยังจุดนั้น ลำดับกล่องปลายทางจะคงที่เพื่อให้ตรวจงานง่าย
-                </p>
-                <div className="mt-3">
-                  <Button type="button" variant="outline" size="sm" onClick={addDestinationGroup} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    เพิ่มปลายทาง
-                  </Button>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{records.length.toLocaleString("th-TH")} รายการ</Badge>
+                  <Badge variant="secondary">{groupedDestinations.length.toLocaleString("th-TH")} ปลายทาง</Badge>
                 </div>
-                <div className="mt-3 space-y-3">
-                  {groupedDestinations.map((destination) => (
-                    <div key={destination.id} className="min-w-0 space-y-3 rounded-md border bg-white px-4 py-4 dark:bg-slate-950">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between 2xl:flex-col">
+              </div>
+            </CardHeader>
+            <CardContent className="px-5 py-4 sm:px-6">
+              <div className="overflow-hidden rounded-md border">
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                      <tr>
+                        <th className="px-3 py-3 font-medium">PO SAP No.</th>
+                        <th className="px-3 py-3 font-medium">Item</th>
+                        <th className="px-3 py-3 font-medium">ปลายทาง</th>
+                        <th className="px-3 py-3 font-medium">รหัสวัสดุ</th>
+                        <th className="px-3 py-3 font-medium">ชื่อวัสดุ</th>
+                        <th className="w-24 whitespace-nowrap px-3 py-3 font-medium">ในไฟล์</th>
+                        <th className="w-36 whitespace-nowrap px-3 py-3 font-medium">ที่ต้องสแกน</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {records.map((record) => (
+                        <tr key={record.registryKey}>
+                          <td className="whitespace-nowrap px-3 py-3 align-top font-medium">{record.poSapNo}</td>
+                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.poSapItem}</td>
+                          <td className="max-w-56 break-words px-3 py-3 align-top">
+                            <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
+                            {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
+                              <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
+                            ) : null}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.materialCode || "-"}</td>
+                          <td className="max-w-64 break-words px-3 py-3 align-top">{record.materialName || "-"}</td>
+                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.orderQty || "-"}</td>
+                          <td className="px-3 py-3 align-top">
+                            <QuantityStepper
+                              value={scanQuantities[record.registryKey] ?? 1}
+                              min={0}
+                              onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                              className="w-36"
+                              inputClassName="h-9 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="divide-y lg:hidden">
+                  {records.map((record) => (
+                    <div key={record.registryKey} className="space-y-3 p-4 text-sm">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="break-words font-medium">{destinationDrafts[destination.id]?.name || destination.name}</p>
-                          <p className="mt-1 break-all text-xs text-muted-foreground">รหัสปลายทาง: {destination.id}</p>
+                          <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem}</p>
                         </div>
-                        <span className="shrink-0 text-xs text-muted-foreground sm:text-right 2xl:text-left">
-                          {destination.poCount.toLocaleString("th-TH")} line / จำนวนในไฟล์ {destination.totalQty.toLocaleString("th-TH")}
+                        <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                          สแกน {scanQuantities[record.registryKey] ?? 1} รอบ
                         </span>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
-                        <div className="space-y-2">
-                          <Label htmlFor={`destination-name-${destination.id}`}>ชื่อปลายทาง</Label>
-                          <Input
-                            id={`destination-name-${destination.id}`}
-                            value={destinationDrafts[destination.id]?.name ?? destination.name}
-                            aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.name`])}
-                            onChange={(event) => updateDestinationDraft(destination.id, "name", event.target.value)}
-                            placeholder="ชื่อปลายทางที่ใช้ในงานจริง"
-                            className={getInputClassName(`destination.${destination.id}.name`)}
-                          />
-                          {renderFieldError(`destination.${destination.id}.name`)}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`destination-address-${destination.id}`}>ที่อยู่ / โลเคชัน</Label>
-                          <Input
-                            id={`destination-address-${destination.id}`}
-                            value={destinationDrafts[destination.id]?.address ?? destination.address}
-                            aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.address`])}
-                            onChange={(event) => updateDestinationDraft(destination.id, "address", event.target.value)}
-                            placeholder="อาคาร, จุดส่ง, หรือคำอธิบายสถานที่"
-                            className={getInputClassName(`destination.${destination.id}.address`)}
-                          />
-                          {renderFieldError(`destination.${destination.id}.address`)}
-                        </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">ปลายทาง</p>
+                        <p className="break-words">{destinationNameByRecordKey[record.registryKey] || "-"}</p>
                       </div>
-                      <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <p className="text-xs font-semibold text-slate-700">ติ๊กเพื่อย้าย PO SAP No. มาปลายทางนี้</p>
-                          <Badge variant={destination.poCount ? "success" : "secondary"}>
-                            {destination.poCount.toLocaleString("th-TH")} รายการ
-                          </Badge>
-                        </div>
-                        <div className="grid max-h-56 gap-1 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-1">
+                      <div>
+                        <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อในไฟล์</p>
+                        <p>{record.orderQty || "-"}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`scan-qty-${record.registryKey}`}>จำนวนที่ต้องสแกน</Label>
+                        <QuantityStepper
+                          id={`scan-qty-${record.registryKey}`}
+                          value={scanQuantities[record.registryKey] ?? 1}
+                          min={0}
+                          onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">วัสดุ</p>
+                        <p className="break-words font-medium">{record.materialCode || "-"}</p>
+                        <p className="mt-0.5 break-words text-muted-foreground">{record.materialName || "-"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="min-w-0 overflow-hidden xl:sticky xl:top-4">
+            <CardHeader className="px-5 py-4 sm:px-6 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2">
+                  <MapPinned className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
+                  สรุปปลายทาง
+                </CardTitle>
+                <Badge variant="secondary" className="shrink-0">
+                  {groupedDestinations.length.toLocaleString("th-TH")} จุด
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 px-5 py-4 sm:px-6">
+              <div className="flex items-start gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200">
+                <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>1 งานขนส่ง = ส่งของไป 1+ จุด เพิ่มปลายทางที่นี่ได้ตามจริง</span>
+              </div>
+
+              <div className="space-y-3">
+                {groupedDestinations.map((destination, index) => (
+                  <div key={destination.id} className="min-w-0 space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-xs font-semibold text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-medium">
+                          {destinationDrafts[destination.id]?.name || destination.name}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {destination.poCount.toLocaleString("th-TH")} รายการ · จำนวนในไฟล์ {destination.totalQty.toLocaleString("th-TH")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`destination-name-${destination.id}`} className="text-xs">ชื่อปลายทาง</Label>
+                        <Input
+                          id={`destination-name-${destination.id}`}
+                          value={destinationDrafts[destination.id]?.name ?? destination.name}
+                          aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.name`])}
+                          onChange={(event) => updateDestinationDraft(destination.id, "name", event.target.value)}
+                          placeholder="ชื่อปลายทางที่ใช้ในงานจริง"
+                          className={getInputClassName(`destination.${destination.id}.name`, "h-9 text-sm")}
+                        />
+                        {renderFieldError(`destination.${destination.id}.name`)}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`destination-address-${destination.id}`} className="text-xs">ที่อยู่ / โลเคชัน</Label>
+                        <Input
+                          id={`destination-address-${destination.id}`}
+                          value={destinationDrafts[destination.id]?.address ?? destination.address}
+                          aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.address`])}
+                          onChange={(event) => updateDestinationDraft(destination.id, "address", event.target.value)}
+                          placeholder="อาคาร, จุดส่ง, หรือคำอธิบายสถานที่"
+                          className={getInputClassName(`destination.${destination.id}.address`, "h-9 text-sm")}
+                        />
+                        {renderFieldError(`destination.${destination.id}.address`)}
+                      </div>
+                    </div>
+                    <details className="rounded-md border border-slate-200 bg-slate-50 group dark:border-slate-800 dark:bg-slate-900">
+                      <summary className="flex cursor-pointer items-center justify-between gap-2 px-2 py-2 text-xs font-medium text-slate-700 dark:text-slate-200">
+                        <span>ติ๊กย้ายรายการ PO มาปลายทางนี้</span>
+                        <Badge variant={destination.poCount ? "success" : "secondary"}>
+                          {destination.poCount.toLocaleString("th-TH")} รายการ
+                        </Badge>
+                      </summary>
+                      <div className="border-t border-slate-200 p-2 dark:border-slate-800">
+                        <div className="grid max-h-56 gap-1 overflow-y-auto pr-1">
                           {records.map((record) => {
                             const checked = destinationAssignments[record.registryKey] === destination.id;
                             const assignedDestination = destinationAssignments[record.registryKey];
@@ -618,35 +642,78 @@ export function JobCreator() {
                             );
                           })}
                         </div>
-                        <p className="mt-2 text-[11px] text-muted-foreground">ติ๊กที่ปลายทางใหม่เพื่อย้ายรายการ ระบบจะให้ 1 รายการอยู่ได้แค่ 1 ปลายทาง</p>
+                        <p className="mt-2 text-[11px] text-muted-foreground">1 รายการอยู่ได้แค่ 1 ปลายทาง</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </details>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="sm:col-span-2 2xl:col-span-1">
-              <Button type="button" className="w-full" onClick={handleCreateJob} disabled={isLoading || isSaving || !records.length}>
-                {isSaving ? (
-                  <>กำลังบันทึกงาน</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    สร้างงานจริงจากรายการที่เลือก
-                  </>
-                )}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addDestinationGroup}
+                className="h-10 w-full justify-center gap-2 border-dashed border-cyan-300 text-cyan-700 hover:bg-cyan-50 dark:border-cyan-800 dark:text-cyan-300 dark:hover:bg-cyan-950/30"
+              >
+                <Plus className="h-4 w-4" />
+                เพิ่มปลายทาง
               </Button>
+
+              <details className="text-xs">
+                <summary className="flex cursor-pointer items-center gap-1.5 text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  สรุปปลายทางทำอะไร?
+                </summary>
+                <p className="mt-2 leading-relaxed text-muted-foreground">
+                  ใช้ระบุว่าของในงานนี้ต้องส่งไปกี่จุด เช่น 1 งานอาจส่ง 3 ไซต์ — ระบบจะออก QR แยกตามปลายทางให้คนขับสแกนยืนยันการส่งทีละจุด
+                  ลำดับปลายทางคงที่เพื่อให้ตรวจงานง่าย
+                </p>
+              </details>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="space-y-3 px-5 py-6 sm:px-6">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <FileWarning className="h-5 w-5" />
+              <p>ยังไม่มีรายการ PO ที่ถูกเลือกจากหน้าคิวรอจัดส่ง</p>
             </div>
-            <div className="rounded-lg border bg-cyan-50 p-4 text-sm text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-200 sm:col-span-2 sm:p-5 2xl:col-span-1">
-              <div className="flex items-center gap-2 font-medium">
-                <Truck className="h-4 w-4" />
-                หลังสร้างสำเร็จ
-              </div>
-              <p className="mt-2">ระบบจะพาไปหน้าติดตามงานทันที และต้องให้คนหน้างานเช็กอิน GPS ต้นทางจากมือถือก่อนเริ่มโหลดสินค้า</p>
-            </div>
+            <Button type="button" variant="outline" onClick={() => router.push("/po")}>
+              กลับไปเลือก PO
+            </Button>
           </CardContent>
         </Card>
-      </section>
+      )}
+
+      <div className="sticky bottom-0 z-10 -mx-2 mt-4 rounded-lg border bg-white/95 px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-slate-950/90 dark:supports-[backdrop-filter]:bg-slate-950/70 sm:mx-0">
+        <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Truck className="h-3.5 w-3.5" />
+            ยืนยันแล้วระบบจะพาไปหน้าติดตามงานทันที — คนหน้างานต้องเช็กอิน GPS ต้นทางก่อนเริ่ม
+          </p>
+          <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+            <Button type="button" variant="outline" onClick={() => router.push("/po")} className="flex-1 sm:flex-none">
+              ยกเลิก
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateJob}
+              disabled={isLoading || isSaving || !records.length}
+              className="flex-1 sm:flex-none"
+            >
+              {isSaving ? (
+                <>กำลังบันทึกงาน</>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  สร้างงาน
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
