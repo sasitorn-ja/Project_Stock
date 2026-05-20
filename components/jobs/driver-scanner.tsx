@@ -76,7 +76,7 @@ export function DriverScanner({
   const [message, setMessage] = useState("");
   const [scanResult, setScanResult] = useState<"ok" | "alert" | null>(null);
   const [latestGps, setLatestGps] = useState("");
-  const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน QR หรือบาร์โค้ด");
+  const [cameraMessage, setCameraMessage] = useState("เปิดกล้องเพื่อสแกน PO SAP No.");
   const [isCameraScanning, setIsCameraScanning] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -507,7 +507,7 @@ export function DriverScanner({
       await videoRef.current.play();
 
       setIsCameraScanning(true);
-      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มีเลข PO/รหัสสินค้า");
+      setCameraMessage("เล็งกรอบไปที่ QR Code หรือ Barcode ที่มี PO SAP No.");
 
       // Step 2: attach ZXing decoder to the live stream
       const reader = new BrowserMultiFormatReader(createScanHints(), {
@@ -1083,14 +1083,14 @@ export function DriverScanner({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="scan-code">เลข PO / บาร์โค้ด / QR / รหัสรายการ</Label>
+            <Label htmlFor="scan-code">PO SAP No.</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="scan-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 disabled={!job || isScanBlocked}
-                placeholder="สแกนหรือกรอกรหัส"
+                placeholder="สแกนหรือกรอก PO SAP No."
               />
               <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">
                 {isSubmitting ? "กำลังบันทึก" : "บันทึก"}

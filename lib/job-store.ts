@@ -458,27 +458,23 @@ function formatWrongJobMessage(input: {
   poSapItem: string;
   materialCode: string;
   registryKey: string;
-  matchedBy: "registryKey" | "materialCode" | "poWebNo" | "poSapNo";
 }) {
   const details = [
-    `ไม่พบเลข PO หรือรหัส ${input.code} ในรายการของ Job นี้`,
+    `ไม่พบ PO SAP No. ${input.code} ในรายการของ Job นี้`,
     `รายการนี้อยู่ใน Job ${input.otherJobId}`,
     `ปลายทาง: ${input.destinationName}`,
     `PO: ${input.poSapNo} / Item: ${input.poSapItem}`,
     `Material: ${input.materialCode || "-"}`,
     `Registry: ${input.registryKey}`,
+    "พบเลข PO นี้ในอีกงานหนึ่ง กรุณาตรวจสอบ Item ให้ตรงก่อนสแกนต่อ",
   ];
-
-  if (input.matchedBy === "poSapNo") {
-    details.push("พบเลข PO นี้ในอีกงานหนึ่ง กรุณาตรวจสอบ Item ให้ตรงก่อนสแกนต่อ");
-  }
 
   return details.join("\n");
 }
 
 function formatUnknownJobMessage(code: string, jobId: string) {
   return [
-    `ไม่พบเลข PO หรือรหัส ${code} ในรายการที่เพิ่มไว้สำหรับ Job นี้`,
+    `ไม่พบ PO SAP No. ${code} ในรายการที่เพิ่มไว้สำหรับ Job นี้`,
     `กรุณาตรวจสอบว่าอยู่ใน Job ${jobId} หรือยังไม่ได้เพิ่มเข้าระบบ`,
   ].join("\n");
 }
@@ -525,27 +521,17 @@ function buildScanCodeCandidates(code: string) {
 }
 
 function itemMatchesScanCode(item: JobRecord["items"][number], scanCodeCandidates: Set<string>) {
-  return [item.registryKey, item.materialCode, item.poSapNo, item.poWebNo]
-    .filter(Boolean)
-    .some((value) => scanCodeCandidates.has(value.toLowerCase()));
+  return Boolean(item.poSapNo) && scanCodeCandidates.has(item.poSapNo.toLowerCase());
 }
 
 function findMatchingItemInJobs(jobs: JobRecord[], currentJobId: string, code: string) {
   const scanCodeCandidates = buildScanCodeCandidates(code);
-  const matchFields = [
-    { field: "registryKey" as const, score: 3 },
-    { field: "materialCode" as const, score: 2 },
-    { field: "poWebNo" as const, score: 2 },
-    { field: "poSapNo" as const, score: 1 },
-  ];
 
   const candidates = jobs
     .filter((job) => job.id !== currentJobId)
     .flatMap((job) =>
       job.items.flatMap((item) => {
-        const match = matchFields.find(({ field }) => scanCodeCandidates.has(item[field].toLowerCase()));
-
-        if (!match) {
+        if (!item.poSapNo || !scanCodeCandidates.has(item.poSapNo.toLowerCase())) {
           return [];
         }
 
@@ -556,13 +542,11 @@ function findMatchingItemInJobs(jobs: JobRecord[], currentJobId: string, code: s
             job,
             item,
             destinationName: destination?.name || item.destinationName || "-",
-            matchedBy: match.field,
-            score: match.score,
           },
         ];
       }),
     )
-    .sort((first, second) => second.score - first.score || second.job.createdAt.localeCompare(first.job.createdAt));
+    .sort((first, second) => second.job.createdAt.localeCompare(first.job.createdAt));
 
   return candidates[0];
 }
@@ -658,7 +642,6 @@ function applyJobScan(
             poSapItem: otherJobMatch.item.poSapItem,
             materialCode: otherJobMatch.item.materialCode,
             registryKey: otherJobMatch.item.registryKey,
-            matchedBy: otherJobMatch.matchedBy,
           })
         : formatUnknownJobMessage(code, job.id),
       "กลาง",
