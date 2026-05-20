@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Job Transport QR — รายงานและประวัติงาน (Preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f1f3f5;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #111827;
+    --text-2: #6b7280;
+    --text-3: #9ca3af;
+    --primary: #111827;
+    --primary-fg: #ffffff;
+    --info-bg: #e6f1fb;
+    --info-fg: #0c447c;
+    --info-mid: #378add;
+    --success-bg: #e1f5ee;
+    --success-fg: #085041;
+    --success-mid: #1d9e75;
+    --warn-bg: #faeeda;
+    --warn-fg: #633806;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,0.04);
+    --shadow: 0 4px 16px rgba(16,24,40,0.06);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  /* ============== APP SHELL ============== */
+  .app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .brand-logo {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .brand-name { font-weight: 600; font-size: 14px; }
+  .brand-sub { font-size: 11px; color: var(--text-2); }
+  .nav-group { margin-bottom: 14px; }
+  .nav-label {
+    font-size: 11px;
+    color: var(--text-3);
+    padding: 0 8px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 13px;
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--surface-2); color: var(--text); font-weight: 500; }
+  .nav-item.active .ti { color: var(--info-mid); }
+  .nav-item .ti { font-size: 16px; }
+
+  /* Main area */
+  .main {
+    padding: 20px 24px 60px;
+    min-width: 0;
+  }
+  .page-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .page-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .page-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-2); }
+
+  .stat-row { display: flex; gap: 8px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 70px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-2); margin: 0; }
+  .stat-val { font-size: 18px; font-weight: 600; margin: 0; }
+  .stat.success .stat-val { color: var(--success-fg); }
+
+  /* Filter bar */
+  .filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 10px;
+  }
+  .search-input input {
+    border: none; outline: none; background: transparent;
+    width: 100%;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 0;
+  }
+  .search-input .ti { color: var(--text-2); font-size: 16px; }
+  .filter-bar select, .filter-bar input[type="date"] {
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-size: 13px;
+    background: white;
+    outline: none;
+  }
+  .btn {
+    font-family: inherit;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn-primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+  .btn-primary:hover { background: #000; }
+
+  /* Master-Detail layout */
+  .md-layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+
+  /* List card */
+  .list-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .list-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .list-header label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  .job-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .job-item:last-child { border-bottom: none; }
+  .job-item:hover { background: var(--surface-2); }
+  .job-item.active {
+    background: var(--info-bg);
+    border-left: 3px solid var(--info-mid);
+    padding-left: 11px;
+  }
+  .job-item input[type="checkbox"] { margin: 2px 0 0; }
+  .job-meta { flex: 1; min-width: 0; }
+  .job-title-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 2px;
+  }
+  .job-name { font-size: 14px; font-weight: 500; }
+  .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 500;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .badge-success { background: var(--success-bg); color: var(--success-fg); }
+  .badge-info { background: var(--info-bg); color: var(--info-fg); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .job-id { font-size: 11px; color: var(--text-3); margin: 0; }
+  .job-driver { font-size: 12px; color: var(--text-2); margin: 2px 0 0; }
+  .job-time { font-size: 11px; color: var(--text-3); margin: 0; }
+
+  /* Detail card */
+  .detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .detail-back {
+    display: none;
+    align-items: center; gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .detail-back:hover { color: var(--text); }
+  .detail-header {
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-title-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .detail-title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .detail-id { margin: 6px 0 0; font-size: 12px; color: var(--text-3); }
+  .detail-actions { display: flex; gap: 6px; }
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: white;
+    cursor: pointer;
+    color: var(--text-2);
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-cell {
+    background: var(--surface-2);
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+  }
+  .info-label { font-size: 11px; color: var(--text-2); margin: 0 0 2px; }
+  .info-val { font-size: 13px; font-weight: 500; margin: 0; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+  }
+  .tab {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text-2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab.active {
+    color: var(--text);
+    font-weight: 500;
+    border-bottom-color: var(--text);
+  }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .tab-panel { padding: 16px 20px; display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Destination card */
+  .dest-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .dest-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+  }
+  .dest-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--success-bg);
+    color: var(--success-fg);
+    font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .dest-name { font-size: 14px; font-weight: 500; }
+  .dest-sub { font-size: 12px; color: var(--text-2); margin: 0 0 10px; }
+  .dest-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dest-stat {
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .dest-stat.blue { background: var(--info-bg); }
+  .dest-stat.blue .num, .dest-stat.blue .lbl { color: var(--info-fg); }
+  .dest-stat.green { background: var(--success-bg); }
+  .dest-stat.green .num, .dest-stat.green .lbl { color: var(--success-fg); }
+  .dest-stat .lbl { font-size: 11px; color: var(--text-2); margin: 0; }
+  .dest-stat .num { font-size: 17px; font-weight: 600; margin: 2px 0 0; }
+
+  /* GPS panel */
+  .gps-panel {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .gps-panel .coord { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+  .gps-panel .addr { font-size: 12px; color: var(--text-2); margin: 4px 0 0; line-height: 1.55; }
+
+  /* Alert list */
+  .alert-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    background: var(--success-bg);
+    border-radius: var(--radius);
+  }
+  .alert-row .ti { color: var(--success-mid); font-size: 18px; margin-top: 1px; }
+  .alert-title { font-size: 13px; font-weight: 500; color: var(--success-fg); margin: 0; }
+  .alert-sub { font-size: 12px; color: var(--success-fg); opacity: 0.75; margin: 2px 0 0; }
+
+  /* Empty state */
+  .empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-3);
+  }
+  .empty .ti { font-size: 40px; opacity: 0.5; display: block; margin-bottom: 12px; }
+
+  /* Mobile bar */
+  .mobile-topbar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .mobile-topbar .ti { font-size: 22px; cursor: pointer; }
+  .mobile-topbar .title { font-weight: 600; font-size: 15px; flex: 1; }
+
+  /* ============== RESPONSIVE ============== */
+  @media (max-width: 1100px) {
+    .info-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .md-layout { grid-template-columns: 300px 1fr; }
+  }
+  @media (max-width: 768px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .mobile-topbar { display: flex; }
+    .main { padding: 14px 14px 80px; }
+    .page-header { margin-bottom: 12px; }
+    .page-title { font-size: 18px; }
+    .stat-row { width: 100%; }
+    .stat { flex: 1; padding: 6px 10px; min-width: 0; }
+    .stat-val { font-size: 16px; }
+    .md-layout {
+      grid-template-columns: 1fr;
+      position: relative;
+    }
+    .list-card.hidden-mobile { display: none; }
+    .detail-card.hidden-mobile { display: none; }
+    .detail-card { display: none; }
+    .detail-card.active-mobile { display: block; }
+    .detail-back { display: flex; }
+    .info-grid { grid-template-columns: 1fr 1fr; padding: 12px 14px; }
+    .detail-header { padding: 14px 16px 12px; }
+    .detail-title { font-size: 17px; }
+    .tab-panel { padding: 14px 16px; }
+    .tabs { padding: 0 12px; overflow-x: auto; }
+    .tab { padding: 10px 12px; flex-shrink: 0; }
+  }
+
+  /* Bottom hint */
+  .hint {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    background: var(--text);
+    color: white;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    opacity: 0.9;
+    z-index: 100;
+    pointer-events: none;
+  }
+  @media (max-width: 768px) {
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">ST</div>
+      <div>
+        <div class="brand-name">Job Transport QR</div>
+        <div class="brand-sub">Store QR System</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-label">งานขนส่ง</p>
+      <div class="nav-item"><i class="ti ti-file-import"></i> นำเข้า PO</div>
+      <div class="nav-item"><i class="ti ti-package"></i> PO รอจัดส่ง</div>
+      <div class="nav-item"><i class="ti ti-plus"></i> สร้างงาน</div>
+      <div class="nav-item"><i class="ti ti-map-2"></i> ติดตามงาน</div>
+      <div class="nav-item"><i class="ti ti-users"></i> ห้องคนขับ</div>
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-label">จัดการงาน</p>
+      <div class="nav-item active"><i class="ti ti-report"></i> รายงานและประวัติงาน</div>
+    </div>
+
+    <div class="nav-group" style="margin-top: auto;">
+      <p class="nav-label">ระบบ</p>
+      <div class="nav-item"><i class="ti ti-settings"></i> ตั้งค่า</div>
+      <div class="nav-item"><i class="ti ti-help"></i> ช่วยเหลือ</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="mobile-topbar">
+      <i class="ti ti-menu-2"></i>
+      <span class="title">รายงานและประวัติงาน</span>
+      <i class="ti ti-search"></i>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">รายงานและประวัติงาน</h1>
+        <p class="page-sub">งานปิดแล้วจะเก็บไว้ 100 วัน · ใช้เพื่อกรอง วิเคราะห์ และส่งออก Excel</p>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><p class="stat-label">ทั้งหมด</p><p class="stat-val" id="stat-all">5</p></div>
+        <div class="stat"><p class="stat-label">เปิดอยู่</p><p class="stat-val">0</p></div>
+        <div class="stat success"><p class="stat-label">ปิดแล้ว</p><p class="stat-val">5</p></div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="search-input">
+        <i class="ti ti-search"></i>
+        <input type="text" placeholder="ค้นหารหัสงาน, ห้องงาน, คนขับ, รถ, PO, รหัสวัสดุ" />
+      </div>
+      <select>
+        <option>ทุกสถานะงาน</option>
+        <option>ปิดแล้ว</option>
+        <option>เปิดอยู่</option>
+      </select>
+      <input type="date" />
+      <button class="btn"><i class="ti ti-download"></i> Export ที่เลือก</button>
+      <button class="btn btn-primary"><i class="ti ti-file-export"></i> Export ตามผลกรอง</button>
+    </div>
+
+    <div class="md-layout">
+
+      <section class="list-card" id="list-card">
+        <div class="list-header">
+          <span>พบ <strong id="found-count">5</strong> งาน · เลือก <strong id="selected-count">5</strong></span>
+          <label><input type="checkbox" checked /> เลือกทั้งหมด</label>
+        </div>
+        <div id="job-list"></div>
+      </section>
+
+      <section class="detail-card" id="detail-card">
+        <div class="detail-back" id="back-btn"><i class="ti ti-arrow-left"></i> กลับไปรายการ</div>
+
+        <div class="detail-header">
+          <div class="detail-title-row">
+            <div>
+              <h2 class="detail-title" id="d-title">20/05/69 รอบเช้า</h2>
+              <span class="badge badge-success" id="d-status">
+                <i class="ti ti-circle-check" style="font-size:12px;"></i> ปิดงานแล้ว
+              </span>
+              <p class="detail-id mono" id="d-id">JOB-20260520-075059-000039</p>
+            </div>
+            <div class="detail-actions">
+              <button class="icon-btn" title="Export"><i class="ti ti-file-export"></i></button>
+              <button class="icon-btn" title="Print"><i class="ti ti-printer"></i></button>
+              <button class="icon-btn" title="Share"><i class="ti ti-share"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-cell"><p class="info-label">คนขับ</p><p class="info-val" id="d-driver">นาย B</p></div>
+          <div class="info-cell"><p class="info-label">รถ</p><p class="info-val" id="d-truck">2ขก 5435</p></div>
+          <div class="info-cell"><p class="info-label">ต้นทาง</p><p class="info-val" id="d-origin">โรงงาน บางซ่อน</p></div>
+          <div class="info-cell"><p class="info-label">ปิดงานเมื่อ</p><p class="info-val" id="d-closed">20 พ.ค. 14:54</p></div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="dest"><i class="ti ti-map-pin" style="font-size:14px; vertical-align:-2px;"></i> ปลายทาง</div>
+          <div class="tab" data-tab="gps"><i class="ti ti-current-location" style="font-size:14px; vertical-align:-2px;"></i> GPS</div>
+          <div class="tab" data-tab="alerts"><i class="ti ti-bell" style="font-size:14px; vertical-align:-2px;"></i> แจ้งเตือน</div>
+          <div class="tab" data-tab="po"><i class="ti ti-file"></i> PO</div>
+        </div>
+
+        <div class="tab-panel active" data-panel="dest">
+          <div class="dest-card">
+            <div class="dest-head">
+              <span class="dest-num">1</span>
+              <span class="dest-name">เชียงใหม่</span>
+              <span class="badge badge-success">ส่งครบ</span>
+              <span style="margin-left:auto; font-size:12px; color:var(--text-2);">รัศมี 150 ม.</span>
+            </div>
+            <p class="dest-sub">Digital Operation Systems</p>
+            <div class="dest-stats">
+              <div class="dest-stat">
+                <p class="lbl">ต้องสแกน</p>
+                <p class="num">2</p>
+              </div>
+              <div class="dest-stat blue">
+                <p class="lbl">ขึ้นรถแล้ว</p>
+                <p class="num">2</p>
+              </div>
+              <div class="dest-stat green">
+                <p class="lbl">ลงของแล้ว</p>
+                <p class="num">2</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="gps">
+          <div class="gps-panel">
+            <p style="margin: 0 0 6px; font-size: 13px; font-weight: 500;"><i class="ti ti-current-location" style="font-size:15px; vertical-align:-2px; color: var(--info-mid);"></i> GPS ต้นทางจริง</p>
+            <p class="coord">13.819672, 100.515659</p>
+            <p class="addr">accuracy 42 m · แขวง วงศ์สว่าง เขต บางซื่อ จังหวัด กรุงเทพมหานคร ใกล้ ถนนพิบูลสงคราม · ชุมชนข้างธนาคารอาคารสงเคราะห์</p>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="alerts">
+          <div class="alert-row">
+            <i class="ti ti-circle-check"></i>
+            <div>
+              <p class="alert-title">ปิดงานสำเร็จ</p>
+              <p class="alert-sub">ส่งครบทุกปลายทางแล้ว ระบบปิดงานและย้ายเข้าประวัติงาน · 20/05/69 14:54 น.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="po">
+          <div style="padding: 16px; background: var(--surface-2); border-radius: var(--radius); font-size: 13px; color: var(--text-2);">
+            <p style="margin:0;">ยังไม่มีไฟล์ PO แนบกับงานนี้</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="hint">รวมรายงาน + ประวัติงาน = หน้าเดียว · กดรายการซ้ายเพื่อดู detail</div>
+
+<script>
+  const jobs = [
+    {
+      id: 'JOB-20260520-075059-000039',
+      name: '20/05/69 รอบเช้า',
+      driver: 'นาย B',
+      truck: '2ขก 5435',
+      origin: 'โรงงาน บางซ่อน',
+      closedAt: '20 พ.ค. 14:54',
+      destName: 'เชียงใหม่',
+      destCompany: 'Digital Operation Systems',
+      mustScan: 2, loaded: 2, delivered: 2,
+      lat: '13.819672', lng: '100.515659', acc: 42,
+      address: 'แขวง วงศ์สว่าง เขต บางซื่อ จังหวัด กรุงเทพมหานคร ใกล้ ถนนพิบูลสงคราม · ชุมชนข้างธนาคารอาคารสงเคราะห์'
+    },
+    {
+      id: 'JOB-20260520-042145-000037',
+      name: 'q1',
+      driver: 'D1',
+      truck: '45654',
+      origin: 'โรงงาน A',
+      closedAt: '20 พ.ค. 11:24',
+      destName: 'ขอนแก่น',
+      destCompany: 'Northeast Logistics',
+      mustScan: 3, loaded: 3, delivered: 3,
+      lat: '13.756331', lng: '100.501765', acc: 28,
+      address: 'แขวง พระบรมมหาราชวัง เขต พระนคร กรุงเทพมหานคร'
+    },
+    {
+      id: 'JOB-20260520-041907-000036',
+      name: 'A123',
+      driver: 'D1',
+      truck: '1234',
+      origin: 'โรงงาน A',
+      closedAt: '20 พ.ค. 11:21',
+      destName: 'นครราชสีมา',
+      destCompany: 'Korat Distribution Hub',
+      mustScan: 2, loaded: 2, delivered: 2,
+      lat: '13.736717', lng: '100.523186', acc: 35,
+      address: 'แขวง สีลม เขต บางรัก กรุงเทพมหานคร'
+    },
+    {
+      id: 'JOB-20260519-084802-000031',
+      name: 'q1',
+      driver: 'A1',
+      truck: '34325',
+      origin: 'โรงงาน B',
+      closedAt: '19 พ.ค. 15:54',
+      destName: 'ภูเก็ต',
+      destCompany: 'Andaman Goods',
+      mustScan: 1, loaded: 1, delivered: 1,
+      lat: '13.802400', lng: '100.557000', acc: 50,
+      address: 'แขวง ลาดยาว เขต จตุจักร กรุงเทพมหานคร'
+    },
+    {
+      id: 'JOB-20260519-081147-000030',
+      name: 'A123',
+      driver: 'D1',
+      truck: '466',
+      origin: 'โรงงาน A',
+      closedAt: '19 พ.ค. 15:15',
+      destName: 'สงขลา',
+      destCompany: 'Hatyai Logistics',
+      mustScan: 2, loaded: 2, delivered: 2,
+      lat: '13.769900', lng: '100.538100', acc: 22,
+      address: 'แขวง คลองตันเหนือ เขต วัฒนา กรุงเทพมหานคร'
+    }
+  ];
+
+  const listEl = document.getElementById('job-list');
+  const listCard = document.getElementById('list-card');
+  const detailCard = document.getElementById('detail-card');
+  const backBtn = document.getElementById('back-btn');
+
+  function renderList() {
+    listEl.innerHTML = jobs.map((j, idx) => `
+      <div class="job-item ${idx === 0 ? 'active' : ''}" data-id="${j.id}">
+        <input type="checkbox" checked onclick="event.stopPropagation();" />
+        <div class="job-meta">
+          <div class="job-title-row">
+            <span class="job-name">${j.name}</span>
+            <span class="badge badge-success" style="margin-left:auto;">ปิดแล้ว</span>
+          </div>
+          <p class="job-id mono">${j.id}</p>
+          <p class="job-driver">${j.driver} · ${j.truck}</p>
+          <p class="job-time">${j.closedAt}</p>
+        </div>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.job-item').forEach(el => {
+      el.addEventListener('click', () => selectJob(el.dataset.id));
+    });
+  }
+
+  function selectJob(id) {
+    const j = jobs.find(x => x.id === id);
+    if (!j) return;
+
+    document.querySelectorAll('.job-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+
+    document.getElementById('d-title').textContent = j.name;
+    document.getElementById('d-id').textContent = j.id;
+    document.getElementById('d-driver').textContent = j.driver;
+    document.getElementById('d-truck').textContent = j.truck;
+    document.getElementById('d-origin').textContent = j.origin;
+    document.getElementById('d-closed').textContent = j.closedAt;
+
+    const destPanel = document.querySelector('[data-panel="dest"]');
+    destPanel.querySelector('.dest-name').textContent = j.destName;
+    destPanel.querySelector('.dest-sub').textContent = j.destCompany;
+    destPanel.querySelectorAll('.dest-stat .num')[0].textContent = j.mustScan;
+    destPanel.querySelectorAll('.dest-stat .num')[1].textContent = j.loaded;
+    destPanel.querySelectorAll('.dest-stat .num')[2].textContent = j.delivered;
+
+    const gpsPanel = document.querySelector('[data-panel="gps"]');
+    gpsPanel.querySelector('.coord').textContent = j.lat + ', ' + j.lng;
+    gpsPanel.querySelector('.addr').textContent = `accuracy ${j.acc} m · ${j.address}`;
+
+    if (window.innerWidth <= 768) {
+      listCard.classList.add('hidden-mobile');
+      detailCard.classList.add('active-mobile');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  backBtn.addEventListener('click', () => {
+    listCard.classList.remove('hidden-mobile');
+    detailCard.classList.remove('active-mobile');
+  });
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const name = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.dataset.panel === name);
+      });
+    });
+  });
+
+  renderList();
+</script>
+
+</body>
+</html>
