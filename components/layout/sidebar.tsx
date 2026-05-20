@@ -7,6 +7,7 @@ import {
   History,
   X,
   FilePlus2,
+  FileSpreadsheet,
   FileText,
   Upload,
   QrCode,
@@ -31,6 +32,7 @@ const sections = [
     items: [
       { name: "รายการงาน", href: "/jobs", icon: Truck },
       { name: "ประวัติงาน", href: "/jobs/history", icon: History },
+      { name: "รายงาน", href: "/reports", icon: FileSpreadsheet },
     ],
   },
 ];
