@@ -796,9 +796,7 @@ export function DriverScanner({
             <p className="text-sm leading-6 text-emerald-800">
               ถ้าเพิ่งสแกนส่งครบ แปลว่าระบบบันทึกจบงานแล้วและย้ายงานเข้าประวัติเรียบร้อย
             </p>
-            <Button asChild variant="outline">
-              <Link href="/driver">กลับหน้าเลือกงาน</Link>
-            </Button>
+            <p className="text-sm font-medium text-emerald-900">ปิดหน้านี้ได้เลย ไม่ต้องกลับเข้าเมนูระบบ</p>
           </CardContent>
         </Card>
       ) : null}

@@ -322,7 +322,7 @@ export function JobCreator() {
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-6">
       {error ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
           <div className="flex items-start gap-2">
@@ -686,12 +686,12 @@ export function JobCreator() {
         </Card>
       )}
 
-      <div className="sticky bottom-0 z-10 -mx-2 mt-4 rounded-lg border bg-white/95 px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-slate-950/90 dark:supports-[backdrop-filter]:bg-slate-950/70 sm:mx-0">
-        <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Truck className="h-3.5 w-3.5" />
-            ยืนยันแล้วระบบจะพาไปหน้าติดตามงานทันที — คนหน้างานต้องเช็กอิน GPS ต้นทางก่อนเริ่ม
-          </p>
+      <div className="rounded-md border bg-white px-4 py-3 dark:bg-slate-950">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+            <Truck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="leading-5">หลังสร้างงาน ระบบจะเปิดหน้าติดตามงานทันที และคนหน้างานต้องเช็กอิน GPS ต้นทางก่อนเริ่มสแกน</span>
+          </div>
           <div className="flex w-full shrink-0 gap-2 sm:w-auto">
             <Button type="button" variant="outline" onClick={() => router.push("/po")} className="flex-1 sm:flex-none">
               ยกเลิก
