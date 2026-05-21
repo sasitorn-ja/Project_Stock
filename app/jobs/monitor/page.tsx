@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobAddPOPanel } from "@/components/jobs/job-add-po-panel";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
+import { JobMonitorActions } from "@/components/jobs/job-monitor-actions";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
@@ -78,7 +79,7 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid gap-2 rounded-md border bg-white p-2 text-sm sm:grid-cols-2 xl:grid-cols-5">
+          <section className="grid grid-cols-2 gap-2 rounded-md border bg-white p-2 text-sm sm:grid-cols-3 xl:grid-cols-5">
             {[
               ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", getJobStatusLabel(job.status), Radio],
@@ -114,20 +115,35 @@ export default async function JobMonitorPage({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
-                    <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
-                    <JobDestinationOverrideButton
-                      jobId={job.id}
-                      enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
-                      isFullyLoaded={job.isFullyLoaded}
-                    />
-                    <JobOriginOverrideButton
-                      jobId={job.id}
-                      enabled={Boolean(job.allowOriginRecheckAfterLocked)}
-                      isOriginLocked={job.isOriginLocked}
-                    />
-                    <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
-                  </div>
+                  <>
+                    {/* มือถือ: รวมเป็นเมนูเดียว */}
+                    <div className="w-full lg:hidden">
+                      <JobMonitorActions
+                        jobId={job.id}
+                        driver={job.driver}
+                        vehicle={job.vehicle}
+                        destinationOverrideEnabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
+                        isFullyLoaded={job.isFullyLoaded}
+                        originOverrideEnabled={Boolean(job.allowOriginRecheckAfterLocked)}
+                        isOriginLocked={job.isOriginLocked}
+                      />
+                    </div>
+                    {/* เดสก์ท็อป: ปุ่มแยกเหมือนเดิม */}
+                    <div className="hidden flex-wrap gap-2 lg:flex lg:justify-end">
+                      <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
+                      <JobDestinationOverrideButton
+                        jobId={job.id}
+                        enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
+                        isFullyLoaded={job.isFullyLoaded}
+                      />
+                      <JobOriginOverrideButton
+                        jobId={job.id}
+                        enabled={Boolean(job.allowOriginRecheckAfterLocked)}
+                        isOriginLocked={job.isOriginLocked}
+                      />
+                      <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
+                    </div>
+                  </>
                 )}
               </div>
             </div>

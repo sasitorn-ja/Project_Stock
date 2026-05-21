@@ -54,7 +54,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
       <div className="space-y-3 p-3">
         {destinations.map((location, index) => {
           const complete = location.delivered >= location.required && location.required > 0;
-          const manyItems = location.items.length > 6;
+          const scrollHint = location.items.length > 5;
           const isOpen = openIds.has(location.id);
 
           return (
@@ -106,22 +106,14 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
 
               {isOpen ? (
                 <div className="overflow-hidden border-t">
-                  {manyItems ? (
+                  {scrollHint ? (
                     <p className="bg-slate-50 px-3 py-1.5 text-[11px] text-muted-foreground dark:bg-slate-900">
-                      {location.items.length} รายการ — เลื่อนดูในตารางด้านล่าง
+                      {location.items.length} รายการ — เลื่อนดูในตาราง
                     </p>
                   ) : null}
-                  <div
-                    className={`hidden md:block ${
-                      manyItems ? "max-h-[300px] overflow-auto" : "overflow-x-auto"
-                    }`}
-                  >
+                  <div className="hidden max-h-[280px] overflow-auto md:block">
                     <table className="w-full min-w-[820px] text-[13px]">
-                      <thead
-                        className={`bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400 ${
-                          manyItems ? "sticky top-0 z-10" : ""
-                        }`}
-                      >
+                      <thead className="sticky top-0 z-10 bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                         <tr>
                           <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">PO</th>
                           <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">รหัสวัสดุ</th>
@@ -158,11 +150,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                       </tbody>
                     </table>
                   </div>
-                  <div
-                    className={`divide-y md:hidden ${
-                      manyItems ? "max-h-[360px] overflow-y-auto" : ""
-                    }`}
-                  >
+                  <div className="max-h-[420px] divide-y overflow-y-auto md:hidden">
                     {location.items.map((item) => (
                       <div key={item.registryKey} className="space-y-2 p-4 text-sm">
                         <div>
