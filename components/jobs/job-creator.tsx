@@ -707,7 +707,7 @@ export function JobCreator() {
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  สร้างงาน
+                  สร้างงานและเปิดติดตามงาน
                 </>
               )}
             </Button>

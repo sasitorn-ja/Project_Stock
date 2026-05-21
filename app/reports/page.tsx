@@ -1,4 +1,4 @@
-import { BarChart3, Search } from "lucide-react";
+import { BarChart3, FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,17 +72,17 @@ export default async function ReportsPage({
   const archivedCount = jobs.filter((job) => job.reportKind === "archived").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-normal">รายงาน</h2>
+          <h2 className="text-xl font-bold tracking-normal">รายงานข้อมูลและประวัติงาน</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            เลือกงานขนส่งแล้ว export เป็น Excel ชีตเดียวสำหรับกรอง วิเคราะห์ และส่งต่อ
+            ค้นหาและกรองงานขนส่งทั้งหมด แล้ว export เฉพาะข้อมูลที่แสดงตามเงื่อนไข
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-80">
           <div className="rounded-md border bg-white px-3 py-2">
-            <p className="text-muted-foreground">ทั้งหมด</p>
+            <p className="text-muted-foreground">ผลลัพธ์</p>
             <p className="mt-1 text-base font-semibold text-slate-950">{jobs.length.toLocaleString("th-TH")}</p>
           </div>
           <div className="rounded-md border bg-white px-3 py-2">
@@ -100,9 +100,11 @@ export default async function ReportsPage({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Search className="size-4" />
-            ค้นหาและกรองงาน
+            ค้นหาและกรองข้อมูล
           </CardTitle>
-          <CardDescription>งานเปิดอยู่ใช้วันที่สร้างงาน งานปิดแล้วใช้วันที่ปิดงานเป็นวันที่อ้างอิง</CardDescription>
+          <CardDescription>
+            ค้นหาได้จากรหัสงาน ห้องงาน คนขับ รถ PO รหัสวัสดุ หรือชื่อสินค้า และเลือกช่วงวันที่ที่ต้องการ
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_170px_170px_170px_auto]">
@@ -121,7 +123,7 @@ export default async function ReportsPage({
             >
               <option value="all">ทุกสถานะงาน</option>
               <option value="active">งานเปิดอยู่</option>
-              <option value="archived">งานปิดแล้ว</option>
+              <option value="archived">งานปิดแล้ว / ประวัติ</option>
             </select>
             <Button type="submit" size="sm">
               <Search className="mr-2 size-4" />
@@ -135,9 +137,12 @@ export default async function ReportsPage({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <BarChart3 className="size-4" />
-            รายการงานสำหรับ export
+            ข้อมูลตามผลการค้นหา
           </CardTitle>
-          <CardDescription>เลือกหลายงานได้ หรือ export ทั้งผลลัพธ์ตามเงื่อนไขที่กรองไว้</CardDescription>
+          <CardDescription className="flex items-center gap-2">
+            <FileSpreadsheet className="size-4" />
+            Export จะอ้างอิงจากเงื่อนไขค้นหาและตัวเลือกในตารางนี้
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <JobReportTable

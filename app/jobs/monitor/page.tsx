@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,11 @@ export default async function JobMonitorPage({
 }) {
   const { jobId } = await searchParams;
   const selectedJobId = jobId ?? null;
+
+  if (!selectedJobId) {
+    redirect("/jobs");
+  }
+
   const [jobs, job] = await Promise.all([
     listJobs(),
     selectedJobId
@@ -54,7 +60,7 @@ export default async function JobMonitorPage({
             ข้อมูลสด
           </Badge>
           <Button asChild variant="outline" size="sm">
-            <Link href="/jobs/history">
+            <Link href="/reports?status=archived">
               <History className="mr-1.5 h-3.5 w-3.5" />
               ประวัติงาน
             </Link>
@@ -114,7 +120,7 @@ export default async function JobMonitorPage({
                   <div className="flex flex-col gap-2 sm:items-end">
                     <Badge variant="success">ปิดงานแล้ว</Badge>
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/jobs/history/${encodeURIComponent(job.id)}`}>
+                      <Link href={`/reports?status=archived&query=${encodeURIComponent(job.id)}`}>
                         <History className="mr-1.5 h-3.5 w-3.5" />
                         เปิดในประวัติงาน
                       </Link>

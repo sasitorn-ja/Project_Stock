@@ -22,7 +22,7 @@ export default async function JobsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
-            <Link href="/jobs/history">
+            <Link href="/reports?status=archived">
               <History className="mr-2 h-3.5 w-3.5" />
               ประวัติงาน
             </Link>

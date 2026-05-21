@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
-  History,
   X,
   FilePlus2,
   FileSpreadsheet,
@@ -23,7 +21,6 @@ const sections = [
       { name: "นำเข้า PO", href: "/po/import", icon: Upload },
       { name: "PO รอจัดส่ง", href: "/po", icon: FileText },
       { name: "สร้างงาน", href: "/jobs/new", icon: FilePlus2 },
-      { name: "ติดตามงาน", href: "/jobs/monitor", icon: Activity },
       { name: "ห้องคนขับ", href: "/driver", icon: QrCode },
     ],
   },
@@ -31,8 +28,7 @@ const sections = [
     title: "จัดการงาน",
     items: [
       { name: "รายการงาน", href: "/jobs", icon: Truck },
-      { name: "ประวัติงาน", href: "/jobs/history", icon: History },
-      { name: "รายงาน", href: "/reports", icon: FileSpreadsheet },
+      { name: "รายงานข้อมูล", href: "/reports", icon: FileSpreadsheet },
     ],
   },
 ];
@@ -101,6 +97,7 @@ export function Sidebar({
                   {section.items.map((item) => {
                     const isActive =
                       pathname === item.href ||
+                      (item.href === "/jobs" && pathname.startsWith("/jobs/monitor")) ||
                       (item.href !== "/" && item.href !== "/po" && item.href !== "/jobs" && pathname.startsWith(item.href));
                     return (
                       <Link
