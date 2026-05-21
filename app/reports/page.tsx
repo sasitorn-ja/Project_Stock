@@ -1,6 +1,5 @@
-import { BarChart3, FileSpreadsheet, Search } from "lucide-react";
+import { FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { JobReportTable, type JobReportListItem } from "@/components/reports/job-report-table";
 import { getJobStatusLabel } from "@/lib/job-labels";
@@ -72,79 +71,60 @@ export default async function ReportsPage({
   const archivedCount = jobs.filter((job) => job.reportKind === "archived").length;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-normal">รายงานข้อมูลและประวัติงาน</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            ค้นหาและกรองงานขนส่งทั้งหมด แล้ว export เฉพาะข้อมูลที่แสดงตามเงื่อนไข
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-80">
-          <div className="rounded-md border bg-white px-3 py-2">
-            <p className="text-muted-foreground">ผลลัพธ์</p>
-            <p className="mt-1 text-base font-semibold text-slate-950">{jobs.length.toLocaleString("th-TH")}</p>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <h2 className="text-lg font-bold tracking-normal">รายงานข้อมูลและประวัติงาน</h2>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+            <span className="text-muted-foreground">ผลลัพธ์</span>
+            <span className="font-semibold text-slate-950">{jobs.length.toLocaleString("th-TH")}</span>
           </div>
-          <div className="rounded-md border bg-white px-3 py-2">
-            <p className="text-muted-foreground">เปิดอยู่</p>
-            <p className="mt-1 text-base font-semibold text-slate-950">{activeCount.toLocaleString("th-TH")}</p>
+          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+            <span className="text-muted-foreground">เปิดอยู่</span>
+            <span className="font-semibold text-slate-950">{activeCount.toLocaleString("th-TH")}</span>
           </div>
-          <div className="rounded-md border bg-white px-3 py-2">
-            <p className="text-muted-foreground">ปิดแล้ว</p>
-            <p className="mt-1 text-base font-semibold text-slate-950">{archivedCount.toLocaleString("th-TH")}</p>
+          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+            <span className="text-muted-foreground">ปิดแล้ว</span>
+            <span className="font-semibold text-slate-950">{archivedCount.toLocaleString("th-TH")}</span>
           </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Search className="size-4" />
-            ค้นหาและกรองข้อมูล
-          </CardTitle>
-          <CardDescription>
-            ค้นหาได้จากรหัสงาน ห้องงาน คนขับ รถ PO รหัสวัสดุ หรือชื่อสินค้า และเลือกช่วงวันที่ที่ต้องการ
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="grid gap-2 lg:grid-cols-[minmax(260px,1fr)_170px_170px_170px_auto]">
+      <div className="rounded-md border bg-white">
+        <form className="grid gap-2 border-b px-3 py-3 lg:grid-cols-[minmax(240px,1fr)_150px_150px_160px_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               name="query"
               defaultValue={query}
-              placeholder="ค้นหารหัสงาน, ห้องงาน, คนขับ, รถ, PO, รหัสวัสดุ"
+              placeholder="ค้นหารหัสงาน, ห้องงาน, คนขับ, รถ, PO"
+              className="pl-9"
             />
-            <Input type="date" name="dateFrom" defaultValue={dateFrom} />
-            <Input type="date" name="dateTo" defaultValue={dateTo} />
-            <select
-              name="status"
-              defaultValue={status}
-              className="h-8 w-full rounded-md border border-[#dde3ea] bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition-colors hover:bg-white focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10"
-            >
-              <option value="all">ทุกสถานะงาน</option>
-              <option value="active">งานเปิดอยู่</option>
-              <option value="archived">งานปิดแล้ว / ประวัติ</option>
-            </select>
-            <Button type="submit" size="sm">
-              <Search className="mr-2 size-4" />
-              ค้นหา
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+          <Input type="date" name="dateFrom" defaultValue={dateFrom} aria-label="วันที่เริ่มต้น" />
+          <Input type="date" name="dateTo" defaultValue={dateTo} aria-label="วันที่สิ้นสุด" />
+          <select
+            name="status"
+            defaultValue={status}
+            className="h-8 w-full rounded-md border border-[#dde3ea] bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition-colors hover:bg-white focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10"
+            aria-label="สถานะงาน"
+          >
+            <option value="all">ทุกสถานะ</option>
+            <option value="active">เปิดอยู่</option>
+            <option value="archived">ปิดแล้ว</option>
+          </select>
+          <Button type="submit" size="sm">
+            <Search className="mr-2 size-4" />
+            ค้นหา
+          </Button>
+        </form>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <BarChart3 className="size-4" />
-            ข้อมูลตามผลการค้นหา
-          </CardTitle>
-          <CardDescription className="flex items-center gap-2">
+        <div className="px-3 py-3">
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
             <FileSpreadsheet className="size-4" />
-            Export จะอ้างอิงจากเงื่อนไขค้นหาและตัวเลือกในตารางนี้
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <span>Export ตามข้อมูลในตาราง</span>
+          </div>
           <JobReportTable
             jobs={listItems}
             filters={{
@@ -154,8 +134,8 @@ export default async function ReportsPage({
               status,
             }}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

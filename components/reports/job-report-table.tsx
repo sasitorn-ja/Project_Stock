@@ -84,18 +84,18 @@ export function JobReportTable({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="text-sm text-muted-foreground">
           พบ <span className="font-semibold text-slate-950">{jobs.length.toLocaleString("th-TH")}</span> งาน / เลือก{" "}
           <span className="font-semibold text-slate-950">{selectedJobIds.length.toLocaleString("th-TH")}</span> งาน
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <Button type="button" variant="outline" onClick={downloadSelected} disabled={!selectedJobIds.length}>
+          <Button type="button" variant="outline" size="sm" onClick={downloadSelected} disabled={!selectedJobIds.length}>
             <Download className="mr-2 size-4" />
-            Export งานที่เลือก
+            Export ที่เลือก
           </Button>
-          <Button type="button" onClick={downloadFiltered} disabled={!jobs.length}>
+          <Button type="button" size="sm" onClick={downloadFiltered} disabled={!jobs.length}>
             <FileSpreadsheet className="mr-2 size-4" />
             Export ตามผลกรอง
           </Button>
@@ -103,17 +103,17 @@ export function JobReportTable({
       </div>
 
       {!jobs.length ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-muted-foreground">
           ไม่พบงานตามเงื่อนไขที่เลือก
         </div>
       ) : (
         <>
-          <div className="hidden overflow-hidden rounded-lg border md:block">
+          <div className="hidden overflow-hidden rounded-md border md:block">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-sm">
+              <table className="w-full min-w-[980px] text-[13px]">
                 <thead className="border-b bg-slate-50 text-left text-xs font-semibold text-slate-500">
                   <tr>
-                    <th className="w-12 px-4 py-3">
+                    <th className="w-10 px-3 py-2">
                       <input
                         type="checkbox"
                         aria-label="เลือกงานทั้งหมดที่แสดง"
@@ -122,19 +122,19 @@ export function JobReportTable({
                         className="size-4 rounded border-slate-300"
                       />
                     </th>
-                    <th className="w-48 px-4 py-3">งาน</th>
-                    <th className="w-28 px-4 py-3">ประเภท</th>
-                    <th className="w-36 px-4 py-3">วันที่อ้างอิง</th>
-                    <th className="w-40 px-4 py-3">คนขับ / รถ</th>
-                    <th className="w-32 px-4 py-3">สถานะ</th>
-                    <th className="w-36 px-4 py-3 text-right">ความคืบหน้า</th>
-                    <th className="w-28 px-4 py-3 text-right">รายการ</th>
+                    <th className="w-48 px-3 py-2">งาน</th>
+                    <th className="w-28 px-3 py-2">ประเภท</th>
+                    <th className="w-36 px-3 py-2">วันที่อ้างอิง</th>
+                    <th className="w-40 px-3 py-2">คนขับ / รถ</th>
+                    <th className="w-32 px-3 py-2">สถานะ</th>
+                    <th className="w-36 px-3 py-2 text-right">ความคืบหน้า</th>
+                    <th className="w-28 px-3 py-2 text-right">รายการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {jobs.map((job) => (
                     <tr key={job.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-2 align-top">
                         <input
                           type="checkbox"
                           aria-label={`เลือก ${job.roomName}`}
@@ -143,31 +143,31 @@ export function JobReportTable({
                           className="size-4 rounded border-slate-300"
                         />
                       </td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-2 align-top">
                         <p className="break-words font-semibold text-slate-950">{job.roomName}</p>
                         <p className="mt-0.5 break-all text-xs text-muted-foreground">{job.id}</p>
                       </td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-2 align-top">
                         <Badge variant={job.reportKind === "archived" ? "success" : "warning"}>
                           {job.reportKind === "archived" ? "งานปิดแล้ว" : "งานเปิดอยู่"}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-2 align-top">
                         <p>{job.eventDate || "-"}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {job.reportKind === "archived" ? "วันที่ปิดงาน" : "วันที่สร้างงาน"}
                         </p>
                       </td>
-                      <td className="px-4 py-3 align-top">
+                      <td className="px-3 py-2 align-top">
                         <p className="break-words">{job.driver || "-"}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{job.vehicle || "-"}</p>
                       </td>
-                      <td className="px-4 py-3 align-top">{job.statusLabel}</td>
-                      <td className="px-4 py-3 text-right align-top">
+                      <td className="px-3 py-2 align-top">{job.statusLabel}</td>
+                      <td className="px-3 py-2 text-right align-top">
                         <p>ขึ้นรถ {job.loadedTotal}/{job.requiredTotal}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">ส่งแล้ว {job.deliveredTotal}/{job.requiredTotal}</p>
                       </td>
-                      <td className="px-4 py-3 text-right align-top">
+                      <td className="px-3 py-2 text-right align-top">
                         <p>{job.itemCount.toLocaleString("th-TH")} รายการ</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{job.destinationCount.toLocaleString("th-TH")} ปลายทาง</p>
                       </td>
@@ -178,9 +178,9 @@ export function JobReportTable({
             </div>
           </div>
 
-          <div className="divide-y rounded-lg border md:hidden">
+          <div className="divide-y rounded-md border md:hidden">
             {jobs.map((job) => (
-              <div key={job.id} className="space-y-3 p-4 text-sm">
+              <div key={job.id} className="space-y-3 p-3 text-sm">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"

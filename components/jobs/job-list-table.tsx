@@ -21,58 +21,58 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
 
   if (!jobs.length) {
     return (
-      <div className="rounded-lg border bg-slate-50 p-6 text-sm text-muted-foreground dark:bg-slate-900">
-        ยังไม่มีงานที่ถูกสร้างจากข้อมูลจริง เริ่มจากหน้า PO รอจัดส่งก่อน
+      <div className="m-3 rounded-md border border-dashed bg-slate-50 px-4 py-5 text-center text-sm text-muted-foreground dark:bg-slate-900">
+        ยังไม่มีงานเปิดอยู่
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-b-lg">
+    <div className="overflow-hidden rounded-md">
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[980px]">
           <thead className="border-y border-[#f0f2f5] bg-[#fafbfc] text-left">
             <tr>
-              <th className="w-56 whitespace-nowrap px-4 py-3 text-[11px] font-semibold text-slate-400">ห้องงาน</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-slate-400">เส้นทาง / PO</th>
-              <th className="w-40 whitespace-nowrap px-4 py-3 text-[11px] font-semibold text-slate-400">คนขับ</th>
-              <th className="w-28 whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ขึ้นรถ</th>
-              <th className="w-28 whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ส่งแล้ว</th>
-              <th className="w-32 whitespace-nowrap px-4 py-3 text-[11px] font-semibold text-slate-400">สถานะ</th>
-              <th className="w-44 whitespace-nowrap px-4 py-3 text-[11px] font-semibold text-slate-400">จัดการ</th>
+              <th className="w-56 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">ห้องงาน</th>
+              <th className="px-3 py-2 text-[11px] font-semibold text-slate-400">เส้นทาง / PO</th>
+              <th className="w-40 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">คนขับ</th>
+              <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ขึ้นรถ</th>
+              <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ส่งแล้ว</th>
+              <th className="w-32 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">สถานะ</th>
+              <th className="w-44 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">จัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f5f6f8]">
             {visibleJobs.map((job) => (
               <tr key={job.id} className="hover:bg-[#fafbfc]">
-                <td className="px-4 py-3 align-top font-semibold text-slate-900">
+                <td className="px-3 py-2 align-top font-semibold text-slate-900">
                   <span className="block max-w-64 break-words text-[12.5px]">{job.roomName?.trim() || job.id}</span>
                   <span className="mt-0.5 block text-[11px] font-normal text-slate-400">{job.id}</span>
                 </td>
-                <td className="break-words px-4 py-3 align-top text-[12.5px]">
+                <td className="break-words px-3 py-2 align-top text-[12.5px]">
                   {job.route}
                   <br />
                   <span className="text-[11px] text-slate-400">
                     {Array.from(new Set(job.items.map((item) => item.poSapNo))).join(", ")}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top text-[12.5px]">
+                <td className="whitespace-nowrap px-3 py-2 align-top text-[12.5px]">
                   {job.driver || "-"}
                   <br />
                   <span className="text-[11px] text-slate-400">{job.vehicle || "-"}</span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top text-[12.5px] font-semibold">
+                <td className="whitespace-nowrap px-3 py-2 align-top text-[12.5px] font-semibold">
                   {job.loadedTotal}/{job.requiredTotal}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top text-[12.5px] font-semibold">
+                <td className="whitespace-nowrap px-3 py-2 align-top text-[12.5px] font-semibold">
                   {job.deliveredTotal}/{job.requiredTotal}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top">
+                <td className="whitespace-nowrap px-3 py-2 align-top">
                   <Badge variant={job.status === "completed" ? "success" : job.status === "ready" ? "secondary" : "warning"}>
                     {getJobStatusLabel(job.status)}
                   </Badge>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top">
+                <td className="whitespace-nowrap px-3 py-2 align-top">
                   <div className="space-y-1.5">
                     <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                       <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>
@@ -91,7 +91,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
       </div>
       <div className="divide-y md:hidden">
         {visibleJobs.map((job) => (
-          <div key={job.id} className="space-y-3 p-4 text-sm">
+          <div key={job.id} className="space-y-3 p-3 text-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="break-words font-semibold text-slate-950">{job.roomName?.trim() || job.id}</p>
@@ -134,7 +134,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
         ))}
       </div>
       {jobs.length > pageSize ? (
-        <div className="flex flex-col gap-3 border-t px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
             แสดง {startIndex + 1}-{Math.min(startIndex + pageSize, jobs.length)} จาก{" "}
             {jobs.length.toLocaleString("th-TH")} งาน
