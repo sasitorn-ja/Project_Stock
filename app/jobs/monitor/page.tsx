@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { JobAddPOPanel } from "@/components/jobs/job-add-po-panel";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
@@ -39,17 +39,12 @@ export default async function JobMonitorPage({
   const isArchivedJob = Boolean(job?.completedAt);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <JobAutoRefresh />
 
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">ติดตามงาน</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            ดูสถานะโหลดต้นทาง ส่งปลายทาง และแจ้งเตือนของงานที่สร้างจากข้อมูลจริง
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <h2 className="text-lg font-bold tracking-normal text-slate-900">ติดตามงาน</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
           {!isArchivedJob ? (
             <div className="w-full sm:w-72">
               <JobMonitorSelector jobs={jobs} selectedJobId={selectedJobId} compact />
@@ -83,7 +78,7 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          <section className="grid gap-2 rounded-md border bg-white p-2 text-sm sm:grid-cols-2 xl:grid-cols-5">
             {[
               ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", getJobStatusLabel(job.status), Radio],
@@ -91,33 +86,25 @@ export default async function JobMonitorPage({
               ["เส้นทาง", `${job.destinations.length.toLocaleString("th-TH")} ปลายทาง`, Route],
               ["แจ้งเตือน", String(job.alerts.length), AlertTriangle],
             ].map(([label, value, Icon]) => (
-              <Card key={String(label)}>
-                <CardContent className="flex min-h-20 items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-400">{String(label)}</p>
-                    <p className="mt-1 break-words text-[15px] font-bold text-slate-900">{String(value)}</p>
-                  </div>
-                  <Icon className="h-4 w-4 text-[#0d7a5f]" />
-                </CardContent>
-              </Card>
+              <div key={String(label)} className="flex min-h-12 items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-slate-400">{String(label)}</p>
+                  <p className="truncate text-[13px] font-bold text-slate-900">{String(value)}</p>
+                </div>
+                <Icon className="h-4 w-4 shrink-0 text-[#0d7a5f]" />
+              </div>
             ))}
           </section>
 
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                <div>
-                  <CardTitle className="text-sm">
-                    {isArchivedJob ? "งานนี้ปิดแล้ว" : "ช่องทางเข้าหน้าคนขับ"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isArchivedJob
-                      ? "งานถูกส่งครบและย้ายเข้าเมนูประวัติงานแล้ว หน้านี้ยังแสดงผลต่อเพื่อให้ Admin ที่เปิดค้างอยู่ตรวจสอบสถานะสุดท้ายได้"
-                      : "เปิดหน้าคนขับโดยตรงหรือแสดง QR ให้คนขับสแกนเข้างานนี้จากมือถือ"}
-                  </CardDescription>
-                </div>
+          <div className="rounded-md border bg-white px-3 py-3">
+            <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{isArchivedJob ? "งานปิดแล้ว" : "ห้องคนขับ"}</p>
+                {isArchivedJob ? <p className="mt-0.5 text-xs text-muted-foreground">{job.roomName?.trim() || job.id}</p> : null}
+              </div>
+              <div className="flex flex-col gap-2 lg:items-end">
                 {isArchivedJob ? (
-                  <div className="flex flex-col gap-2 sm:items-end">
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
                     <Badge variant="success">ปิดงานแล้ว</Badge>
                     <Button asChild variant="outline" size="sm">
                       <Link href={`/reports?status=archived&query=${encodeURIComponent(job.id)}`}>
@@ -127,7 +114,8 @@ export default async function JobMonitorPage({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2 sm:items-end">
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
                     <JobDestinationOverrideButton
                       jobId={job.id}
                       enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
@@ -142,29 +130,23 @@ export default async function JobMonitorPage({
                   </div>
                 )}
               </div>
-            </CardHeader>
-            {!isArchivedJob ? (
-              <CardContent>
-                <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} />
-              </CardContent>
-            ) : null}
-          </Card>
+            </div>
+          </div>
 
           {!isArchivedJob ? <JobAddPOPanel job={job} /> : null}
 
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} editableScanQty={!isArchivedJob} />
-            <Card>
+            <div className="rounded-md border bg-white">
               <JobAlertList alerts={job.alerts} />
-            </Card>
+            </div>
           </section>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="py-3">
               <CardTitle className="text-sm">สรุป PO ในงาน</CardTitle>
-              <CardDescription>ระบบสรุปตามจำนวนรอบสแกน/กล่องที่ผู้ดูแลยืนยัน แยกจากจำนวนสั่งซื้อและราคาในไฟล์</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-2 md:grid-cols-3">
+            <CardContent className="grid gap-2 py-3 md:grid-cols-3">
               {job.poStatuses.map((item) => (
                 <div key={item.po} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
                   <p className="text-[12.5px] font-semibold text-slate-900">{item.po}</p>

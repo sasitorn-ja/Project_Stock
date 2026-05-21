@@ -58,9 +58,8 @@ export function JobDestinationOverrideButton({
         className="w-full gap-2 sm:w-auto"
       >
         {enabled ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดสิทธิ์ปลายทางพิเศษ" : "ผู้ดูแลเปิดปลายทางกรณีพิเศษ"}
+        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดปลายทางพิเศษ" : "เปิดปลายทางพิเศษ"}
       </Button>
-      {isFullyLoaded ? <p className="text-xs text-muted-foreground">โหลดครบแล้ว ไม่ต้องใช้สิทธิ์พิเศษ</p> : null}
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
     </div>
   );

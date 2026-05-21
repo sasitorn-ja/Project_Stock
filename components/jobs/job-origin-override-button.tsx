@@ -58,9 +58,8 @@ export function JobOriginOverrideButton({
         className="w-full gap-2 sm:w-auto"
       >
         {enabled ? <LockKeyhole className="h-4 w-4" /> : <UnlockKeyhole className="h-4 w-4" />}
-        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดสิทธิ์ต้นทางพิเศษ" : "ผู้ดูแลเปิดต้นทางกรณีพิเศษ"}
+        {isSaving ? "กำลังบันทึก" : enabled ? "ปิดต้นทางพิเศษ" : "เปิดต้นทางพิเศษ"}
       </Button>
-      {!isOriginLocked ? <p className="text-xs text-muted-foreground">ต้นทางยังไม่ถูกปิดหลังโหลดครบ</p> : null}
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
     </div>
   );

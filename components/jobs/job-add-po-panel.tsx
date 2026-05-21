@@ -5,7 +5,6 @@ import { Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { addPORecordsToJob } from "@/lib/job-db";
 import { getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
@@ -119,22 +118,17 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <CardTitle className="text-sm">เพิ่มของระหว่างกำลังสแกน</CardTitle>
-            <CardDescription>เพิ่ม PO จากคิวรอจัดส่งเข้า Job เดิม ไม่ต้องสร้างงานใหม่ให้คนขับสับสน</CardDescription>
-          </div>
-          <Button type="button" variant={isOpen ? "outline" : "default"} size="sm" onClick={() => setIsOpen((value) => !value)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {isOpen ? "ปิด" : "เพิ่ม PO เข้า Job นี้"}
-          </Button>
-        </div>
-      </CardHeader>
+    <div className="rounded-md border bg-white">
+      <div className="flex flex-col justify-between gap-3 px-3 py-3 sm:flex-row sm:items-center">
+        <p className="text-sm font-semibold text-slate-900">เพิ่ม PO ระหว่างงาน</p>
+        <Button type="button" variant={isOpen ? "outline" : "default"} size="sm" onClick={() => setIsOpen((value) => !value)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          {isOpen ? "ปิด" : "เพิ่ม PO"}
+        </Button>
+      </div>
       {isOpen ? (
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-[1fr_260px]">
+        <div className="space-y-3 border-t px-3 py-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_240px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหา PO, Vendor, วัสดุ" className="pl-9" />
@@ -142,12 +136,12 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
             <select
               value={destinationMode}
               onChange={(event) => setDestinationMode(event.target.value)}
-              className="h-10 rounded-md border border-[#d8dde6] bg-white px-3 text-sm"
+              className="h-8 rounded-md border border-[#d8dde6] bg-white px-3 text-sm"
             >
-              <option value="from-po">ใช้ปลายทางจากไฟล์ PO</option>
+              <option value="from-po">ปลายทางจาก PO</option>
               {job.destinations.map((destination) => (
                 <option key={destination.id} value={destination.id}>
-                  เพิ่มเข้าปลายทาง: {destination.name}
+                  {destination.name}
                 </option>
               ))}
             </select>
@@ -155,7 +149,7 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
 
           <div className="overflow-hidden rounded-md border">
             {isLoading ? (
-              <div className="p-4 text-sm text-muted-foreground">กำลังโหลด PO</div>
+              <div className="p-3 text-sm text-muted-foreground">กำลังโหลด PO</div>
             ) : records.length ? (
               <div className="divide-y">
                 {records.map((record) => (
@@ -173,14 +167,13 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
                       <span className="mt-1 block break-words text-xs text-muted-foreground">
                         {record.materialCode || "-"} / {record.materialName || "-"}
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">ปลายทางจากไฟล์: {record.unitName || "-"}</span>
                     </span>
                     <Badge variant="secondary">{record.orderQty || "-"}</Badge>
                   </label>
                 ))}
               </div>
             ) : (
-              <div className="p-4 text-sm text-muted-foreground">ไม่พบ PO รอจัดส่ง</div>
+              <div className="p-3 text-sm text-muted-foreground">ไม่พบ PO รอจัดส่ง</div>
             )}
           </div>
 
@@ -193,8 +186,8 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
               {isSaving ? "กำลังเพิ่ม" : "ยืนยันเพิ่มเข้า Job"}
             </Button>
           </div>
-        </CardContent>
+        </div>
       ) : null}
-    </Card>
+    </div>
   );
 }

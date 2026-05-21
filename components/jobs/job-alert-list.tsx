@@ -52,7 +52,7 @@ const filterOptions = [
 
 export function JobAlertList({
   alerts,
-  description = "บันทึกเหตุการณ์ระหว่างงาน เช่น เช็กอิน สแกนผ่าน คำเตือน และความผิดปกติ",
+  description,
 }: {
   alerts: JobAlertRecord[];
   description?: string;
@@ -81,10 +81,10 @@ export function JobAlertList({
 
   return (
     <>
-      <div className="flex flex-col justify-between gap-3 border-b border-[#d8dde6] px-6 py-5 sm:flex-row sm:items-start">
+      <div className="flex flex-col justify-between gap-3 border-b border-[#d8dde6] px-3 py-3 sm:flex-row sm:items-center">
         <div>
           <h3 className="text-sm font-semibold leading-none tracking-tight">รายการแจ้งเตือน</h3>
-          <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+          {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
         </div>
         <div className="w-full sm:w-36">
           <DropdownMenu.Root>
@@ -122,9 +122,9 @@ export function JobAlertList({
         </div>
       </div>
 
-      <div className="space-y-3 p-6">
+      <div className="space-y-2 p-3">
         {!alerts.length ? (
-          <div className="rounded-lg border border-dashed border-slate-200 p-4 text-[12.5px] text-muted-foreground">
+          <div className="rounded-md border border-dashed border-slate-200 p-3 text-[12.5px] text-muted-foreground">
             ยังไม่มีแจ้งเตือนสำหรับงานนี้
           </div>
         ) : visibleAlerts.length ? (
@@ -132,7 +132,7 @@ export function JobAlertList({
             const badge = getAlertBadge(alert.severity);
 
             return (
-              <div key={alert.id} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
+              <div key={alert.id} className="rounded-md border border-[#f0f2f5] bg-[#fafbfc] p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[12.5px] font-semibold text-slate-900">{alert.type}</p>
@@ -145,7 +145,7 @@ export function JobAlertList({
             );
           })
         ) : (
-          <div className="rounded-lg border border-dashed border-slate-200 p-4 text-[12.5px] text-muted-foreground">
+          <div className="rounded-md border border-dashed border-slate-200 p-3 text-[12.5px] text-muted-foreground">
             ไม่มีรายการในตัวกรองนี้
           </div>
         )}
