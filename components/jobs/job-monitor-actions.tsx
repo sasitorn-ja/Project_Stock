@@ -33,7 +33,7 @@ function DriverQrModal({
       role="presentation"
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-[#d8dde6] bg-white p-5 shadow-xl"
+        className="w-full max-w-sm overflow-hidden rounded-xl border border-[#d8dde6] bg-white p-5 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -47,21 +47,21 @@ function DriverQrModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="mt-4 flex flex-col items-center gap-4">
+        <div className="mt-4 flex justify-center">
           <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
-            <QRCode value={url} size={184} />
+            <QRCode value={url} size={180} />
           </div>
-          <div className="w-full space-y-1.5 text-sm text-slate-700">
-            <p>
-              รหัสงาน: <span className="font-semibold text-slate-900">{jobId}</span>
-            </p>
-            <p>
-              คนขับ: <span className="font-medium">{driver || "-"}</span> / รถ:{" "}
-              <span className="font-medium">{vehicle || "-"}</span>
-            </p>
-            <p className="break-all rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{url}</p>
-            <p className="text-xs text-muted-foreground">ให้คนขับสแกน QR นี้เพื่อเปิดห้องงานทันที</p>
-          </div>
+        </div>
+        <div className="mt-4 space-y-1.5 text-sm text-slate-700">
+          <p className="break-words">
+            รหัสงาน: <span className="font-semibold text-slate-900">{jobId}</span>
+          </p>
+          <p className="break-words">
+            คนขับ: <span className="font-medium">{driver || "-"}</span> / รถ:{" "}
+            <span className="font-medium">{vehicle || "-"}</span>
+          </p>
+          <p className="[overflow-wrap:anywhere] rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{url}</p>
+          <p className="text-xs text-muted-foreground">ให้คนขับสแกน QR นี้เพื่อเปิดห้องงานทันที</p>
         </div>
       </div>
     </div>

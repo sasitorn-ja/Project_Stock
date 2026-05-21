@@ -808,13 +808,12 @@ export function DriverScanner({
               <MapPin className="h-4 w-4" />
               เริ่มงาน: เช็กอินต้นทาง
             </CardTitle>
-            <CardDescription>คนขับต้องกดเช็กอิน GPS ต้นทางจากมือถือเครื่องนี้ก่อน จึงจะเปิดส่วนสแกนสินค้าได้</CardDescription>
+            <CardDescription>เช็กอิน GPS ต้นทางก่อน จึงจะเริ่มสแกนได้</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 p-3">
             <div className="rounded-md border border-[#d8dde6] bg-slate-50 p-3">
-              <p className="text-sm font-medium">ต้นทาง</p>
-              <p className="mt-1 break-words text-sm text-slate-600">{job.origin || "-"}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">ยังไม่เช็กอินต้นทาง</p>
+              <p className="text-xs text-slate-500">ต้นทาง</p>
+              <p className="mt-0.5 break-words text-sm font-medium text-slate-900">{job.origin || "-"}</p>
             </div>
             <Button
               type="button"
@@ -825,9 +824,6 @@ export function DriverScanner({
               <MapPin className="h-5 w-5" />
               {isFetchingOriginGps ? "กำลังดึง GPS ต้นทาง" : "เช็กอินต้นทางเพื่อเริ่มสแกน"}
             </Button>
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              หลังเช็กอินสำเร็จ ระบบจะแสดงปุ่มเปิดกล้องและช่องสแกนสินค้า
-            </div>
             {message ? (
               <div
                 className={
