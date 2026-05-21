@@ -109,9 +109,9 @@ export function JobReportTable({
       ) : (
         <>
           <div className="hidden overflow-hidden rounded-md border md:block">
-            <div className="overflow-x-auto">
+            <div className="max-h-[calc(100vh-260px)] min-h-64 overflow-auto">
               <table className="w-full min-w-[980px] text-[13px]">
-                <thead className="border-b bg-slate-50 text-left text-xs font-semibold text-slate-500">
+                <thead className="sticky top-0 z-10 border-b bg-slate-50 text-left text-xs font-semibold text-slate-500">
                   <tr>
                     <th className="w-10 px-3 py-2">
                       <input
@@ -178,7 +178,7 @@ export function JobReportTable({
             </div>
           </div>
 
-          <div className="divide-y rounded-md border md:hidden">
+          <div className="max-h-[calc(100vh-250px)] divide-y overflow-y-auto rounded-md border md:hidden">
             {jobs.map((job) => (
               <div key={job.id} className="space-y-3 p-3 text-sm">
                 <div className="flex items-start gap-3">

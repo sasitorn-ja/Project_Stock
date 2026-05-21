@@ -16,6 +16,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
       <div className="space-y-3 p-3">
         {job.destinations.map((location, index) => {
           const complete = location.delivered >= location.required && location.required > 0;
+          const manyItems = location.items.length > 6;
 
           return (
             <div key={location.id} className="rounded-md border">
@@ -54,14 +55,27 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
               </div>
 
               <div className="overflow-hidden border-t">
-                <div className="hidden overflow-x-auto md:block">
+                {manyItems ? (
+                  <p className="bg-slate-50 px-3 py-1.5 text-[11px] text-muted-foreground dark:bg-slate-900">
+                    {location.items.length} รายการ — เลื่อนดูในตารางด้านล่าง
+                  </p>
+                ) : null}
+                <div
+                  className={`hidden md:block ${
+                    manyItems ? "max-h-[300px] overflow-auto" : "overflow-x-auto"
+                  }`}
+                >
                   <table className="w-full min-w-[720px] text-[13px]">
-                    <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                    <thead
+                      className={`bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400 ${
+                        manyItems ? "sticky top-0 z-10" : ""
+                      }`}
+                    >
                       <tr>
                         <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">PO</th>
                         <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">รหัสวัสดุ</th>
                         <th className="px-3 py-2 font-medium">สินค้า</th>
-                        <th className="w-28 whitespace-nowrap px-3 py-2 font-medium">จำนวนในไฟล์</th>
+                        <th className="w-28 whitespace-nowrap px-3 py-2 font-medium">จำนวนสั่งซื้อ</th>
                         <th className="w-36 whitespace-nowrap px-3 py-2 font-medium">ต้องสแกน</th>
                         <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ขึ้นรถ</th>
                         <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ลงของ</th>
@@ -93,7 +107,11 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                     </tbody>
                   </table>
                 </div>
-                <div className="divide-y md:hidden">
+                <div
+                  className={`divide-y md:hidden ${
+                    manyItems ? "max-h-[360px] overflow-y-auto" : ""
+                  }`}
+                >
                   {location.items.map((item) => (
                     <div key={item.registryKey} className="space-y-2 p-4 text-sm">
                       <div>
@@ -103,7 +121,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                       <p className="break-words text-muted-foreground">{item.materialName || "-"}</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-xs">
                         <div className="rounded-md bg-slate-50 px-2 py-2">
-                          <p className="text-muted-foreground">ในไฟล์</p>
+                          <p className="text-muted-foreground">จำนวนสั่งซื้อ</p>
                           <p className="font-semibold text-slate-950">{item.sourceOrderQty || String(item.orderQty || "-")}</p>
                         </div>
                         <div className="rounded-md bg-slate-50 px-2 py-2">

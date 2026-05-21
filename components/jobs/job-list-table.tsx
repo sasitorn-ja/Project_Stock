@@ -29,9 +29,9 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
 
   return (
     <div className="overflow-hidden rounded-md">
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden max-h-[calc(100vh-230px)] overflow-auto md:block">
         <table className="w-full min-w-[980px]">
-          <thead className="border-y border-[#f0f2f5] bg-[#fafbfc] text-left">
+          <thead className="sticky top-0 z-10 border-y border-[#f0f2f5] bg-[#fafbfc] text-left">
             <tr>
               <th className="w-56 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">ห้องงาน</th>
               <th className="px-3 py-2 text-[11px] font-semibold text-slate-400">เส้นทาง / PO</th>
@@ -89,7 +89,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
           </tbody>
         </table>
       </div>
-      <div className="divide-y md:hidden">
+      <div className="max-h-[calc(100vh-230px)] divide-y overflow-y-auto md:hidden">
         {visibleJobs.map((job) => (
           <div key={job.id} className="space-y-3 p-3 text-sm">
             <div className="flex items-start justify-between gap-3">

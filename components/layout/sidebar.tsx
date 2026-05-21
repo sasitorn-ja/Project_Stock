@@ -28,7 +28,7 @@ const sections = [
     title: "จัดการงาน",
     items: [
       { name: "รายการงาน", href: "/jobs", icon: Truck },
-      { name: "รายงานข้อมูล", href: "/reports", icon: FileSpreadsheet },
+      { name: "ประวัติงาน", href: "/reports", icon: FileSpreadsheet },
     ],
   },
 ];
