@@ -188,6 +188,14 @@ export function POImporter() {
       }));
       const duplicateInFileCount = records.length - uniqueRecords.length;
       const existingRecords = await getExistingPORecords(uniqueRecords.map((record) => record.registryKey));
+      const existingRecordsByPo = Array.from(existingRecords.values()).reduce((groups, record) => {
+        const currentRecords = groups.get(record.poSapNo) ?? [];
+        currentRecords.push(record);
+        groups.set(record.poSapNo, currentRecords);
+
+        return groups;
+      }, new Map<string, PORegistryRecord[]>());
+      const existingPoNos = new Set(existingRecordsByPo.keys());
 
       setPreview({
         fileName: file.name,
@@ -196,16 +204,16 @@ export function POImporter() {
         missingPOCount: rows.length - itemRows.length,
         missingItemCount: rowsMissingItem.length,
         duplicateInFileCount,
-        skippedExistingCount: uniqueRecords.filter((record) => existingRecords.has(record.registryKey)).length,
+        skippedExistingCount: uniqueRecords.filter((record) => existingPoNos.has(record.poSapNo)).length,
         skippedQueuedCount: uniqueRecords.filter((record) => {
-          const existingRecord = existingRecords.get(record.registryKey);
-          return existingRecord && !existingRecord.assignedJobId && existingRecord.lifecycle === "active";
+          const samePoRecords = existingRecordsByPo.get(record.poSapNo) ?? [];
+          return samePoRecords.some((existingRecord) => !existingRecord.assignedJobId && existingRecord.lifecycle === "active");
         }).length,
         skippedInJobCount: uniqueRecords.filter((record) => {
-          const existingRecord = existingRecords.get(record.registryKey);
-          return existingRecord && (Boolean(existingRecord.assignedJobId) || existingRecord.lifecycle !== "active");
+          const samePoRecords = existingRecordsByPo.get(record.poSapNo) ?? [];
+          return samePoRecords.some((existingRecord) => Boolean(existingRecord.assignedJobId) || existingRecord.lifecycle !== "active");
         }).length,
-        newPOs: uniqueRecords.filter((record) => !existingRecords.has(record.registryKey)),
+        newPOs: uniqueRecords.filter((record) => !existingPoNos.has(record.poSapNo)),
       });
     } catch {
       setError("อ่านไฟล์ Excel / CSV ไม่สำเร็จ กรุณาตรวจสอบว่าเป็นไฟล์ที่เปิดได้ปกติ");

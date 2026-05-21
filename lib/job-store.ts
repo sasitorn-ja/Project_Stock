@@ -206,13 +206,7 @@ function lockOriginIfFullyLoaded(job: JobRecord, lockedAt = new Date().toISOStri
 }
 
 function getCompletedRegistryKeysForArchive(job: JobRecord) {
-  return Array.from(
-    new Set(
-      job.items
-        .filter((item) => item.orderQty > 0 || item.loadedQty > 0 || item.deliveredQty > 0)
-        .map((item) => item.registryKey),
-    ),
-  );
+  return Array.from(new Set(job.poRegistryKeys));
 }
 
 function getSkippedRegistryKeysForRelease(job: JobRecord) {
