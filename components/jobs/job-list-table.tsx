@@ -39,7 +39,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
               <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ขึ้นรถ</th>
               <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ส่งแล้ว</th>
               <th className="w-32 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">สถานะ</th>
-              <th className="w-44 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">จัดการ</th>
+              <th className="w-36 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">จัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f5f6f8]">
@@ -73,15 +73,15 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
                   </Badge>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 align-top">
-                  <div className="space-y-1.5">
-                    <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                  <div className="flex items-start gap-1.5">
+                    <Button asChild variant="outline" size="icon" className="h-8 w-8" title="ติดตามงาน" aria-label="ติดตามงาน">
                       <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>
-                        <Eye className="mr-1.5 h-3.5 w-3.5" />
-                        ติดตามงาน
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">ติดตามงาน</span>
                       </Link>
                     </Button>
-                    <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
-                    <JobDeleteButton jobId={job.id} />
+                    <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact iconOnly />
+                    <JobDeleteButton jobId={job.id} iconOnly />
                   </div>
                 </td>
               </tr>

@@ -10,10 +10,12 @@ export function JobDeleteButton({
   jobId,
   label = "ลบ Job",
   redirectTo,
+  iconOnly = false,
 }: {
   jobId: string;
   label?: string;
   redirectTo?: string;
+  iconOnly?: boolean;
 }) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -46,9 +48,18 @@ export function JobDeleteButton({
 
   return (
     <div className="space-y-2">
-      <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting} className="w-full gap-2 sm:w-auto">
+      <Button
+        type="button"
+        variant="destructive"
+        size={iconOnly ? "icon" : "sm"}
+        onClick={handleDelete}
+        disabled={isDeleting}
+        className={iconOnly ? "h-8 w-8" : "w-full gap-2 sm:w-auto"}
+        title={label}
+        aria-label={label}
+      >
         <Trash2 className="h-4 w-4" />
-        {isDeleting ? "กำลังลบ" : label}
+        {iconOnly ? <span className="sr-only">{isDeleting ? "กำลังลบ" : label}</span> : isDeleting ? "กำลังลบ" : label}
       </Button>
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
     </div>

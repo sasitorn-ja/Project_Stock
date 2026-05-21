@@ -12,11 +12,13 @@ export function JobDriverAccessCard({
   driver,
   vehicle,
   compact = false,
+  iconOnly = false,
 }: {
   jobId: string;
   driver?: string;
   vehicle?: string;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   const driverRoomPath = buildDriverRoomPath(jobId);
   const [driverRoomUrl, setDriverRoomUrl] = useState(driverRoomPath);
@@ -31,31 +33,40 @@ export function JobDriverAccessCard({
   }, [jobId]);
 
   return (
-    <div className="space-y-2">
+    <div className={iconOnly ? "relative" : "space-y-2"}>
       <div className={compact ? "flex flex-col gap-2 sm:flex-row sm:flex-wrap" : "flex flex-col gap-2 sm:flex-row"}>
-        <Button asChild variant="outline" size={compact ? "sm" : "default"}>
-          <Link href={driverRoomPath} className={compact ? "w-full sm:w-auto" : undefined}>
-            <ExternalLink className="mr-2 h-4 w-4" />
-            เปิดห้องคนขับ
+        <Button
+          asChild
+          variant="outline"
+          size={iconOnly ? "icon" : compact ? "sm" : "default"}
+          className={iconOnly ? "h-8 w-8" : undefined}
+          title="เปิดห้องคนขับ"
+          aria-label="เปิดห้องคนขับ"
+        >
+          <Link href={driverRoomPath} className={compact && !iconOnly ? "w-full sm:w-auto" : undefined}>
+            <ExternalLink className={iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+            {iconOnly ? <span className="sr-only">เปิดห้องคนขับ</span> : "เปิดห้องคนขับ"}
           </Link>
         </Button>
         <Button
           type="button"
           variant="outline"
-          size={compact ? "sm" : "default"}
+          size={iconOnly ? "icon" : compact ? "sm" : "default"}
           onClick={() => setIsQrVisible((currentValue) => !currentValue)}
-          className={compact ? "w-full sm:w-auto" : undefined}
+          className={iconOnly ? "h-8 w-8" : compact ? "w-full sm:w-auto" : undefined}
+          title={isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}
+          aria-label={isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}
         >
-          <QrCode className="mr-2 h-4 w-4" />
-          {isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}
+          <QrCode className={iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+          {iconOnly ? <span className="sr-only">{isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}</span> : isQrVisible ? "ซ่อน QR" : "แสดง QR สำหรับคนขับ"}
         </Button>
       </div>
 
       {isQrVisible ? (
-        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-cyan-950 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100 sm:p-5">
+        <div className={iconOnly ? "absolute right-0 top-10 z-20 w-80 rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-cyan-950 shadow-lg shadow-slate-900/10 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100" : "rounded-lg border border-cyan-200 bg-cyan-50 p-4 text-cyan-950 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-100 sm:p-5"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <div className="rounded-lg bg-white p-4 shadow-sm">
-              <QRCode value={driverRoomUrl} size={144} />
+              <QRCode value={driverRoomUrl} size={iconOnly ? 120 : 144} />
             </div>
             <div className="space-y-2 text-sm">
               <p className="font-medium">สแกน QR นี้เพื่อเปิดหน้าคนขับของงานนี้ทันที</p>
