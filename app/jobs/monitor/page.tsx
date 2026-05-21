@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { JobAddPOPanel } from "@/components/jobs/job-add-po-panel";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
@@ -141,22 +141,6 @@ export default async function JobMonitorPage({
               <JobAlertList alerts={job.alerts} />
             </div>
           </section>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">สรุป PO ในงาน</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 py-3 md:grid-cols-3">
-              {job.poStatuses.map((item) => (
-                <div key={item.po} className="rounded-lg border border-[#f0f2f5] bg-[#fafbfc] p-4">
-                  <p className="text-[12.5px] font-semibold text-slate-900">{item.po}</p>
-                  <Badge className="mt-2" variant={item.variant}>
-                    {item.status}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </>
       ) : (
         !selectedJobId && (
