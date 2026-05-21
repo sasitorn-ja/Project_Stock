@@ -1,5 +1,6 @@
 import { FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { Input } from "@/components/ui/input";
 import { JobReportTable, type JobReportListItem } from "@/components/reports/job-report-table";
 import { getJobStatusLabel } from "@/lib/job-labels";
@@ -10,6 +11,12 @@ export const dynamic = "force-dynamic";
 function normalizeStatus(value: string | undefined): JobReportStatusFilter {
   return value === "active" || value === "archived" ? value : "all";
 }
+
+const statusOptions = [
+  { value: "all", label: "ทุกสถานะ" },
+  { value: "active", label: "เปิดอยู่" },
+  { value: "archived", label: "ปิดแล้ว" },
+];
 
 function formatDateTime(value?: string) {
   if (!value) {
@@ -104,16 +111,7 @@ export default async function ReportsPage({
           </div>
           <Input type="date" name="dateFrom" defaultValue={dateFrom} aria-label="วันที่เริ่มต้น" />
           <Input type="date" name="dateTo" defaultValue={dateTo} aria-label="วันที่สิ้นสุด" />
-          <select
-            name="status"
-            defaultValue={status}
-            className="h-8 w-full rounded-md border border-[#dde3ea] bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition-colors hover:bg-white focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10"
-            aria-label="สถานะงาน"
-          >
-            <option value="all">ทุกสถานะ</option>
-            <option value="active">เปิดอยู่</option>
-            <option value="archived">ปิดแล้ว</option>
-          </select>
+          <DropdownSelect name="status" value={status} options={statusOptions} ariaLabel="สถานะงาน" />
           <Button type="submit" size="sm">
             <Search className="mr-2 size-4" />
             ค้นหา

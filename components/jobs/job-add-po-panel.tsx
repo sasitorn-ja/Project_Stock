@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { Input } from "@/components/ui/input";
 import { addPORecordsToJob } from "@/lib/job-db";
 import { getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
@@ -40,6 +41,16 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
   const currentPage = Math.min(page, totalPages);
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const fillerRowCount = Math.max(0, PAGE_SIZE - records.length);
+  const destinationOptions = useMemo(
+    () => [
+      { value: "from-po", label: "ปลายทางจาก PO" },
+      ...job.destinations.map((destination) => ({
+        value: destination.id,
+        label: destination.name,
+      })),
+    ],
+    [job.destinations],
+  );
 
   // เปลี่ยนคำค้นหา ให้กลับไปหน้าแรกเสมอ
   useEffect(() => {
@@ -177,18 +188,13 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
                 className="pl-9"
               />
             </div>
-            <select
+            <DropdownSelect
               value={destinationMode}
-              onChange={(event) => setDestinationMode(event.target.value)}
-              className="h-9 rounded-md border border-[#d8dde6] bg-white px-3 text-sm sm:h-8"
-            >
-              <option value="from-po">ปลายทางจาก PO</option>
-              {job.destinations.map((destination) => (
-                <option key={destination.id} value={destination.id}>
-                  {destination.name}
-                </option>
-              ))}
-            </select>
+              options={destinationOptions}
+              onValueChange={setDestinationMode}
+              ariaLabel="เลือกปลายทางสำหรับ PO ที่เพิ่ม"
+              className="h-9 sm:h-8"
+            />
           </div>
 
           <div className="overflow-hidden rounded-md border">

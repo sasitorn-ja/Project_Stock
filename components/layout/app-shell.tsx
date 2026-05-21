@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onMenuClick={() => setIsMobileOpen((value) => !value)}
           onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
         />
-        <main className="w-full min-w-0 px-3 py-4 sm:px-5 sm:py-6 md:px-8">{children}</main>
+        <main className="w-full min-w-0 px-3 py-3 sm:px-5 sm:py-4 md:px-8">{children}</main>
       </div>
     </div>
   );

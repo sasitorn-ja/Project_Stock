@@ -6,11 +6,11 @@ import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function PurchaseOrdersPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div className="min-w-0">
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">PO รอจัดส่ง</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-lg font-bold tracking-normal text-slate-900">PO รอจัดส่ง</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             เลือกรายการ PO ที่นำเข้าแล้วเพื่อสร้าง Job ขนส่ง
           </p>
         </div>
