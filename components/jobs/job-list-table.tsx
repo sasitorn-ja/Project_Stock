@@ -2,15 +2,166 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import QRCode from "react-qr-code";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Eye, QrCode, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { getJobStatusLabel } from "@/lib/job-labels";
+import { buildDriverRoomPath, buildDriverRoomUrl } from "@/lib/driver-room";
+import { deleteJob } from "@/lib/job-db";
 import type { JobSummaryRecord } from "@/lib/jobs";
 
 const pageSize = 8;
+
+const menuItemClass =
+  "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50";
+
+function JobQrModal({
+  jobId,
+  driver,
+  vehicle,
+  url,
+  onClose,
+}: {
+  jobId: string;
+  driver?: string;
+  vehicle?: string;
+  url: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="w-full max-w-sm rounded-xl border border-[#d8dde6] bg-white p-5 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-semibold text-slate-900">QR สำหรับคนขับ</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ปิด"
+            className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-4 flex flex-col items-center gap-4">
+          <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+            <QRCode value={url} size={184} />
+          </div>
+          <div className="w-full space-y-1.5 text-sm text-slate-700">
+            <p>
+              รหัสงาน: <span className="font-semibold text-slate-900">{jobId}</span>
+            </p>
+            <p>
+              คนขับ: <span className="font-medium">{driver || "-"}</span> / รถ:{" "}
+              <span className="font-medium">{vehicle || "-"}</span>
+            </p>
+            <p className="break-all rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{url}</p>
+            <p className="text-xs text-muted-foreground">ให้คนขับสแกน QR นี้เพื่อเปิดห้องงานทันที</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JobRowActions({ job }: { job: JobSummaryRecord }) {
+  const router = useRouter();
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const driverRoomPath = buildDriverRoomPath(job.id);
+
+  function showQr() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    setQrUrl(buildDriverRoomUrl(origin, job.id));
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `ต้องการลบ Job ${job.id} ใช่ไหม?\n\nระบบจะลบห้องงานนี้และคืน PO กลับไปหน้า PO รอจัดส่ง`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      await deleteJob(job.id);
+      router.refresh();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ลบ Job ไม่สำเร็จ");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" aria-label="เมนูจัดการงาน">
+            จัดการ
+            <ChevronDown className="h-4 w-4 text-slate-500" />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={6}
+            className="z-50 min-w-[184px] rounded-xl border border-[#d8dde6] bg-white p-1.5 text-slate-900 shadow-lg shadow-slate-900/10"
+          >
+            <DropdownMenu.Item asChild className={menuItemClass}>
+              <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>
+                <Eye className="h-4 w-4 shrink-0 text-slate-500" />
+                ติดตามงาน
+              </Link>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item asChild className={menuItemClass}>
+              <Link href={driverRoomPath}>
+                <ExternalLink className="h-4 w-4 shrink-0 text-slate-500" />
+                เปิดห้องคนขับ
+              </Link>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item className={menuItemClass} onSelect={() => showQr()}>
+              <QrCode className="h-4 w-4 shrink-0 text-slate-500" />
+              แสดง QR คนขับ
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 h-px bg-[#f0f2f5]" />
+            <DropdownMenu.Item
+              className={`${menuItemClass} text-red-600 hover:bg-red-50 focus:bg-red-50 data-[highlighted]:bg-red-50`}
+              onSelect={() => void handleDelete()}
+            >
+              <Trash2 className="h-4 w-4 shrink-0" />
+              {isDeleting ? "กำลังลบ" : "ลบงาน"}
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+
+      {qrUrl ? (
+        <JobQrModal
+          jobId={job.id}
+          driver={job.driver}
+          vehicle={job.vehicle}
+          url={qrUrl}
+          onClose={() => setQrUrl(null)}
+        />
+      ) : null}
+    </>
+  );
+}
 
 export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
   const [page, setPage] = useState(1);
@@ -39,7 +190,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
               <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ขึ้นรถ</th>
               <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">ส่งแล้ว</th>
               <th className="w-32 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">สถานะ</th>
-              <th className="w-36 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">จัดการ</th>
+              <th className="w-28 whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-400">จัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f5f6f8]">
@@ -73,16 +224,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
                   </Badge>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 align-top">
-                  <div className="flex items-start gap-1.5">
-                    <Button asChild variant="outline" size="icon" className="h-8 w-8" title="ติดตามงาน" aria-label="ติดตามงาน">
-                      <Link href={`/jobs/monitor?jobId=${encodeURIComponent(job.id)}`}>
-                        <Eye className="h-4 w-4" />
-                        <span className="sr-only">ติดตามงาน</span>
-                      </Link>
-                    </Button>
-                    <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact iconOnly />
-                    <JobDeleteButton jobId={job.id} iconOnly />
-                  </div>
+                  <JobRowActions job={job} />
                 </td>
               </tr>
             ))}
