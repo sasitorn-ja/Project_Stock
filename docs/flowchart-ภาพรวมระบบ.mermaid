@@ -1,0 +1,46 @@
+%% Flowchart ภาพรวมระบบ — store-qr-job-transport
+%% เปิดดู/แก้ไขได้ที่ https://mermaid.live หรือใน VS Code (ส่วนขยาย Mermaid)
+flowchart TD
+    subgraph P1["1 · นำเข้าทะเบียน PO"]
+        A1["อัปโหลดไฟล์ Excel<br/>หน้า PO Import"] --> A2["ตรวจสอบ & พรีวิว<br/>ตัดข้อมูลซ้ำ / ไม่มี PO"]
+        A2 --> A3["บันทึกเข้าทะเบียน PO<br/>PO Registry"]
+    end
+
+    subgraph P2["2 · สร้างงานขนส่ง"]
+        B1["เลือก PO เข้างาน<br/>กำหนดจำนวน & ปลายทาง"] --> B2["สร้างงานขนส่ง Job<br/>สถานะเริ่มต้น: ready"]
+    end
+
+    subgraph P3["3 · โหลดสินค้าขึ้นรถ (ต้นทาง)"]
+        C1["เช็กอิน GPS ต้นทาง<br/>บันทึกพิกัด + สถานที่"] --> C2["สแกน QR ขึ้นรถ<br/>load: +1 ต่อการสแกน"]
+        C2 --> C3{"โหลดครบทั้งงาน?"}
+        C3 -->|ยังโหลดไม่ครบ| C2
+    end
+
+    T1["ปิดต้นทางอัตโนมัติ<br/>สถานะ → in_transit"]
+
+    subgraph P4["4 · ส่งสินค้า (ปลายทาง)"]
+        D1["เช็กอิน GPS ปลายทาง<br/>ทำต่อแต่ละปลายทาง"] --> D2["สแกน QR ลงของ<br/>deliver: +1 ต่อการสแกน"]
+        D2 --> D3{"ส่งครบทุกปลายทาง?"}
+        D3 -->|ยังมีปลายทางอื่น| D1
+    end
+
+    subgraph P5["5 · ปิดงาน & รายงาน"]
+        E1["ปิดงานอัตโนมัติ<br/>สถานะ → completed"] --> E2["ย้ายเข้าประวัติงาน<br/>ลบอัตโนมัติเมื่อครบกำหนด"]
+        E2 --> E3["ออกรายงาน / Export Excel<br/>หน้า Reports"]
+    end
+
+    A3 --> B1
+    B2 --> C1
+    C3 -->|โหลดครบ| T1
+    T1 --> D1
+    D3 -->|ส่งครบทุกปลายทาง| E1
+
+    classDef office fill:#E6F1FB,stroke:#185FA5,color:#0C447C;
+    classDef field fill:#E1F5EE,stroke:#0F6E56,color:#085041;
+    classDef auto fill:#EEEDFE,stroke:#534AB7,color:#3C3489;
+    classDef decision fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+
+    class A1,A2,A3,B1,B2,E3 office;
+    class C1,C2,D1,D2 field;
+    class T1,E1,E2 auto;
+    class C3,D3 decision;

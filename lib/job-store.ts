@@ -402,6 +402,15 @@ function applyDestinationCheckIn(
 
   assertDestinationModeUnlocked(job);
 
+  job.destinations
+    .filter((currentDestination) => currentDestination.id !== destination.id)
+    .forEach((currentDestination) => {
+      applyUnusedDestinationCheckInClear(job, {
+        destinationId: currentDestination.id,
+        nextDestinationId: destination.id,
+      });
+    });
+
   const checkedInAt = new Date().toISOString();
 
   destination.deliveryGps = formatGpsText(input);
@@ -410,6 +419,63 @@ function applyDestinationCheckIn(
   job.updatedAt = checkedInAt;
 
   return job;
+}
+
+function hasSuccessfulDeliveryScanAfterCheckIn(job: JobRecord, destination: JobRecord["destinations"][number]) {
+  if (!destination.deliveryCheckedInAt) {
+    return false;
+  }
+
+  const checkedInAt = new Date(destination.deliveryCheckedInAt).getTime();
+  if (!Number.isFinite(checkedInAt)) {
+    return false;
+  }
+
+  return job.scanLogs.some((log) => {
+    if (log.mode !== "deliver" || log.result !== "ok" || log.destinationId !== destination.id) {
+      return false;
+    }
+
+    const scannedAt = new Date(log.createdAt).getTime();
+    return Number.isFinite(scannedAt) && scannedAt >= checkedInAt;
+  });
+}
+
+function applyUnusedDestinationCheckInClear(
+  job: JobRecord,
+  input: {
+    destinationId: string;
+    nextDestinationId?: string;
+  },
+) {
+  const destination = job.destinations.find((currentDestination) => currentDestination.id === input.destinationId);
+
+  if (!destination) {
+    throw new Error("ไม่พบปลายทางที่ต้องการล้างเช็กอินใน Job นี้");
+  }
+
+  if (!destination.deliveryCheckedInAt || !destination.deliveryGps.trim()) {
+    return { job, cleared: false, message: "" };
+  }
+
+  if (hasSuccessfulDeliveryScanAfterCheckIn(job, destination)) {
+    return { job, cleared: false, message: "" };
+  }
+
+  const nextDestination = input.nextDestinationId
+    ? job.destinations.find((currentDestination) => currentDestination.id === input.nextDestinationId)
+    : undefined;
+  const now = new Date().toISOString();
+  const message = nextDestination
+    ? `ล้างเช็กอินปลายทาง ${destination.name || destination.address || "-"} เพราะเปลี่ยนไป ${nextDestination.name || nextDestination.address || "-"} ก่อนสแกนส่งสำเร็จ`
+    : `ล้างเช็กอินปลายทาง ${destination.name || destination.address || "-"} เพราะยังไม่มีการสแกนส่งสำเร็จ`;
+
+  destination.deliveryGps = "";
+  destination.deliveryCheckedInAt = undefined;
+  prependAlert(job, "ล้างเช็กอินปลายทาง", message, "กลาง");
+  job.updatedAt = now;
+
+  return { job, cleared: true, message };
 }
 
 function assertDestinationCheckInCompleted(job: JobRecord, destinationId?: string) {
@@ -1402,6 +1468,53 @@ async function checkInJobDestinationInDatabase(input: {
   });
 }
 
+async function clearUnusedDestinationCheckInInDatabase(input: {
+  jobId: string;
+  destinationId: string;
+  nextDestinationId?: string;
+}) {
+  assertWritableStorage();
+
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = $1
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const response = applyUnusedDestinationCheckInClear(mapDatabaseJob(row), input);
+
+    if (response.cleared) {
+      await client.query(
+        `
+          UPDATE delivery_jobs
+          SET
+            delivery_destinations_json = $2::jsonb,
+            updated_at = $3::timestamptz,
+            job_alerts_json = $4::jsonb
+          WHERE delivery_job_id = $1
+        `,
+        [response.job.id, JSON.stringify(response.job.destinations), response.job.updatedAt, JSON.stringify(response.job.alerts)],
+      );
+    }
+
+    return {
+      job: summarizeJob(response.job),
+      cleared: response.cleared,
+      message: response.message,
+    };
+  });
+}
+
 async function registerJobScanInDatabase(input: {
   jobId: string;
   code: string;
@@ -2073,6 +2186,35 @@ export async function checkInJobDestination(input: {
   await writeStore(store);
 
   return summarizeJob(job);
+}
+
+export async function clearUnusedDestinationCheckIn(input: {
+  jobId: string;
+  destinationId: string;
+  nextDestinationId?: string;
+}) {
+  if (hasSharedDatabase()) {
+    return clearUnusedDestinationCheckInInDatabase(input);
+  }
+
+  assertWritableStorage();
+  const store = await readStore();
+  const job = store.jobs.find((currentJob) => currentJob.id === input.jobId);
+
+  if (!job) {
+    throw new Error("ไม่พบ Job ที่เลือก");
+  }
+
+  const response = applyUnusedDestinationCheckInClear(job, input);
+  if (response.cleared) {
+    await writeStore(store);
+  }
+
+  return {
+    job: summarizeJob(response.job),
+    cleared: response.cleared,
+    message: response.message,
+  };
 }
 
 export async function registerJobScan(input: {

@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
+import { checkInJobDestination, checkInJobOrigin, clearUnusedDestinationCheckIn, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
 import { createScanHints, MIN_SCAN_CODE_LENGTH, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
 
@@ -35,6 +35,7 @@ type DriverNotice = {
   title: string;
   message: string;
   tone: "alert" | "success" | "info";
+  showScanWarning?: boolean;
 };
 
 function getDriverAlertTitle(message: string) {
@@ -77,18 +78,71 @@ function getScannerVideoConstraints(): MediaTrackConstraints {
   return isNarrowScreen
     ? {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1440 },
-        height: { ideal: 2560 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
         aspectRatio: { ideal: 9 / 16 },
-        frameRate: { ideal: 30 },
+        frameRate: { ideal: 24 },
       }
     : {
         facingMode: { ideal: "environment" },
-        width: { ideal: 2560 },
-        height: { ideal: 1440 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
         aspectRatio: { ideal: 16 / 9 },
-        frameRate: { ideal: 30 },
+        frameRate: { ideal: 24 },
       };
+}
+
+function isProbablyIosBrowser() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function getCameraErrorMessage(error: unknown) {
+  const name = error instanceof Error ? error.name : "";
+  const rawMessage = error instanceof Error ? error.message : String(error);
+
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "ยังไม่ได้อนุญาตสิทธิ์กล้อง ให้เปิดสิทธิ์กล้องของ Safari/Browser แล้วแตะเปิดกล้องอีกครั้ง";
+  }
+
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "ไม่พบกล้องในอุปกรณ์นี้ กรุณาตรวจสอบกล้องหรือคีย์รหัสแทน";
+  }
+
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "กล้องกำลังถูกใช้งานโดยแอปอื่น หรือระบบยังไม่ปล่อยกล้องให้เว็บ ปิดแอปกล้องอื่นแล้วลองใหม่";
+  }
+
+  if (name === "AbortError" || rawMessage.toLowerCase().includes("aborted")) {
+    return "เบราว์เซอร์ยกเลิกการเปิดกล้องกลางทาง มักเกิดตอนเปิดกล้องเร็วหรือซ้อนกันบน iPhone ให้กดรับทราบแล้วแตะเปิดกล้องอีกครั้ง";
+  }
+
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return "กล้องไม่รองรับค่าความละเอียดที่ร้องขอ ระบบจะให้ลองเปิดด้วยโหมดพื้นฐานอีกครั้ง";
+  }
+
+  return `เปิดกล้องไม่ได้ (${rawMessage}) กรุณาอนุญาตสิทธิ์กล้อง หรือคีย์รหัสแทน`;
+}
+
+async function requestScannerCameraStream() {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: getScannerVideoConstraints(),
+      audio: false,
+    });
+  } catch (error) {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+    return navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+      },
+      audio: false,
+    });
+  }
 }
 
 export function DriverScanner({
@@ -105,6 +159,7 @@ export function DriverScanner({
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const scanLockRef = useRef(false);
+  const cameraStartInFlightRef = useRef(false);
   const completionAlertShownRef = useRef("");
   const fullyLoadedAlertShownRef = useRef("");
   const tapIndicatorTimeoutRef = useRef<number | null>(null);
@@ -128,6 +183,7 @@ export function DriverScanner({
   const [tapIndicator, setTapIndicator] = useState<{ x: number; y: number; id: number } | null>(null);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
+  const [isSwitchingDestination, setIsSwitchingDestination] = useState(false);
   const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
   const autoStartAttemptRef = useRef("");
 
@@ -306,7 +362,7 @@ export function DriverScanner({
   }, [isJobCompleted, job]);
 
   useEffect(() => {
-    if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || driverNotice || !job) {
+    if (!isDedicatedDriverMode || isProbablyIosBrowser() || isScanBlocked || isCameraScanning || driverNotice || !job) {
       return;
     }
 
@@ -317,7 +373,7 @@ export function DriverScanner({
 
     autoStartAttemptRef.current = key;
     const timeoutId = window.setTimeout(() => {
-      void startCamera();
+      void startCamera({ showNoticeOnError: false });
     }, 450);
 
     return () => window.clearTimeout(timeoutId);
@@ -332,7 +388,7 @@ export function DriverScanner({
     }
   }
 
-  function showDriverFeedback(nextMessage: string, result: "ok" | "alert", title?: string) {
+  function showDriverFeedback(nextMessage: string, result: "ok" | "alert", title?: string, options?: { showScanWarning?: boolean }) {
     setMessage(nextMessage);
     setScanResult(result);
 
@@ -342,6 +398,7 @@ export function DriverScanner({
         title: title ?? getDriverAlertTitle(nextMessage),
         message: nextMessage,
         tone: "alert",
+        showScanWarning: options?.showScanWarning ?? true,
       });
     }
   }
@@ -438,6 +495,39 @@ export function DriverScanner({
     }
   }
 
+  async function handleDestinationSelect(destinationId: string) {
+    if (!job || destinationId === currentDestination?.id) {
+      return;
+    }
+
+    const previousDestination = currentDestination;
+    stopCamera();
+    setIsSwitchingDestination(true);
+
+    try {
+      if (previousDestination?.deliveryCheckedInAt && previousDestination.deliveryGps.trim()) {
+        const response = await clearUnusedDestinationCheckIn({
+          jobId: job.id,
+          destinationId: previousDestination.id,
+          nextDestinationId: destinationId,
+        });
+
+        setJob(response.job);
+        if (response.cleared && response.message) {
+          setMessage(response.message);
+          setScanResult("ok");
+        }
+      }
+
+      setCurrentLocation(destinationId);
+      setLatestGps("");
+    } catch (error) {
+      showDriverFeedback(error instanceof Error ? error.message : "เปลี่ยนปลายทางไม่สำเร็จ กรุณาลองใหม่", "alert", "เปลี่ยนปลายทางไม่สำเร็จ");
+    } finally {
+      setIsSwitchingDestination(false);
+    }
+  }
+
   async function submitScannedCode(nextCode: string) {
     if (!job) {
       showDriverFeedback("ยังไม่มี Job ให้สแกน", "alert");
@@ -494,7 +584,16 @@ export function DriverScanner({
     await submitScannedCode(code);
   }
 
-  async function startCamera() {
+  async function startCamera(options: { showNoticeOnError?: boolean } = {}) {
+    const showNoticeOnError = options.showNoticeOnError ?? true;
+
+    function showCameraProblem(nextMessage: string) {
+      setCameraMessage(nextMessage);
+      if (showNoticeOnError) {
+        showDriverFeedback(nextMessage, "alert", "เปิดกล้องไม่ได้", { showScanWarning: false });
+      }
+    }
+
     if (isScanBlocked) {
       const blockedMessage =
         isOriginGpsRequired
@@ -502,33 +601,33 @@ export function DriverScanner({
           : mode === "deliver" && isDeliverModeLocked
             ? "ต้องสแกนขึ้นรถให้ครบก่อนเปิดปลายทาง"
             : "ต้องเช็กอิน GPS ปลายทางก่อนเปิดกล้อง";
-      setCameraMessage(blockedMessage);
-      showDriverFeedback(blockedMessage, "alert");
+      showCameraProblem(blockedMessage);
       return;
     }
 
     if (!("mediaDevices" in navigator)) {
       const blockedMessage = "อุปกรณ์นี้ไม่รองรับการเปิดกล้องผ่านเว็บ";
-      setCameraMessage(blockedMessage);
-      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
+      showCameraProblem(blockedMessage);
       return;
     }
 
     if (!videoRef.current) {
       const blockedMessage = "ยังไม่พร้อมเปิดกล้อง กรุณาลองใหม่";
-      setCameraMessage(blockedMessage);
-      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
+      showCameraProblem(blockedMessage);
+      return;
+    }
+
+    if (cameraStartInFlightRef.current) {
+      setCameraMessage("กำลังเปิดกล้องอยู่ กรุณารอสักครู่");
       return;
     }
 
     try {
+      cameraStartInFlightRef.current = true;
       scanLockRef.current = false;
 
       // Step 1: acquire camera stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: getScannerVideoConstraints(),
-        audio: false,
-      });
+      const stream = await requestScannerCameraStream();
 
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
@@ -617,14 +716,14 @@ export function DriverScanner({
         },
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const blockedMessage = `เปิดกล้องไม่ได้ (${msg}) กรุณาอนุญาตสิทธิ์กล้อง หรือคีย์รหัสแทน`;
-      setCameraMessage(blockedMessage);
-      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
+      const blockedMessage = getCameraErrorMessage(err);
+      showCameraProblem(blockedMessage);
       setIsCameraScanning(false);
       // clean up stream if it was partially acquired
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    } finally {
+      cameraStartInFlightRef.current = false;
     }
   }
 
@@ -813,7 +912,7 @@ export function DriverScanner({
               <div className="max-h-[45vh] overflow-y-auto whitespace-pre-line break-words rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-900">
                 {driverNotice.message}
               </div>
-              {driverNotice.tone === "alert" ? (
+              {driverNotice.tone === "alert" && driverNotice.showScanWarning !== false ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
                   ระบบยังไม่บันทึกการส่งของรายการที่ผิด ให้ตรวจปลายทางหรือรหัสสินค้าให้ถูกต้องก่อนสแกนต่อ
                 </div>
@@ -1014,9 +1113,9 @@ export function DriverScanner({
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger
                   className="mt-2 flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-[#cfd6df] bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
-                  disabled={isDeliverModeLocked}
+                  disabled={isDeliverModeLocked || isSwitchingDestination}
                 >
-                  <span className="min-w-0 truncate">{currentDestination?.name || "เลือกปลายทาง"}</span>
+                  <span className="min-w-0 truncate">{isSwitchingDestination ? "กำลังเปลี่ยนปลายทาง" : currentDestination?.name || "เลือกปลายทาง"}</span>
                   <ChevronDown className="size-4 shrink-0 text-slate-500" />
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
@@ -1032,8 +1131,7 @@ export function DriverScanner({
                         <DropdownMenu.Item
                           key={destination.id}
                           onSelect={() => {
-                            setCurrentLocation(destination.id);
-                            stopCamera();
+                            void handleDestinationSelect(destination.id);
                           }}
                           className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
                         >

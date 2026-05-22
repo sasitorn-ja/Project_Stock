@@ -189,6 +189,26 @@ export async function checkInJobDestination(input: {
   return data.job;
 }
 
+export async function clearUnusedDestinationCheckIn(input: {
+  jobId: string;
+  destinationId: string;
+  nextDestinationId?: string;
+}) {
+  return readResponse<{
+    job: JobSummaryRecord;
+    cleared: boolean;
+    message: string;
+  }>(
+    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/clear-unused-destination-check-in`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
 export async function submitJobScan(input: {
   jobId: string;
   code: string;
