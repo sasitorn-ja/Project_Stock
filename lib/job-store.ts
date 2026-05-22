@@ -657,11 +657,11 @@ function applyJobScan(
       : [];
   const scannableItems = destinationItems.length ? destinationItems : matchingItems;
   const item =
-    scannableItems.find((currentItem) =>
-      input.mode === "load"
-        ? currentItem.loadedQty < currentItem.orderQty
-        : currentItem.loadedQty > currentItem.deliveredQty && currentItem.deliveredQty < currentItem.orderQty,
-    ) ?? scannableItems[0];
+    input.mode === "load"
+      ? scannableItems.find((currentItem) => currentItem.loadedQty < currentItem.orderQty) ?? scannableItems[0]
+      : scannableItems.find((currentItem) => currentItem.loadedQty > currentItem.deliveredQty && currentItem.deliveredQty < currentItem.orderQty) ??
+        scannableItems.find((currentItem) => currentItem.deliveredQty >= currentItem.orderQty) ??
+        scannableItems[0];
 
   if (input.mode === "deliver" && input.destinationId && item.destinationId !== input.destinationId) {
     const selectedDestination = job.destinations.find((currentDestination) => currentDestination.id === input.destinationId);
@@ -702,8 +702,8 @@ function applyJobScan(
 
     item.loadedQty += 1;
   } else {
-    if (item.loadedQty <= item.deliveredQty) {
-      const alert = prependAlert(job, "ยังไม่โหลดขึ้นรถ", `${getJobItemLabel(item)} ยังไม่มีจำนวนที่พร้อมส่ง`, "สูง");
+    if (item.deliveredQty >= item.orderQty) {
+      const alert = prependAlert(job, "ส่งซ้ำ", `${getJobItemLabel(item)} ส่งครบตามแผนแล้ว`, "กลาง");
       appendScanLog(job, {
         code,
         mode: input.mode,
@@ -717,8 +717,8 @@ function applyJobScan(
       return { job, result: "alert" as const, message: alert.message };
     }
 
-    if (item.deliveredQty >= item.orderQty) {
-      const alert = prependAlert(job, "ส่งซ้ำ", `${getJobItemLabel(item)} ส่งครบตามแผนแล้ว`, "กลาง");
+    if (item.loadedQty <= item.deliveredQty) {
+      const alert = prependAlert(job, "ยังไม่โหลดขึ้นรถ", `${getJobItemLabel(item)} ยังไม่มีจำนวนที่พร้อมส่ง`, "สูง");
       appendScanLog(job, {
         code,
         mode: input.mode,

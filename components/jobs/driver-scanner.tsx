@@ -46,7 +46,7 @@ function getDriverAlertTitle(message: string) {
     return "ต้องเช็กอินให้ถูกต้อง";
   }
 
-  if (message.includes("สแกนซ้ำ") || message.includes("ส่งซ้ำ") || message.includes("โหลดครบ")) {
+  if (message.includes("สแกนซ้ำ") || message.includes("ส่งซ้ำ") || message.includes("โหลดครบ") || message.includes("ส่งครบ")) {
     return "รายการนี้ถูกสแกนแล้ว";
   }
 
