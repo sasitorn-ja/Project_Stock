@@ -58,6 +58,22 @@ function getDriverAlertTitle(message: string) {
   return "แจ้งเตือนคนขับ";
 }
 
+function getScanSuccessNoticeTitle(message: string) {
+  if (message.includes("ส่งปลายทางนี้ครบแล้ว")) {
+    return "ปลายทางนี้ส่งครบแล้ว";
+  }
+
+  if (message.includes("โหลดปลายทางนี้ครบแล้ว")) {
+    return "ปลายทางนี้โหลดครบแล้ว";
+  }
+
+  if (message.includes("โหลดครบแล้ว")) {
+    return "โหลดครบแล้ว";
+  }
+
+  return "";
+}
+
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
     throw new Error("อุปกรณ์นี้ไม่รองรับการดึง GPS");
@@ -556,7 +572,12 @@ export function DriverScanner({
       });
 
       setJob(response.job);
-      showDriverFeedback(response.message, response.result);
+      const successNoticeTitle = response.result === "ok" ? getScanSuccessNoticeTitle(response.message) : "";
+      if (successNoticeTitle) {
+        showDriverSuccess(response.message, successNoticeTitle);
+      } else {
+        showDriverFeedback(response.message, response.result);
+      }
       setCode("");
       const nextOpenDestinations = getOpenDestinations(response.job);
       const nextCurrentDestination = nextOpenDestinations.find((destination) => destination.id === currentDestination?.id);

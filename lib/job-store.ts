@@ -871,13 +871,21 @@ function applyJobScan(
     prependAlert(job, "ปิดงานสำเร็จ", "ส่งครบทุกปลายทางแล้ว ระบบปิดงานและย้ายเข้าประวัติงาน", "ผ่าน");
   }
 
+  const destinationName = destination?.name || item.destinationName;
+  const destinationCompletionMessage =
+    input.mode === "load" && isDestinationFullyLoaded
+      ? `\n${destinationName} โหลดปลายทางนี้ครบแล้ว`
+      : input.mode === "deliver" && isDestinationFullyDelivered
+        ? `\n${destinationName} ส่งปลายทางนี้ครบแล้ว`
+        : "";
+
   return {
     job,
     result: "ok" as const,
     message:
       input.mode === "load"
-        ? `${getJobItemLabel(item)} ขึ้นรถแล้ว ${item.loadedQty}/${item.orderQty}${isJobFullyLoaded(job) ? "\nโหลดครบแล้ว ระบบปิดต้นทางให้แล้ว ห้ามเช็กอินต้นทางซ้ำ" : ""}`
-        : `${getJobItemLabel(item)} ส่งแล้ว ${item.deliveredQty}/${item.orderQty}`,
+        ? `${getJobItemLabel(item)} ขึ้นรถแล้ว ${item.loadedQty}/${item.orderQty}${destinationCompletionMessage}${isJobFullyLoaded(job) ? "\nโหลดครบแล้ว ระบบปิดต้นทางให้แล้ว ห้ามเช็กอินต้นทางซ้ำ" : ""}`
+        : `${getJobItemLabel(item)} ส่งแล้ว ${item.deliveredQty}/${item.orderQty}${destinationCompletionMessage}`,
   };
 }
 
