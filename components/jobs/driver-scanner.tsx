@@ -4,7 +4,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import Link from "next/link";
-import { Camera, Check, CheckCircle2, ChevronDown, FileText, Flashlight, FlashlightOff, MapPin, QrCode, ScanLine, Square, Truck, ZoomIn } from "lucide-react";
+import {
+  AlertTriangle,
+  Camera,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Flashlight,
+  FlashlightOff,
+  Info,
+  MapPin,
+  QrCode,
+  ScanLine,
+  Square,
+  Truck,
+  X,
+  ZoomIn,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +30,32 @@ import { Label } from "@/components/ui/label";
 import { checkInJobDestination, checkInJobOrigin, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
 import { createScanHints, MIN_SCAN_CODE_LENGTH, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
+
+type DriverNotice = {
+  title: string;
+  message: string;
+  tone: "alert" | "success" | "info";
+};
+
+function getDriverAlertTitle(message: string) {
+  if (message.includes("ไม่ใช่ของปลายทาง") || message.includes("ผิดปลายทาง")) {
+    return "สแกนผิดปลายทาง";
+  }
+
+  if (message.includes("เช็กอิน GPS") || message.includes("GPS") || message.includes("ปลายทาง")) {
+    return "ต้องเช็กอินให้ถูกต้อง";
+  }
+
+  if (message.includes("สแกนซ้ำ") || message.includes("ส่งซ้ำ") || message.includes("โหลดครบ")) {
+    return "รายการนี้ถูกสแกนแล้ว";
+  }
+
+  if (message.includes("ไม่พบ")) {
+    return "ไม่พบรายการในงานนี้";
+  }
+
+  return "แจ้งเตือนคนขับ";
+}
 
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
@@ -85,6 +128,7 @@ export function DriverScanner({
   const [tapIndicator, setTapIndicator] = useState<{ x: number; y: number; id: number } | null>(null);
   const [isFetchingOriginGps, setIsFetchingOriginGps] = useState(false);
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
+  const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
   const autoStartAttemptRef = useRef("");
 
   useEffect(() => {
@@ -111,8 +155,7 @@ export function DriverScanner({
           selectLoadedJob(nextJob);
         }
       } catch {
-        setMessage("โหลดข้อมูลห้องคนขับไม่สำเร็จ");
-        setScanResult("alert");
+        showDriverFeedback("โหลดข้อมูลห้องคนขับไม่สำเร็จ", "alert", "โหลดห้องงานไม่สำเร็จ");
       } finally {
         setIsLoading(false);
       }
@@ -221,12 +264,7 @@ export function DriverScanner({
 
     fullyLoadedAlertShownRef.current = job.id;
     stopCamera();
-    setScanResult("ok");
-    setMessage("โหลดครบแล้ว ระบบปิดต้นทางให้แล้ว\nเลือกปลายทางและเช็กอิน GPS ก่อนเริ่มสแกนส่งของ");
-
-    window.setTimeout(() => {
-      window.alert("โหลดครบแล้ว\nระบบปิดต้นทางให้แล้ว กรุณาเลือกปลายทางและเช็กอิน GPS ก่อนสแกนส่งของ");
-    }, 100);
+    showDriverSuccess("โหลดครบแล้ว ระบบปิดต้นทางให้แล้ว\nเลือกปลายทางและเช็กอิน GPS ก่อนเริ่มสแกนส่งของ", "โหลดครบแล้ว");
   }, [canOpenDestinationEarly, isFullyLoaded, isJobCompleted, job]);
 
   useEffect(() => {
@@ -260,13 +298,15 @@ export function DriverScanner({
     }
 
     completionAlertShownRef.current = job.id;
-    window.setTimeout(() => {
-      window.alert("จบงานแล้ว\nส่งครบทุกปลายทาง ระบบบันทึกและปิดงานให้เรียบร้อย");
-    }, 100);
+    setDriverNotice({
+      title: "จบงานแล้ว",
+      message: "ส่งครบทุกปลายทาง ระบบบันทึกและปิดงานให้เรียบร้อย",
+      tone: "success",
+    });
   }, [isJobCompleted, job]);
 
   useEffect(() => {
-    if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || !job) {
+    if (!isDedicatedDriverMode || isScanBlocked || isCameraScanning || driverNotice || !job) {
       return;
     }
 
@@ -281,18 +321,49 @@ export function DriverScanner({
     }, 450);
 
     return () => window.clearTimeout(timeoutId);
-  }, [currentDestination?.id, hasDestinationCheckIn, isCameraScanning, isDedicatedDriverMode, isScanBlocked, job, mode]);
+  }, [currentDestination?.id, driverNotice, hasDestinationCheckIn, isCameraScanning, isDedicatedDriverMode, isScanBlocked, job, mode]);
+
+  function closeDriverNotice() {
+    const shouldRetryAutoStart = driverNotice?.tone === "success";
+
+    setDriverNotice(null);
+    if (shouldRetryAutoStart) {
+      autoStartAttemptRef.current = "";
+    }
+  }
+
+  function showDriverFeedback(nextMessage: string, result: "ok" | "alert", title?: string) {
+    setMessage(nextMessage);
+    setScanResult(result);
+
+    if (result === "alert") {
+      stopCamera();
+      setDriverNotice({
+        title: title ?? getDriverAlertTitle(nextMessage),
+        message: nextMessage,
+        tone: "alert",
+      });
+    }
+  }
+
+  function showDriverSuccess(nextMessage: string, title: string) {
+    setMessage(nextMessage);
+    setScanResult("ok");
+    setDriverNotice({
+      title,
+      message: nextMessage,
+      tone: "success",
+    });
+  }
 
   async function captureOriginGps() {
     if (!job) {
-      setMessage("ยังไม่มี Job ให้เช็กอิน GPS");
-      setScanResult("alert");
+      showDriverFeedback("ยังไม่มี Job ให้เช็กอิน GPS", "alert");
       return;
     }
 
     if (isOriginLocked && !canRecheckOrigin) {
-      setMessage("ต้นทางปิดแล้วหลังสแกนขึ้นรถครบ หากต้องแก้ไขให้โทรหาผู้ดูแลเพื่อเปิดต้นทางกรณีพิเศษ");
-      setScanResult("alert");
+      showDriverFeedback("ต้นทางปิดแล้วหลังสแกนขึ้นรถครบ หากต้องแก้ไขให้โทรหาผู้ดูแลเพื่อเปิดต้นทางกรณีพิเศษ", "alert", "ต้นทางถูกปิดแล้ว");
       return;
     }
 
@@ -314,11 +385,12 @@ export function DriverScanner({
 
       setJob(nextJob);
       setLatestGps(nextJob.originGps || gpsText);
-      setMessage(canRecheckOrigin ? "ผู้ดูแลเปิดต้นทางกรณีพิเศษ: เช็กอินต้นทางใหม่เรียบร้อยแล้ว" : "ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว");
-      setScanResult("ok");
+      showDriverFeedback(
+        canRecheckOrigin ? "ผู้ดูแลเปิดต้นทางกรณีพิเศษ: เช็กอินต้นทางใหม่เรียบร้อยแล้ว" : "ดึง GPS จากมือถือและเช็กอินต้นทางเรียบร้อยแล้ว",
+        "ok",
+      );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
-      setScanResult("alert");
+      showDriverFeedback(error instanceof Error ? error.message : "ดึง GPS จากอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่", "alert");
     } finally {
       setIsFetchingOriginGps(false);
     }
@@ -326,14 +398,15 @@ export function DriverScanner({
 
   async function captureDestinationGps() {
     if (!job || !currentDestination) {
-      setMessage("ยังไม่ได้เลือกปลายทางสำหรับเช็กอิน GPS");
-      setScanResult("alert");
+      showDriverFeedback("ยังไม่ได้เลือกปลายทางสำหรับเช็กอิน GPS", "alert");
       return;
     }
 
     if (isDeliverModeLocked) {
-      setMessage("ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ");
-      setScanResult("alert");
+      showDriverFeedback(
+        "ต้องเช็กอินต้นทางและสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะเปิดปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ",
+        "alert",
+      );
       return;
     }
 
@@ -357,11 +430,9 @@ export function DriverScanner({
       setJob(nextJob);
       const nextDestination = nextJob.destinations.find((destination) => destination.id === currentDestination.id);
       setLatestGps(nextDestination?.deliveryGps || gpsText);
-      setMessage(`เช็กอิน GPS ปลายทาง ${currentDestination.name} เรียบร้อยแล้ว`);
-      setScanResult("ok");
+      showDriverFeedback(`เช็กอิน GPS ปลายทาง ${currentDestination.name} เรียบร้อยแล้ว`, "ok");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "ดึง GPS ปลายทางไม่สำเร็จ กรุณาลองใหม่");
-      setScanResult("alert");
+      showDriverFeedback(error instanceof Error ? error.message : "ดึง GPS ปลายทางไม่สำเร็จ กรุณาลองใหม่", "alert");
     } finally {
       setIsFetchingDestinationGps(false);
     }
@@ -369,21 +440,18 @@ export function DriverScanner({
 
   async function submitScannedCode(nextCode: string) {
     if (!job) {
-      setMessage("ยังไม่มี Job ให้สแกน");
-      setScanResult("alert");
+      showDriverFeedback("ยังไม่มี Job ให้สแกน", "alert");
       return;
     }
 
     const normalizedCode = nextCode.trim();
     if (!normalizedCode) {
-      setMessage("กรุณาสแกนหรือกรอกรหัสก่อนบันทึก");
-      setScanResult("alert");
+      showDriverFeedback("กรุณาสแกนหรือกรอกรหัสก่อนบันทึก", "alert");
       return;
     }
 
     if (mode === "deliver" && isDeliverModeLocked) {
-      setMessage("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะบันทึกส่งปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ");
-      setScanResult("alert");
+      showDriverFeedback("ต้องสแกนสินค้าขึ้นรถให้ครบก่อน จึงจะบันทึกส่งปลายทางได้ หากมีเหตุจำเป็นให้ผู้ดูแลเปิดปลายทางกรณีพิเศษ", "alert");
       return;
     }
 
@@ -398,8 +466,7 @@ export function DriverScanner({
       });
 
       setJob(response.job);
-      setMessage(response.message);
-      setScanResult(response.result);
+      showDriverFeedback(response.message, response.result);
       setCode("");
       const nextOpenDestinations = getOpenDestinations(response.job);
       const nextCurrentDestination = nextOpenDestinations.find((destination) => destination.id === currentDestination?.id);
@@ -417,8 +484,7 @@ export function DriverScanner({
         stopCamera();
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "บันทึกการสแกนไม่สำเร็จ");
-      setScanResult("alert");
+      showDriverFeedback(error instanceof Error ? error.message : "บันทึกการสแกนไม่สำเร็จ", "alert");
     } finally {
       setIsSubmitting(false);
     }
@@ -430,23 +496,28 @@ export function DriverScanner({
 
   async function startCamera() {
     if (isScanBlocked) {
-      setCameraMessage(
+      const blockedMessage =
         isOriginGpsRequired
           ? "ต้องเช็กอิน GPS ต้นทางก่อนเปิดกล้อง"
           : mode === "deliver" && isDeliverModeLocked
             ? "ต้องสแกนขึ้นรถให้ครบก่อนเปิดปลายทาง"
-            : "ต้องเช็กอิน GPS ปลายทางก่อนเปิดกล้อง",
-      );
+            : "ต้องเช็กอิน GPS ปลายทางก่อนเปิดกล้อง";
+      setCameraMessage(blockedMessage);
+      showDriverFeedback(blockedMessage, "alert");
       return;
     }
 
     if (!("mediaDevices" in navigator)) {
-      setCameraMessage("อุปกรณ์นี้ไม่รองรับการเปิดกล้องผ่านเว็บ");
+      const blockedMessage = "อุปกรณ์นี้ไม่รองรับการเปิดกล้องผ่านเว็บ";
+      setCameraMessage(blockedMessage);
+      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
       return;
     }
 
     if (!videoRef.current) {
-      setCameraMessage("ยังไม่พร้อมเปิดกล้อง กรุณาลองใหม่");
+      const blockedMessage = "ยังไม่พร้อมเปิดกล้อง กรุณาลองใหม่";
+      setCameraMessage(blockedMessage);
+      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
       return;
     }
 
@@ -547,7 +618,9 @@ export function DriverScanner({
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setCameraMessage(`เปิดกล้องไม่ได้ (${msg}) — กรุณาอนุญาตสิทธิ์กล้อง หรือคีย์รหัสแทน`);
+      const blockedMessage = `เปิดกล้องไม่ได้ (${msg}) กรุณาอนุญาตสิทธิ์กล้อง หรือคีย์รหัสแทน`;
+      setCameraMessage(blockedMessage);
+      showDriverFeedback(blockedMessage, "alert", "เปิดกล้องไม่ได้");
       setIsCameraScanning(false);
       // clean up stream if it was partially acquired
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -668,6 +741,90 @@ export function DriverScanner({
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3">
+      {driverNotice ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="driver-notice-title"
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-950/30">
+            <div
+              className={
+                driverNotice.tone === "alert"
+                  ? "flex items-start gap-3 border-b border-red-200 bg-red-50 px-4 py-4"
+                  : driverNotice.tone === "success"
+                    ? "flex items-start gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-4"
+                    : "flex items-start gap-3 border-b border-sky-200 bg-sky-50 px-4 py-4"
+              }
+            >
+              <div
+                className={
+                  driverNotice.tone === "alert"
+                    ? "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-red-600 text-white"
+                    : driverNotice.tone === "success"
+                      ? "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
+                      : "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white"
+                }
+              >
+                {driverNotice.tone === "alert" ? (
+                  <AlertTriangle className="h-5 w-5" />
+                ) : driverNotice.tone === "success" ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <Info className="h-5 w-5" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3
+                  id="driver-notice-title"
+                  className={
+                    driverNotice.tone === "alert"
+                      ? "break-words text-lg font-bold text-red-950"
+                      : driverNotice.tone === "success"
+                        ? "break-words text-lg font-bold text-emerald-950"
+                        : "break-words text-lg font-bold text-sky-950"
+                  }
+                >
+                  {driverNotice.title}
+                </h3>
+                <p
+                  className={
+                    driverNotice.tone === "alert"
+                      ? "mt-1 text-sm font-medium text-red-800"
+                      : driverNotice.tone === "success"
+                        ? "mt-1 text-sm font-medium text-emerald-800"
+                        : "mt-1 text-sm font-medium text-sky-800"
+                  }
+                >
+                  คนขับต้องเห็นข้อความนี้ก่อนทำต่อ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDriverNotice}
+                className="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/70 hover:text-slate-950"
+                aria-label="ปิดป๊อปอัพแจ้งเตือน"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <div className="max-h-[45vh] overflow-y-auto whitespace-pre-line break-words rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-900">
+                {driverNotice.message}
+              </div>
+              {driverNotice.tone === "alert" ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                  ระบบยังไม่บันทึกการส่งของรายการที่ผิด ให้ตรวจปลายทางหรือรหัสสินค้าให้ถูกต้องก่อนสแกนต่อ
+                </div>
+              ) : null}
+              <Button type="button" className="h-11 w-full text-base" onClick={closeDriverNotice}>
+                รับทราบ
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <section className="order-2 rounded-md border border-[#d8dde6] bg-white px-3 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
