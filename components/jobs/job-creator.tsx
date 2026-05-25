@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRightLeft, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, Save, Truck, X } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, RotateCcw, Save, Truck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -238,10 +238,33 @@ export function JobCreator() {
   const pagedDestinations = groupedDestinations.slice(destinationsStart, destinationsStart + DESTINATIONS_PER_PAGE);
 
   function updateScanQuantity(registryKey: string, value: number) {
+    const targetRecord = records.find((record) => record.registryKey === registryKey);
+    const targetPoSapNo = targetRecord?.poSapNo;
+    const normalizedValue = Math.max(0, Math.ceil(value || 0));
+
     setScanQuantities((currentQuantities) => ({
       ...currentQuantities,
-      [registryKey]: Math.max(0, Math.ceil(value || 0)),
+      ...Object.fromEntries(
+        records
+          .filter((record) => record.registryKey === registryKey || (targetPoSapNo && record.poSapNo === targetPoSapNo))
+          .map((record) => [record.registryKey, normalizedValue]),
+      ),
     }));
+  }
+
+  function getVisiblePoRowSpan(localIndex: number) {
+    const record = pagedRecords[localIndex];
+    let span = 0;
+
+    for (let index = localIndex; index < pagedRecords.length; index += 1) {
+      if (pagedRecords[index]?.poSapNo !== record?.poSapNo) {
+        break;
+      }
+
+      span += 1;
+    }
+
+    return span;
   }
 
   function updateDestinationDraft(destinationId: string, field: "name" | "address", value: string) {
@@ -289,6 +312,15 @@ export function JobCreator() {
       delete nextErrors[field];
       return nextErrors;
     });
+  }
+
+  function chooseMorePO() {
+    router.push("/po");
+  }
+
+  function chooseNewPO() {
+    window.sessionStorage.removeItem(storageKey);
+    router.push("/po");
   }
 
   function getInputClassName(field: string, className?: string) {
@@ -588,7 +620,7 @@ export function JobCreator() {
                         <th className="px-3 py-3 font-medium">ปลายทาง</th>
                         <th className="px-3 py-3 font-medium">รหัสวัสดุ</th>
                         <th className="px-3 py-3 font-medium">ชื่อวัสดุ</th>
-                        <th className="w-24 whitespace-nowrap px-3 py-3 font-medium">ในไฟล์</th>
+                        <th className="w-28 whitespace-nowrap px-3 py-3 font-medium">จำนวนสั่งซื้อ</th>
                         <th className="w-36 whitespace-nowrap px-3 py-3 font-medium">ที่ต้องสแกน</th>
                       </tr>
                     </thead>
@@ -596,6 +628,7 @@ export function JobCreator() {
                       {pagedRecords.map((record, localIndex) => {
                         const index = recordsStart + localIndex;
                         const isFirstPoRow = localIndex === 0 || records[index - 1]?.poSapNo !== record.poSapNo;
+                        const isFirstVisiblePoRow = localIndex === 0 || pagedRecords[localIndex - 1]?.poSapNo !== record.poSapNo;
 
                         return (
                           <tr key={record.registryKey}>
@@ -610,15 +643,20 @@ export function JobCreator() {
                             <td className="whitespace-nowrap px-3 py-3 align-top">{record.materialCode || "-"}</td>
                             <td className="max-w-64 break-words px-3 py-3 align-top">{record.materialName || "-"}</td>
                             <td className="whitespace-nowrap px-3 py-3 align-top">{record.orderQty || "-"}</td>
-                            <td className="px-3 py-3 align-top">
-                              <QuantityStepper
-                                value={scanQuantities[record.registryKey] ?? 1}
-                                min={0}
-                                onChange={(value) => updateScanQuantity(record.registryKey, value)}
-                                className="w-36"
-                                inputClassName="h-9 text-sm"
-                              />
-                            </td>
+                            {isFirstVisiblePoRow ? (
+                              <td
+                                className="border-b px-3 py-3 align-top last:border-b-0"
+                                rowSpan={getVisiblePoRowSpan(localIndex)}
+                              >
+                                <QuantityStepper
+                                  value={scanQuantities[record.registryKey] ?? 1}
+                                  min={0}
+                                  onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                                  className="w-36"
+                                  inputClassName="h-9 text-sm"
+                                />
+                              </td>
+                            ) : null}
                           </tr>
                         );
                       })}
@@ -626,7 +664,10 @@ export function JobCreator() {
                   </table>
                 </div>
                 <div className="divide-y lg:hidden">
-                  {pagedRecords.map((record) => (
+                  {pagedRecords.map((record, localIndex) => {
+                    const isFirstVisiblePoRow = localIndex === 0 || pagedRecords[localIndex - 1]?.poSapNo !== record.poSapNo;
+
+                    return (
                     <div key={record.registryKey} className="space-y-3 p-4 text-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -642,17 +683,23 @@ export function JobCreator() {
                         <p className="break-words">{destinationNameByRecordKey[record.registryKey] || "-"}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อในไฟล์</p>
+                        <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อ</p>
                         <p>{record.orderQty || "-"}</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`scan-qty-${record.registryKey}`}>จำนวนที่ต้องสแกน</Label>
-                        <QuantityStepper
-                          id={`scan-qty-${record.registryKey}`}
-                          value={scanQuantities[record.registryKey] ?? 1}
-                          min={0}
-                          onChange={(value) => updateScanQuantity(record.registryKey, value)}
-                        />
+                        {isFirstVisiblePoRow ? (
+                          <QuantityStepper
+                            id={`scan-qty-${record.registryKey}`}
+                            value={scanQuantities[record.registryKey] ?? 1}
+                            min={0}
+                            onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                          />
+                        ) : (
+                          <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
+                            ใช้จำนวนเดียวกับ PO {record.poSapNo}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">วัสดุ</p>
@@ -660,7 +707,8 @@ export function JobCreator() {
                         <p className="mt-0.5 break-words text-muted-foreground">{record.materialName || "-"}</p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <PaginationBar
                   page={currentRecordsPage}
@@ -706,7 +754,7 @@ export function JobCreator() {
                           {destinationDrafts[destination.id]?.name || destination.name}
                         </p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {destination.poCount.toLocaleString("th-TH")} รายการ · จำนวนในไฟล์ {destination.totalQty.toLocaleString("th-TH")}
+                          {destination.poCount.toLocaleString("th-TH")} รายการ · จำนวนสั่งซื้อ {destination.totalQty.toLocaleString("th-TH")}
                         </p>
                       </div>
                     </div>
@@ -783,9 +831,15 @@ export function JobCreator() {
               <FileWarning className="h-5 w-5" />
               <p>ยังไม่มีรายการ PO ที่ถูกเลือกจากหน้าคิวรอจัดส่ง</p>
             </div>
-            <Button type="button" variant="outline" onClick={() => router.push("/po")}>
-              กลับไปเลือก PO
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={chooseMorePO}>
+                เพิ่ม PO
+              </Button>
+              <Button type="button" variant="outline" onClick={chooseNewPO}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                เลือกใหม่
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -884,8 +938,8 @@ export function JobCreator() {
             <span className="leading-5">หลังสร้างงาน ระบบจะเปิดหน้าติดตามงานทันที และคนหน้างานต้องเช็กอิน GPS ต้นทางก่อนเริ่มสแกน</span>
           </div>
           <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-            <Button type="button" variant="outline" onClick={() => router.push("/po")} className="flex-1 sm:flex-none">
-              ยกเลิก
+            <Button type="button" variant="outline" onClick={chooseMorePO} className="flex-1 sm:flex-none">
+              เพิ่ม PO
             </Button>
             <Button
               type="button"

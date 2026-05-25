@@ -1418,7 +1418,7 @@ export function DriverScanner({
                           <span className="shrink-0 font-semibold">{item.deliveredQty}/{item.loadedQty}/{item.orderQty}</span>
                         </div>
                         <p className="mt-1 break-words text-xs text-slate-500">
-                          {item.materialName || "-"} / จำนวนในไฟล์ {item.sourceOrderQty || String(item.orderQty || "-")}
+                          {item.materialName || "-"} / จำนวนสั่งซื้อ {item.sourceOrderQty || String(item.orderQty || "-")}
                         </p>
                       </div>
                     ))}

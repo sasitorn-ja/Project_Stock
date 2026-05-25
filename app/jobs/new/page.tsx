@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { JobCreator } from "@/components/jobs/job-creator";
+import { JobSelectionActions } from "@/components/jobs/job-selection-actions";
 import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function NewJobPage() {
@@ -14,12 +12,7 @@ export default function NewJobPage() {
             ใช้รายการ PO ที่เลือกจริงจากคิวรอจัดส่ง เพื่อสร้างงานขนส่งและส่งต่อให้ห้องคนขับ
           </p>
         </div>
-        <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
-          <Link href="/po">
-            <FileText className="mr-2 h-3.5 w-3.5" />
-            กลับไปเลือก PO
-          </Link>
-        </Button>
+        <JobSelectionActions />
       </div>
 
       <StorageWarning />

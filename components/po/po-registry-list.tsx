@@ -16,7 +16,38 @@ type PORegistryListCache = {
 };
 
 const poRegistryListCacheKey = "project-stock.po-registry-list.v1";
+const selectedPOStorageKey = "project-stock.selected-po-registry-keys";
 const poRegistryListCacheTtlMs = 30_000;
+
+function readSelectedPOKeys() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const rawKeys = window.sessionStorage.getItem(selectedPOStorageKey);
+    const parsedKeys = rawKeys ? (JSON.parse(rawKeys) as unknown) : [];
+
+    return Array.isArray(parsedKeys)
+      ? Array.from(new Set(parsedKeys.filter((key): key is string => typeof key === "string" && key.trim().length > 0)))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSelectedPOKeys(keys: string[]) {
+  try {
+    if (!keys.length) {
+      window.sessionStorage.removeItem(selectedPOStorageKey);
+      return;
+    }
+
+    window.sessionStorage.setItem(selectedPOStorageKey, JSON.stringify(keys));
+  } catch {
+    return;
+  }
+}
 
 function readCachedPORegistryList(): PORegistryListCache | null {
   if (typeof window === "undefined") {
@@ -59,7 +90,7 @@ export function PORegistryList() {
   const [successMessage, setSuccessMessage] = useState("");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(readSelectedPOKeys);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const recordsLengthRef = useRef(0);
@@ -129,6 +160,10 @@ export function PORegistryList() {
   }, [query]);
 
   useEffect(() => {
+    writeSelectedPOKeys(selectedKeys);
+  }, [selectedKeys]);
+
+  useEffect(() => {
     function refreshOnFocus() {
       setReloadToken((current) => current + 1);
     }
@@ -196,7 +231,7 @@ export function PORegistryList() {
   }
 
   function createJobFromSelection() {
-    window.sessionStorage.setItem("project-stock.selected-po-registry-keys", JSON.stringify(selectedKeys));
+    writeSelectedPOKeys(selectedKeys);
     window.location.href = "/jobs/new";
   }
 
