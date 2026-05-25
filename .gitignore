@@ -28,3 +28,6 @@ next-env.d.ts
 
 # local backups
 .next.backup-*/
+
+# local confidential handoff documents
+sync-drop-sso-handoff.md

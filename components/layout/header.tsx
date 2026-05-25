@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Menu } from "lucide-react";
+import { LogOut, Menu, UserCircle } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,9 @@ export function Header({
   onMenuClick: () => void;
   onToggleSidebar: () => void;
 }) {
+  const { data: session } = useSession();
+  const displayName = session?.user?.name || session?.user?.email || "ผู้ใช้งาน";
+
   return (
     <header className="sticky top-0 z-30 h-[60px] border-b border-[#d8dde6] bg-white">
       <div className="flex h-full items-center justify-between px-5 md:px-8">
@@ -66,7 +70,25 @@ export function Header({
           </div>
         </div>
 
-        <div />
+        {session ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="hidden min-w-0 items-center gap-2 rounded-md border border-[#d8dde6] bg-white px-2.5 py-1.5 text-sm text-slate-700 sm:flex">
+              <UserCircle className="h-4 w-4 shrink-0 text-slate-500" />
+              <span className="max-w-48 truncate">{displayName}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
+              onClick={() => void signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </Button>
+          </div>
+        ) : (
+          <div />
+        )}
       </div>
     </header>
   );
