@@ -15,6 +15,7 @@ export type PORegistryDatabasePayload = {
   document_status: string;
   vendor_name: string;
   web_order_number: string;
+  plant_code: string;
   business_unit_name: string;
   material_code: string;
   material_name: string;
@@ -92,6 +93,7 @@ export type PORegistryArchiveDatabasePayload = {
   document_status: string;
   vendor_name: string;
   web_order_number: string;
+  plant_code: string;
   business_unit_name: string;
   material_code: string;
   material_name: string;
@@ -142,6 +144,7 @@ export function serializePORegistryRecordForDatabase(record: PORegistryRecord): 
     document_status: record.status,
     vendor_name: record.vendor,
     web_order_number: record.poWebNo,
+    plant_code: record.plantCode ?? "",
     business_unit_name: record.unitName,
     material_code: record.materialCode,
     material_name: record.materialName,
@@ -171,6 +174,7 @@ export function mapDatabasePORecord(row: DatabaseRow): PORegistryRecord {
     status: String(row.document_status ?? ""),
     vendor: String(row.vendor_name ?? ""),
     poWebNo: String(row.web_order_number ?? ""),
+    plantCode: String(row.plant_code ?? ""),
     unitName: String(row.business_unit_name ?? ""),
     materialCode: String(row.material_code ?? ""),
     materialName: String(row.material_name ?? ""),
@@ -287,6 +291,7 @@ export function serializePORegistryArchiveRecordForDatabase(
     document_status: record.status,
     vendor_name: record.vendor,
     web_order_number: record.poWebNo,
+    plant_code: record.plantCode ?? "",
     business_unit_name: record.unitName,
     material_code: record.materialCode,
     material_name: record.materialName,

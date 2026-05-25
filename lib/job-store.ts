@@ -18,7 +18,13 @@ import {
   type JobRecord,
   type ScanMode,
 } from "@/lib/jobs";
-import { cleanupExpiredSharedData, hasSharedDatabase, withPostgresClient, withPostgresTransaction } from "@/lib/postgres-storage";
+import {
+  cleanupExpiredSharedData,
+  hasSharedDatabase,
+  triggerExpiredSharedDataCleanup,
+  withPostgresClient,
+  withPostgresTransaction,
+} from "@/lib/postgres-storage";
 import {
   archivePORecordsForCompletedJob,
   getPORecordsByKeys,
@@ -890,7 +896,7 @@ function applyJobScan(
 }
 
 async function listJobsFromDatabase() {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const result = await client.query(`
@@ -911,7 +917,7 @@ async function listJobArchivesFromDatabase(filters: {
   dateFrom?: string;
   dateTo?: string;
 }) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const result = await client.query(`
@@ -928,7 +934,7 @@ async function listJobArchivesFromDatabase(filters: {
 }
 
 async function getJobFromDatabase(jobId: string) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const result = await client.query(
@@ -947,7 +953,7 @@ async function getJobFromDatabase(jobId: string) {
 }
 
 async function getJobArchiveFromDatabase(jobId: string) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const result = await client.query(
@@ -1531,7 +1537,7 @@ async function registerJobScanInDatabase(input: {
 }) {
   assertWritableStorage();
 
-  return withPostgresTransaction(async (client) => {
+  const scanResult = await withPostgresTransaction(async (client) => {
     const result = await client.query(
       `
         SELECT *
@@ -1708,6 +1714,7 @@ async function registerJobScanInDatabase(input: {
                 document_status TEXT,
                 vendor_name TEXT,
                 web_order_number TEXT,
+                plant_code TEXT,
                 business_unit_name TEXT,
                 material_code TEXT,
                 material_name TEXT,
@@ -1736,6 +1743,7 @@ async function registerJobScanInDatabase(input: {
               document_status,
               vendor_name,
               web_order_number,
+              plant_code,
               business_unit_name,
               material_code,
               material_name,
@@ -1763,6 +1771,7 @@ async function registerJobScanInDatabase(input: {
               document_status,
               vendor_name,
               web_order_number,
+              COALESCE(plant_code, '') AS plant_code,
               business_unit_name,
               material_code,
               material_name,
@@ -1789,6 +1798,7 @@ async function registerJobScanInDatabase(input: {
               document_status = EXCLUDED.document_status,
               vendor_name = EXCLUDED.vendor_name,
               web_order_number = EXCLUDED.web_order_number,
+              plant_code = EXCLUDED.plant_code,
               business_unit_name = EXCLUDED.business_unit_name,
               material_code = EXCLUDED.material_code,
               material_name = EXCLUDED.material_name,
@@ -1885,6 +1895,12 @@ async function registerJobScanInDatabase(input: {
       message: response.message,
     };
   });
+
+  if (scanResult.job.status === "completed") {
+    invalidatePORecordsPageCache();
+  }
+
+  return scanResult;
 }
 
 export async function listJobs() {

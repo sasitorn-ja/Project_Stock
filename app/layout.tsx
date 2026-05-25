@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 export const metadata: Metadata = {
-  title: "Store QR Job Transport",
+  title: "SyncDrop",
   description: "ระบบขนส่ง ตรวจรับ-ส่งสินค้าแบบ Job ด้วย QR และ GPS",
 };
 

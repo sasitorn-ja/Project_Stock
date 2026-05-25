@@ -33,6 +33,7 @@ type POImportRecord = {
   status: string;
   vendor: string;
   poWebNo: string;
+  plantCode: string;
   unitName: string;
   materialCode: string;
   materialName: string;
@@ -86,6 +87,7 @@ function buildRecord(row: ExcelRow, rowNumber: number, columns: Record<string, s
     status: readCell(row, columns.status),
     vendor: readCell(row, columns.vendor),
     poWebNo: readCell(row, columns.poWebNo),
+    plantCode: readCell(row, columns.plantCode),
     unitName: readCell(row, columns.unitName),
     materialCode: readCell(row, columns.materialCode),
     materialName: readCell(row, columns.materialName),
@@ -161,6 +163,7 @@ export function POImporter() {
         status: findColumn(headers, ["สถานะ", "Status"]),
         vendor: findColumn(headers, ["Vendor", "ผู้ขาย"]),
         poWebNo: findColumn(headers, ["PO Web No.", "PO Web No", "POWebNo"]),
+        plantCode: findColumn(headers, ["รหัสโรงงาน", "โรงงาน", "Plant Code", "PlantCode", "Plant", "Plant No.", "Plant No"]),
         unitName: findColumn(headers, ["ชื่อหน่วยงาน", "Unit Name"]),
         materialCode: findColumn(headers, ["รหัสวัสดุ", "Material Code"]),
         materialName: findColumn(headers, ["ชื่อวัสดุ", "Material Name"]),
@@ -261,6 +264,7 @@ export function POImporter() {
           status: record.status,
           vendor: record.vendor,
           poWebNo: record.poWebNo,
+          plantCode: record.plantCode,
           unitName: record.unitName,
           materialCode: record.materialCode,
           materialName: record.materialName,
@@ -458,6 +462,7 @@ function ImportTable({
                   <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">สถานะ</th>
                   <th className="w-56 px-4 py-3 font-medium">Vendor</th>
                   <th className="w-56 px-4 py-3 font-medium">PO Web No.</th>
+                  <th className="w-28 whitespace-nowrap px-4 py-3 font-medium">รหัสโรงงาน</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">รหัสวัสดุ</th>
                   <th className="w-80 px-4 py-3 font-medium">ชื่อวัสดุ</th>
                   <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">จำนวนสั่งซื้อ</th>
@@ -472,6 +477,7 @@ function ImportTable({
                     <td className="whitespace-nowrap px-4 py-3 align-top">{record.status || "-"}</td>
                     <td className="max-w-56 break-words px-4 py-3 align-top">{record.vendor || "-"}</td>
                     <td className="max-w-56 break-words px-4 py-3 align-top">{record.poWebNo || "-"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 align-top">{record.plantCode || "-"}</td>
                     <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
                     <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
                     <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
@@ -505,6 +511,10 @@ function ImportTable({
                   <div>
                     <p className="text-xs text-muted-foreground">PO Web No.</p>
                     <p className="break-words">{record.poWebNo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">รหัสโรงงาน</p>
+                    <p>{record.plantCode || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">จำนวนสั่งซื้อ</p>

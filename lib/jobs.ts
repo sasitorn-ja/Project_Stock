@@ -10,6 +10,7 @@ export type JobItemRecord = {
   poSapItem: string;
   vendor: string;
   poWebNo: string;
+  plantCode?: string;
   unitName: string;
   materialCode: string;
   materialName: string;
@@ -98,6 +99,29 @@ export function slugifyDestination(value: string) {
   return normalized || "unknown-destination";
 }
 
+const plantCodeDestinationNames: Record<string, string> = {
+  "13": "(13xx) ตะวันออก, ตะวันตก",
+  "19": "(19xx) เหนือ",
+  "15": "(15xx) ใต้",
+  "14": "(14xx) อีสาน",
+  "31": "(31xx) CPAC บางซ่อน",
+};
+
+export function getDestinationNameFromPlantCode(plantCode: string | null | undefined, fallbackName: string) {
+  const normalizedFallbackName = fallbackName.trim() || "ไม่ระบุปลายทาง";
+  const plantCodePrefix = /^(\d{2})/.exec(String(plantCode ?? "").trim())?.[1];
+
+  if (!plantCodePrefix) {
+    return normalizedFallbackName;
+  }
+
+  return plantCodeDestinationNames[plantCodePrefix] ?? `(${plantCodePrefix}xx) ${normalizedFallbackName}`;
+}
+
+export function getDestinationNameForPORecord(record: Pick<PORegistryRecord, "plantCode" | "unitName">) {
+  return getDestinationNameFromPlantCode(record.plantCode, record.unitName);
+}
+
 export function parseQty(value: string) {
   const normalized = value.replace(/,/g, "").trim();
   const parsed = Number(normalized);
@@ -114,7 +138,7 @@ export function normalizeScanQty(value: unknown, minimum = 1) {
 
 export function buildJobItems(records: PORegistryRecord[], scanQuantities: Record<string, number> = {}) {
   return records.map((record) => {
-    const destinationName = record.unitName.trim() || "ไม่ระบุปลายทาง";
+    const destinationName = getDestinationNameForPORecord(record);
     const destinationId = slugifyDestination(destinationName);
 
     return {
@@ -123,6 +147,7 @@ export function buildJobItems(records: PORegistryRecord[], scanQuantities: Recor
       poSapItem: record.poSapItem,
       vendor: record.vendor,
       poWebNo: record.poWebNo,
+      plantCode: record.plantCode,
       unitName: record.unitName,
       materialCode: record.materialCode,
       materialName: record.materialName,

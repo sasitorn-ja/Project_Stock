@@ -58,6 +58,7 @@ async function createSchema(client: PoolClient) {
       document_status TEXT NOT NULL DEFAULT '',
       vendor_name TEXT NOT NULL DEFAULT '',
       web_order_number TEXT NOT NULL DEFAULT '',
+      plant_code TEXT NOT NULL DEFAULT '',
       business_unit_name TEXT NOT NULL DEFAULT '',
       material_code TEXT NOT NULL DEFAULT '',
       material_name TEXT NOT NULL DEFAULT '',
@@ -135,6 +136,7 @@ async function createSchema(client: PoolClient) {
       document_status TEXT NOT NULL DEFAULT '',
       vendor_name TEXT NOT NULL DEFAULT '',
       web_order_number TEXT NOT NULL DEFAULT '',
+      plant_code TEXT NOT NULL DEFAULT '',
       business_unit_name TEXT NOT NULL DEFAULT '',
       material_code TEXT NOT NULL DEFAULT '',
       material_name TEXT NOT NULL DEFAULT '',
@@ -175,6 +177,12 @@ async function createSchema(client: PoolClient) {
     ALTER TABLE delivery_job_history
       ADD COLUMN IF NOT EXISTS allow_origin_recheck_after_locked BOOLEAN NOT NULL DEFAULT FALSE;
 
+    ALTER TABLE purchase_order_queue
+      ADD COLUMN IF NOT EXISTS plant_code TEXT NOT NULL DEFAULT '';
+
+    ALTER TABLE purchase_order_history
+      ADD COLUMN IF NOT EXISTS plant_code TEXT NOT NULL DEFAULT '';
+
     CREATE INDEX IF NOT EXISTS purchase_order_queue_active_idx
       ON purchase_order_queue (record_state, assigned_delivery_job_id, first_imported_at DESC);
     CREATE INDEX IF NOT EXISTS purchase_order_queue_lookup_idx
@@ -196,6 +204,15 @@ async function createSchema(client: PoolClient) {
       ON purchase_order_history (archived_from_delivery_job_id, archived_at DESC);
     CREATE INDEX IF NOT EXISTS purchase_order_history_delete_idx
       ON purchase_order_history (delete_after_at);
+    CREATE INDEX IF NOT EXISTS purchase_order_history_registry_key_idx
+      ON purchase_order_history (line_registry_key);
+    CREATE INDEX IF NOT EXISTS purchase_order_history_po_number_idx
+      ON purchase_order_history (purchase_order_number);
+
+    CREATE INDEX IF NOT EXISTS delivery_jobs_items_gin_idx
+      ON delivery_jobs USING GIN (job_items_json jsonb_path_ops);
+    CREATE INDEX IF NOT EXISTS delivery_job_history_items_gin_idx
+      ON delivery_job_history USING GIN (job_items_json jsonb_path_ops);
   `);
 }
 
@@ -299,4 +316,10 @@ export async function cleanupExpiredSharedData() {
     });
 
   await cleanupPromise;
+}
+
+export function triggerExpiredSharedDataCleanup() {
+  cleanupExpiredSharedData().catch((error) => {
+    console.error("Cleanup expired shared data failed", error);
+  });
 }

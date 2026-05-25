@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   X,
@@ -65,12 +66,17 @@ export function Sidebar({
         <div className="flex h-full flex-col">
           <div className="flex h-[60px] shrink-0 items-center justify-between gap-2 border-b border-[#d8dde6] bg-white px-4 py-0">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#d8dde6] bg-[#171717] text-xs font-bold text-white">
-                ST
+              <div className="flex h-12 shrink-0 items-center justify-center">
+                <Image
+                  src="/logo.png"
+                  alt="SyncDrop Logo"
+                  width={58}
+                  height={48}
+                  className="h-12 w-auto object-contain"
+                />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">Job Transport QR System</p>
-                <p className="truncate text-[11px] text-slate-500">Store QR System</p>
+                <p className="truncate text-sm font-semibold text-slate-900">SyncDrop</p>
               </div>
             </div>
 

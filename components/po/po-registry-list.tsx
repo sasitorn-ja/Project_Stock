@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { clearPORegistry, deletePORecords, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
+import { clearPORegistry, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
 
 type PORegistryListCache = {
   records: PORegistryRecord[];
@@ -47,6 +47,10 @@ function clearCachedPORegistryList() {
   }
 }
 
+function getPoSapNoFromRegistryKey(registryKey: string) {
+  return registryKey.split("::")[0]?.trim() || registryKey;
+}
+
 export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -56,6 +60,7 @@ export function PORegistryList() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const recordsLengthRef = useRef(0);
   const pageSize = 20;
@@ -65,6 +70,10 @@ export function PORegistryList() {
   const startIndex = (currentPage - 1) * pageSize;
   const visibleRecordKeys = useMemo(() => records.map((record) => record.registryKey), [records]);
   const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+  const selectedPoCount = useMemo(
+    () => new Set(selectedKeys.map(getPoSapNoFromRegistryKey)).size,
+    [selectedKeys],
+  );
   const isAllVisibleSelected =
     visibleRecordKeys.length > 0 && visibleRecordKeys.every((registryKey) => selectedKeySet.has(registryKey));
 
@@ -214,71 +223,7 @@ export function PORegistryList() {
     setQuery("");
   }
 
-  async function deleteSelectedRecords() {
-    if (!selectedKeys.length) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `ลบ PO ที่เลือก ${selectedKeys.length.toLocaleString("th-TH")} รายการออกจากคิวรอจัดส่ง?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError("");
-      setSuccessMessage("");
-      const deletedCount = await deletePORecords(selectedKeys);
-      clearCachedPORegistryList();
-      setSelectedKeys([]);
-      setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
-      setReloadToken((current) => current + 1);
-    } catch {
-      setError("ลบข้อมูล PO ที่เลือกไม่สำเร็จ กรุณาลองใหม่");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function deleteRecord(record: PORegistryRecord) {
-    const confirmed = window.confirm(`ลบ PO ${record.poSapNo} item ${record.poSapItem} ออกจากคิวรอจัดส่ง?`);
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError("");
-      setSuccessMessage("");
-      const deletedCount = await deletePORecords([record.registryKey]);
-      clearCachedPORegistryList();
-      setSelectedKeys((currentKeys) => currentKeys.filter((registryKey) => registryKey !== record.registryKey));
-      setSuccessMessage(`ลบข้อมูลออกจากคิวแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`);
-      setReloadToken((current) => current + 1);
-    } catch {
-      setError("ลบข้อมูล PO ไม่สำเร็จ กรุณาลองใหม่");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   async function clearAllRecords() {
-    if (!totalCount) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `ล้างข้อมูล PO รอจัดส่งทั้งหมด ${totalCount.toLocaleString("th-TH")} รายการ? รายการที่สร้าง Job แล้วจะไม่ถูกลบ`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError("");
@@ -287,10 +232,11 @@ export function PORegistryList() {
       clearCachedPORegistryList();
       setSelectedKeys([]);
       setPage(1);
-      setSuccessMessage("ล้างข้อมูล PO รอจัดส่งทั้งหมดแล้ว");
+      setIsClearConfirmOpen(false);
+      setSuccessMessage("ลบข้อมูล PO รอจัดส่งทั้งหมดแล้ว");
       setReloadToken((current) => current + 1);
     } catch {
-      setError("ล้างข้อมูล PO ไม่สำเร็จ กรุณาลองใหม่");
+      setError("ลบข้อมูล PO ทั้งหมดไม่สำเร็จ กรุณาลองใหม่");
     } finally {
       setIsLoading(false);
     }
@@ -309,18 +255,16 @@ export function PORegistryList() {
             <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
               รีเฟรชรายการ
             </Button>
-            {/* ล้างคิวทั้งหมด — ซ่อนข้อความ เหลือแค่ไอคอน + tooltip เพื่อลด confusion */}
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              title="ล้างคิวทั้งหมด (ลบ PO ทุกรายการออกจากคิว)"
-              aria-label="ล้างคิวทั้งหมด"
-              onClick={clearAllRecords}
+              variant="outline"
+              size="sm"
+              onClick={() => setIsClearConfirmOpen(true)}
               disabled={!totalCount || isLoading}
-              className="h-8 w-8 shrink-0 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              ลบข้อมูลทั้งหมด
             </Button>
           </div>
         </div>
@@ -342,37 +286,24 @@ export function PORegistryList() {
           {selectedKeys.length > 0 ? (
             <div className="flex flex-col gap-2 xl:flex-1 xl:flex-row xl:items-center xl:justify-end">
               <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
-                เลือกแล้ว {selectedKeys.length.toLocaleString("th-TH")} รายการ
+                เลือกแล้ว {selectedPoCount.toLocaleString("th-TH")} รายการ
               </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedKeys([])}
-                  className="flex-1 whitespace-nowrap xl:flex-none"
-                >
-                  ยกเลิกการเลือก
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={deleteSelectedRecords}
-                  disabled={isLoading}
-                  className="flex-1 whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50 xl:flex-none"
-                >
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                  ลบที่เลือก
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedKeys([])}
+                className="whitespace-nowrap"
+              >
+                ยกเลิกการเลือก
+              </Button>
               <Button
                 type="button"
                 onClick={createJobFromSelection}
                 className="h-auto min-h-9 w-full whitespace-nowrap xl:w-auto"
               >
                 <FilePlus2 className="mr-2 h-4 w-4 shrink-0" />
-                สร้าง Job จาก {selectedKeys.length.toLocaleString("th-TH")} รายการที่เลือก
+                สร้าง Job จาก {selectedPoCount.toLocaleString("th-TH")} รายการที่เลือก
               </Button>
             </div>
           ) : (
@@ -422,7 +353,7 @@ export function PORegistryList() {
         ) : records.length ? (
           <div className="overflow-hidden rounded-md border">
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[1120px] text-sm">
+              <table className="w-full min-w-[1040px] text-sm">
                 <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                   <tr>
                     <th className="w-14 px-4 py-3 font-medium">
@@ -442,44 +373,36 @@ export function PORegistryList() {
                     <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">รหัสวัสดุ</th>
                     <th className="w-80 px-4 py-3 font-medium">ชื่อวัสดุ</th>
                     <th className="w-32 whitespace-nowrap px-4 py-3 font-medium">จำนวนสั่งซื้อ</th>
-                    <th className="w-24 whitespace-nowrap px-4 py-3 text-right font-medium">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {records.map((record) => (
-                    <tr key={record.registryKey}>
-                      <td className="px-4 py-3 align-top">
-                        <input
-                          type="checkbox"
-                          aria-label={`เลือก PO ${record.poSapNo} item ${record.poSapItem}`}
-                          checked={selectedKeySet.has(record.registryKey)}
-                          onChange={() => void toggleRecord(record)}
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{record.poSapNo}</td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top">{record.poSapItem}</td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top">{record.status || "-"}</td>
-                      <td className="max-w-56 break-words px-4 py-3 align-top">{record.vendor || "-"}</td>
-                      <td className="max-w-56 break-words px-4 py-3 align-top">{record.poWebNo || "-"}</td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
-                      <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
-                      <td className="px-4 py-3 text-right align-top">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title="ลบรายการนี้"
-                          onClick={() => deleteRecord(record)}
-                          disabled={isLoading}
-                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {records.map((record, index) => {
+                    const isFirstPoRow = index === 0 || records[index - 1]?.poSapNo !== record.poSapNo;
+
+                    return (
+                      <tr key={record.registryKey}>
+                        <td className="px-4 py-3 align-top">
+                          {isFirstPoRow ? (
+                            <input
+                              type="checkbox"
+                              aria-label={`เลือก PO ${record.poSapNo} item ${record.poSapItem}`}
+                              checked={selectedKeySet.has(record.registryKey)}
+                              onChange={() => void toggleRecord(record)}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          ) : null}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top font-medium">{isFirstPoRow ? record.poSapNo : ""}</td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top">{record.poSapItem}</td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top">{record.status || "-"}</td>
+                        <td className="max-w-56 break-words px-4 py-3 align-top">{record.vendor || "-"}</td>
+                        <td className="max-w-56 break-words px-4 py-3 align-top">{record.poWebNo || "-"}</td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top">{record.materialCode || "-"}</td>
+                        <td className="max-w-80 break-words px-4 py-3 align-top">{record.materialName || "-"}</td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top">{record.orderQty || "-"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -500,17 +423,6 @@ export function PORegistryList() {
                           <p className="break-words font-semibold text-slate-950">{record.poSapNo}</p>
                           <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem} / {record.status || "-"}</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title="ลบรายการนี้"
-                          onClick={() => deleteRecord(record)}
-                          disabled={isLoading}
-                          className="h-8 w-8 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                       <div className="mt-3 grid gap-2 text-sm">
                         <div>
@@ -610,6 +522,58 @@ export function PORegistryList() {
           </div>
         )}
       </CardContent>
+
+      {isClearConfirmOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-po-title"
+          onClick={() => setIsClearConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-lg border border-red-200 bg-white shadow-xl dark:border-red-900 dark:bg-slate-950"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-red-100 bg-red-50 px-4 py-4 dark:border-red-950 dark:bg-red-950/30">
+              <div className="flex min-w-0 gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-600 text-white">
+                  <AlertTriangle className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p id="clear-po-title" className="font-semibold text-red-950 dark:text-red-100">
+                    ยืนยันลบข้อมูลทั้งหมด
+                  </p>
+                  <p className="mt-1 text-sm text-red-800 dark:text-red-200">
+                    จะลบ PO รอจัดส่งทั้งหมด {totalCount.toLocaleString("th-TH")} รายการออกจากคิว
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsClearConfirmOpen(false)}
+                aria-label="ปิด"
+                className="rounded-md p-1 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                ข้อมูลที่ถูกสร้าง Job แล้วจะไม่ถูกลบ แต่รายการที่ยังอยู่ในคิว PO รอจัดส่งจะหายจากหน้านี้ กรุณากดยืนยันอีกครั้งถ้าต้องการลบจริง
+              </p>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setIsClearConfirmOpen(false)} disabled={isLoading}>
+                  ยกเลิก
+                </Button>
+                <Button type="button" onClick={() => void clearAllRecords()} disabled={isLoading} className="bg-red-600 text-white hover:bg-red-700">
+                  {isLoading ? "กำลังลบ" : "ยืนยันลบข้อมูลทั้งหมด"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }

@@ -7,7 +7,13 @@ import {
   type PORegistryArchiveRecord,
   type PORegistryRecord,
 } from "@/lib/po-registry";
-import { cleanupExpiredSharedData, hasSharedDatabase, withPostgresClient, withPostgresTransaction } from "@/lib/postgres-storage";
+import {
+  cleanupExpiredSharedData,
+  hasSharedDatabase,
+  triggerExpiredSharedDataCleanup,
+  withPostgresClient,
+  withPostgresTransaction,
+} from "@/lib/postgres-storage";
 import {
   createStoredPORegistryRecord,
   mapDatabasePORecord,
@@ -32,11 +38,19 @@ const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "po-registry.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "po-registry-archives.json");
 const poRecordsPageCacheTtlMs = 30_000;
+const existingPORecordsCacheTtlMs = 30_000;
 const poRecordsPageCache = new Map<
   string,
   {
     expiresAt: number;
     promise: Promise<PORecordsPageResult>;
+  }
+>();
+const existingPORecordsCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<PORegistryRecord[]>;
   }
 >();
 const searchableColumns = [
@@ -45,6 +59,7 @@ const searchableColumns = [
   "document_status",
   "vendor_name",
   "web_order_number",
+  "plant_code",
   "business_unit_name",
   "material_code",
   "material_name",
@@ -97,9 +112,10 @@ function buildCompletedPOExclusion(tableAlias: string) {
     )
     AND NOT EXISTS (
       SELECT 1
-      FROM delivery_job_history job_history,
-        jsonb_array_elements(job_history.job_items_json) AS history_item(value)
-      WHERE history_item.value->>'poSapNo' = ${tableAlias}.purchase_order_number
+      FROM delivery_job_history job_history
+      WHERE job_history.job_items_json @> jsonb_build_array(
+        jsonb_build_object('poSapNo', ${tableAlias}.purchase_order_number)
+      )
     )
   `;
 }
@@ -112,8 +128,15 @@ function getPORecordsPageCacheKey(input: { page: number; pageSize: number; query
   });
 }
 
+function getExistingPORecordsCacheKey(registryKeys: string[]) {
+  return JSON.stringify(
+    Array.from(new Set(registryKeys.map((registryKey) => registryKey.trim()).filter(Boolean))).sort(),
+  );
+}
+
 export function invalidatePORecordsPageCache() {
   poRecordsPageCache.clear();
+  existingPORecordsCache.clear();
 }
 
 async function getCachedPORecordsPageFromDatabase(input: {
@@ -136,6 +159,31 @@ async function getCachedPORecordsPageFromDatabase(input: {
 
   poRecordsPageCache.set(cacheKey, {
     expiresAt: now + poRecordsPageCacheTtlMs,
+    promise,
+  });
+
+  return promise;
+}
+
+async function getCachedExistingPORecordsFromDatabase(registryKeys: string[]) {
+  const normalizedRegistryKeys = Array.from(
+    new Set(registryKeys.map((registryKey) => registryKey.trim()).filter(Boolean)),
+  );
+  const cacheKey = getExistingPORecordsCacheKey(normalizedRegistryKeys);
+  const now = Date.now();
+  const cachedResult = existingPORecordsCache.get(cacheKey);
+
+  if (cachedResult && cachedResult.expiresAt > now) {
+    return cachedResult.promise;
+  }
+
+  const promise = getExistingPORecordsFromDatabase(normalizedRegistryKeys).catch((error) => {
+    existingPORecordsCache.delete(cacheKey);
+    throw error;
+  });
+
+  existingPORecordsCache.set(cacheKey, {
+    expiresAt: now + existingPORecordsCacheTtlMs,
     promise,
   });
 
@@ -259,7 +307,7 @@ function buildPORegistryArchiveRecords(
 }
 
 async function getPORegistryCountFromDatabase() {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const result = await client.query<{ count: string }>(`
@@ -283,7 +331,7 @@ async function getPORecordsPageFromDatabase({
   pageSize: number;
   query?: string;
 }) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   return withPostgresClient(async (client) => {
     const safePage = Math.max(1, page);
@@ -328,7 +376,7 @@ async function getPORecordsPageFromDatabase({
 }
 
 async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   if (!registryKeys.length) {
     return [];
@@ -339,7 +387,40 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
   return withPostgresClient(async (client) => {
     const result = await client.query(
       `
-        SELECT *
+        WITH matched_history_jobs AS (
+          SELECT DISTINCT job_history.*
+          FROM unnest($2::text[]) AS requested_po(po_sap_no)
+          JOIN delivery_job_history job_history
+            ON job_history.job_items_json @> jsonb_build_array(
+              jsonb_build_object('poSapNo', requested_po.po_sap_no)
+            )
+        )
+        SELECT
+          line_registry_key,
+          purchase_order_number,
+          purchase_order_item_number,
+          first_imported_at,
+          last_imported_at,
+          import_file_name,
+          import_sheet_name,
+          import_row_number,
+          document_status,
+          vendor_name,
+          web_order_number,
+          plant_code,
+          business_unit_name,
+          material_code,
+          material_name,
+          ordered_quantity_text,
+          received_quantity_text,
+          total_amount_text,
+          import_count,
+          record_state,
+          assigned_delivery_job_id,
+          assigned_to_job_at,
+          archived_at,
+          completed_at,
+          cleanup_after_at
         FROM purchase_order_queue
         WHERE (line_registry_key = ANY($1::text[]) OR purchase_order_number = ANY($2::text[]))
           AND (
@@ -367,6 +448,7 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
           document_status,
           vendor_name,
           web_order_number,
+          COALESCE(plant_code, '') AS plant_code,
           business_unit_name,
           material_code,
           material_name,
@@ -396,6 +478,7 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
           '' AS document_status,
           COALESCE(item.value->>'vendor', '') AS vendor_name,
           COALESCE(item.value->>'poWebNo', '') AS web_order_number,
+          COALESCE(item.value->>'plantCode', '') AS plant_code,
           COALESCE(item.value->>'unitName', '') AS business_unit_name,
           COALESCE(item.value->>'materialCode', '') AS material_code,
           COALESCE(item.value->>'materialName', '') AS material_name,
@@ -409,8 +492,8 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
           job_history.archived_at,
           job_history.completed_at,
           job_history.delete_after_at AS cleanup_after_at
-        FROM delivery_job_history job_history,
-          jsonb_array_elements(job_history.job_items_json) AS item(value)
+        FROM matched_history_jobs job_history
+        CROSS JOIN LATERAL jsonb_array_elements(job_history.job_items_json) AS item(value)
         WHERE item.value->>'poSapNo' = ANY($2::text[])
       `,
       [registryKeys, poSapNos],
@@ -421,7 +504,7 @@ async function getExistingPORecordsFromDatabase(registryKeys: string[]) {
 }
 
 async function getPORecordsByKeysFromDatabase(registryKeys: string[]) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   if (!registryKeys.length) {
     return [];
@@ -444,7 +527,7 @@ async function getPORecordsByKeysFromDatabase(registryKeys: string[]) {
 }
 
 async function getPORecordsByPoSapNosFromDatabase(poSapNos: string[]) {
-  await cleanupExpiredSharedData();
+  triggerExpiredSharedDataCleanup();
 
   const normalizedPoSapNos = Array.from(new Set(poSapNos.map((poSapNo) => poSapNo.trim()).filter(Boolean)));
 
@@ -501,6 +584,7 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
             document_status TEXT,
             vendor_name TEXT,
             web_order_number TEXT,
+            plant_code TEXT,
             business_unit_name TEXT,
             material_code TEXT,
             material_name TEXT,
@@ -528,6 +612,7 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
           document_status,
           vendor_name,
           web_order_number,
+          plant_code,
           business_unit_name,
           material_code,
           material_name,
@@ -554,6 +639,7 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
           document_status,
           vendor_name,
           web_order_number,
+          plant_code,
           business_unit_name,
           material_code,
           material_name,
@@ -580,9 +666,10 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
           )
           AND NOT EXISTS (
             SELECT 1
-            FROM delivery_job_history job_history,
-              jsonb_array_elements(job_history.job_items_json) AS history_item(value)
-            WHERE history_item.value->>'poSapNo' = incoming.purchase_order_number
+            FROM delivery_job_history job_history
+            WHERE job_history.job_items_json @> jsonb_build_array(
+              jsonb_build_object('poSapNo', incoming.purchase_order_number)
+            )
           )
         ON CONFLICT (line_registry_key) DO NOTHING
         RETURNING line_registry_key
@@ -750,7 +837,7 @@ export async function getPORecordsPage({
 
 export async function getExistingPORecords(registryKeys: string[]) {
   if (hasSharedDatabase()) {
-    return getExistingPORecordsFromDatabase(registryKeys);
+    return getCachedExistingPORecordsFromDatabase(registryKeys);
   }
 
   const store = await readStore();
@@ -972,6 +1059,7 @@ export async function archivePORecordsForCompletedJob(input: {
   }
 
   assertWritableStorage();
+  invalidatePORecordsPageCache();
   const store = await readStore();
   const archiveStore = await readArchiveStore();
   const uniqueKeys = new Set(input.registryKeys);

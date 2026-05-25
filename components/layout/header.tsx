@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function Header({
   isSidebarOpen,
@@ -40,6 +42,28 @@ export function Header({
           >
             <Menu className="h-4 w-4" />
           </Button>
+
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-2.5",
+              isSidebarOpen && "lg:hidden",
+            )}
+          >
+            <div className="flex h-11 shrink-0 items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="SyncDrop Logo"
+                width={53}
+                height={44}
+                className="h-11 w-auto object-contain"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight text-slate-900">
+                SyncDrop
+              </p>
+            </div>
+          </div>
         </div>
 
         <div />

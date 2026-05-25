@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, Save, Truck } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, Save, Truck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,12 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { createJob } from "@/lib/job-db";
+import { getDestinationNameForPORecord } from "@/lib/jobs";
 import { getExistingPORecords, type PORegistryRecord } from "@/lib/po-import-db";
 import { cn } from "@/lib/utils";
 
 const storageKey = "project-stock.selected-po-registry-keys";
 type FieldErrors = Record<string, string>;
 type DestinationDraft = { name: string; address: string };
+
+const RECORDS_PER_PAGE = 10;
+const DESTINATIONS_PER_PAGE = 5;
 
 function createDestinationId(name: string) {
   return name
@@ -25,8 +29,62 @@ function createDestinationId(name: string) {
     .replace(/^-+|-+$/g, "") || "unknown-destination";
 }
 
+function PaginationBar({
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  unitLabel,
+  onPrev,
+  onNext,
+  className,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  unitLabel: string;
+  onPrev: () => void;
+  onNext: () => void;
+  className?: string;
+}) {
+  if (totalItems <= 0) {
+    return null;
+  }
+
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, totalItems);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between",
+        className,
+      )}
+    >
+      <span>
+        แสดง {from.toLocaleString("th-TH")}-{to.toLocaleString("th-TH")} จาก {totalItems.toLocaleString("th-TH")} {unitLabel}
+      </span>
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onPrev} disabled={page <= 1} className="h-8 gap-1 px-2.5">
+          <ChevronLeft className="h-3.5 w-3.5" />
+          ก่อนหน้า
+        </Button>
+        <span className="whitespace-nowrap font-medium text-slate-700 dark:text-slate-200">
+          หน้า {page.toLocaleString("th-TH")} / {totalPages.toLocaleString("th-TH")}
+        </span>
+        <Button type="button" variant="outline" size="sm" onClick={onNext} disabled={page >= totalPages} className="h-8 gap-1 px-2.5">
+          ถัดไป
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function JobCreator() {
   const router = useRouter();
+  const errorBannerRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,12 +93,15 @@ export function JobCreator() {
   const [roomName, setRoomName] = useState("");
   const [driver, setDriver] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [origin, setOrigin] = useState("DC Bangna");
+  const [origin, setOrigin] = useState("CPAC บางซ่อน");
   const [note, setNote] = useState("");
+  const [activeDestinationId, setActiveDestinationId] = useState<string | null>(null);
   const [destinationDrafts, setDestinationDrafts] = useState<Record<string, DestinationDraft>>({});
   const [destinationOrder, setDestinationOrder] = useState<string[]>([]);
   const [destinationAssignments, setDestinationAssignments] = useState<Record<string, string>>({});
   const [scanQuantities, setScanQuantities] = useState<Record<string, number>>({});
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [destinationsPage, setDestinationsPage] = useState(1);
 
   useEffect(() => {
     async function loadSelectedRecords() {
@@ -70,10 +131,11 @@ export function JobCreator() {
         setRecords(readyRecords);
         setDestinationAssignments((currentAssignments) =>
           Object.fromEntries(
-            readyRecords.map((record) => [
-              record.registryKey,
-              currentAssignments[record.registryKey] ?? createDestinationId(record.unitName.trim() || "ไม่ระบุปลายทาง"),
-            ]),
+            readyRecords.map((record) => {
+              const destinationName = getDestinationNameForPORecord(record);
+
+              return [record.registryKey, currentAssignments[record.registryKey] ?? createDestinationId(destinationName)];
+            }),
           ),
         );
         setDestinationDrafts((currentDrafts) => {
@@ -81,7 +143,7 @@ export function JobCreator() {
           const nextOrder: string[] = [];
 
           readyRecords.forEach((record) => {
-            const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
+            const name = getDestinationNameForPORecord(record);
             const id = createDestinationId(name);
             nextDrafts[id] = nextDrafts[id] ?? { name, address: name };
 
@@ -117,7 +179,7 @@ export function JobCreator() {
     const groups = new Map<string, { id: string; name: string; address: string; totalQty: number; poCount: number; records: PORegistryRecord[] }>();
 
     records.forEach((record) => {
-      const fallbackName = record.unitName.trim() || "ไม่ระบุปลายทาง";
+      const fallbackName = getDestinationNameForPORecord(record);
       const id = destinationAssignments[record.registryKey] || createDestinationId(fallbackName);
       const draft = destinationDrafts[id];
       const name = draft?.name || fallbackName;
@@ -150,12 +212,30 @@ export function JobCreator() {
   const destinationNameByRecordKey = useMemo(() => {
     return Object.fromEntries(
       records.map((record) => {
-        const fallbackName = record.unitName.trim() || "ไม่ระบุปลายทาง";
+        const fallbackName = getDestinationNameForPORecord(record);
         const id = destinationAssignments[record.registryKey] || createDestinationId(fallbackName);
         return [record.registryKey, destinationDrafts[id]?.name || fallbackName];
       }),
     );
   }, [destinationAssignments, destinationDrafts, records]);
+
+  const activeDestination = useMemo(() => {
+    if (!activeDestinationId) {
+      return null;
+    }
+
+    return groupedDestinations.find((destination) => destination.id === activeDestinationId) ?? null;
+  }, [activeDestinationId, groupedDestinations]);
+
+  const recordsTotalPages = Math.max(1, Math.ceil(records.length / RECORDS_PER_PAGE));
+  const currentRecordsPage = Math.min(recordsPage, recordsTotalPages);
+  const recordsStart = (currentRecordsPage - 1) * RECORDS_PER_PAGE;
+  const pagedRecords = records.slice(recordsStart, recordsStart + RECORDS_PER_PAGE);
+
+  const destinationsTotalPages = Math.max(1, Math.ceil(groupedDestinations.length / DESTINATIONS_PER_PAGE));
+  const currentDestinationsPage = Math.min(destinationsPage, destinationsTotalPages);
+  const destinationsStart = (currentDestinationsPage - 1) * DESTINATIONS_PER_PAGE;
+  const pagedDestinations = groupedDestinations.slice(destinationsStart, destinationsStart + DESTINATIONS_PER_PAGE);
 
   function updateScanQuantity(registryKey: string, value: number) {
     setScanQuantities((currentQuantities) => ({
@@ -188,6 +268,7 @@ export function JobCreator() {
       },
     }));
     setDestinationOrder((currentOrder) => [...currentOrder, id]);
+    setDestinationsPage(Math.ceil((groupedDestinations.length + 1) / DESTINATIONS_PER_PAGE));
   }
 
   function assignRecordToDestination(registryKey: string, destinationId: string, checked: boolean) {
@@ -257,10 +338,6 @@ export function JobCreator() {
       if (!(draft?.name ?? destination.name).trim()) {
         nextErrors[`destination.${destination.id}.name`] = "กรุณากรอกชื่อปลายทาง";
       }
-
-      if (!(draft?.address ?? destination.address).trim()) {
-        nextErrors[`destination.${destination.id}.address`] = "กรุณากรอกที่อยู่หรือโลเคชัน";
-      }
     });
 
     records.forEach((record) => {
@@ -272,9 +349,55 @@ export function JobCreator() {
     return nextErrors;
   }
 
+  function focusFirstError(errors: FieldErrors) {
+    const directFieldIds: Record<string, string> = {
+      roomName: "room-name",
+      vehicle: "vehicle",
+      driver: "driver",
+      origin: "origin",
+    };
+
+    let targetId: string | null = null;
+
+    for (const key of ["roomName", "vehicle", "driver", "origin"]) {
+      if (errors[key]) {
+        targetId = directFieldIds[key];
+        break;
+      }
+    }
+
+    if (!targetId) {
+      const destinationErrorKey = Object.keys(errors).find((key) => /^destination\..+\.name$/.test(key));
+
+      if (destinationErrorKey) {
+        const destinationId = destinationErrorKey.replace(/^destination\./, "").replace(/\.name$/, "");
+        targetId = `destination-name-${destinationId}`;
+
+        const destinationIndex = groupedDestinations.findIndex((destination) => destination.id === destinationId);
+
+        if (destinationIndex >= 0) {
+          setDestinationsPage(Math.floor(destinationIndex / DESTINATIONS_PER_PAGE) + 1);
+        }
+      }
+    }
+
+    window.setTimeout(() => {
+      const fieldElement = targetId ? document.getElementById(targetId) : null;
+
+      if (fieldElement) {
+        fieldElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        (fieldElement as HTMLElement).focus({ preventScroll: true });
+        return;
+      }
+
+      errorBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }
+
   async function handleCreateJob() {
     if (!records.length) {
       setError("ยังไม่มีรายการ PO ที่พร้อมสร้างงาน");
+      window.setTimeout(() => errorBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
       return;
     }
 
@@ -283,6 +406,7 @@ export function JobCreator() {
     if (Object.keys(nextFieldErrors).length) {
       setFieldErrors(nextFieldErrors);
       setError("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนสร้างงาน");
+      focusFirstError(nextFieldErrors);
       return;
     }
 
@@ -307,7 +431,7 @@ export function JobCreator() {
           .map((destination) => ({
             id: destination.id,
             name: destinationDrafts[destination.id]?.name ?? destination.name,
-            address: destinationDrafts[destination.id]?.address ?? destination.address,
+            address: destinationDrafts[destination.id]?.name ?? destination.name,
           })),
       });
 
@@ -324,7 +448,10 @@ export function JobCreator() {
   return (
     <div className="space-y-4 pb-6">
       {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+        <div
+          ref={errorBannerRef}
+          className="scroll-mt-20 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200"
+        >
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>{error}</p>
@@ -466,35 +593,40 @@ export function JobCreator() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {records.map((record) => (
-                        <tr key={record.registryKey}>
-                          <td className="whitespace-nowrap px-3 py-3 align-top font-medium">{record.poSapNo}</td>
-                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.poSapItem}</td>
-                          <td className="max-w-56 break-words px-3 py-3 align-top">
-                            <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
-                            {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
-                              <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
-                            ) : null}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.materialCode || "-"}</td>
-                          <td className="max-w-64 break-words px-3 py-3 align-top">{record.materialName || "-"}</td>
-                          <td className="whitespace-nowrap px-3 py-3 align-top">{record.orderQty || "-"}</td>
-                          <td className="px-3 py-3 align-top">
-                            <QuantityStepper
-                              value={scanQuantities[record.registryKey] ?? 1}
-                              min={0}
-                              onChange={(value) => updateScanQuantity(record.registryKey, value)}
-                              className="w-36"
-                              inputClassName="h-9 text-sm"
-                            />
-                          </td>
-                        </tr>
-                      ))}
+                      {pagedRecords.map((record, localIndex) => {
+                        const index = recordsStart + localIndex;
+                        const isFirstPoRow = localIndex === 0 || records[index - 1]?.poSapNo !== record.poSapNo;
+
+                        return (
+                          <tr key={record.registryKey}>
+                            <td className="whitespace-nowrap px-3 py-3 align-top font-medium">{isFirstPoRow ? record.poSapNo : ""}</td>
+                            <td className="whitespace-nowrap px-3 py-3 align-top">{record.poSapItem}</td>
+                            <td className="max-w-56 break-words px-3 py-3 align-top">
+                              <span className="font-medium text-slate-900">{destinationNameByRecordKey[record.registryKey] || "-"}</span>
+                              {record.unitName && record.unitName !== destinationNameByRecordKey[record.registryKey] ? (
+                                <span className="mt-1 block text-xs text-muted-foreground">จากไฟล์: {record.unitName}</span>
+                              ) : null}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-3 align-top">{record.materialCode || "-"}</td>
+                            <td className="max-w-64 break-words px-3 py-3 align-top">{record.materialName || "-"}</td>
+                            <td className="whitespace-nowrap px-3 py-3 align-top">{record.orderQty || "-"}</td>
+                            <td className="px-3 py-3 align-top">
+                              <QuantityStepper
+                                value={scanQuantities[record.registryKey] ?? 1}
+                                min={0}
+                                onChange={(value) => updateScanQuantity(record.registryKey, value)}
+                                className="w-36"
+                                inputClassName="h-9 text-sm"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
                 <div className="divide-y lg:hidden">
-                  {records.map((record) => (
+                  {pagedRecords.map((record) => (
                     <div key={record.registryKey} className="space-y-3 p-4 text-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -530,6 +662,16 @@ export function JobCreator() {
                     </div>
                   ))}
                 </div>
+                <PaginationBar
+                  page={currentRecordsPage}
+                  totalPages={recordsTotalPages}
+                  totalItems={records.length}
+                  pageSize={RECORDS_PER_PAGE}
+                  unitLabel="รายการ"
+                  onPrev={() => setRecordsPage(Math.max(1, currentRecordsPage - 1))}
+                  onNext={() => setRecordsPage(Math.min(recordsTotalPages, currentRecordsPage + 1))}
+                  className="border-t"
+                />
               </div>
             </CardContent>
           </Card>
@@ -553,11 +695,11 @@ export function JobCreator() {
               </div>
 
               <div className="space-y-3">
-                {groupedDestinations.map((destination, index) => (
+                {pagedDestinations.map((destination, index) => (
                   <div key={destination.id} className="min-w-0 space-y-3 rounded-md border bg-white px-3 py-3 dark:bg-slate-950">
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-xs font-semibold text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200">
-                        {index + 1}
+                        {destinationsStart + index + 1}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="break-words text-sm font-medium">
@@ -581,73 +723,35 @@ export function JobCreator() {
                         />
                         {renderFieldError(`destination.${destination.id}.name`)}
                       </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`destination-address-${destination.id}`} className="text-xs">ที่อยู่ / โลเคชัน</Label>
-                        <Input
-                          id={`destination-address-${destination.id}`}
-                          value={destinationDrafts[destination.id]?.address ?? destination.address}
-                          aria-invalid={Boolean(fieldErrors[`destination.${destination.id}.address`])}
-                          onChange={(event) => updateDestinationDraft(destination.id, "address", event.target.value)}
-                          placeholder="อาคาร, จุดส่ง, หรือคำอธิบายสถานที่"
-                          className={getInputClassName(`destination.${destination.id}.address`, "h-9 text-sm")}
-                        />
-                        {renderFieldError(`destination.${destination.id}.address`)}
-                      </div>
                     </div>
-                    <details className="rounded-md border border-slate-200 bg-slate-50 group dark:border-slate-800 dark:bg-slate-900">
-                      <summary className="flex cursor-pointer items-center justify-between gap-2 px-2 py-2 text-xs font-medium text-slate-700 dark:text-slate-200">
-                        <span>ติ๊กย้ายรายการ PO มาปลายทางนี้</span>
-                        <Badge variant={destination.poCount ? "success" : "secondary"}>
-                          {destination.poCount.toLocaleString("th-TH")} รายการ
-                        </Badge>
-                      </summary>
-                      <div className="border-t border-slate-200 p-2 dark:border-slate-800">
-                        <div className="grid max-h-56 gap-1 overflow-y-auto pr-1">
-                          {records.map((record) => {
-                            const checked = destinationAssignments[record.registryKey] === destination.id;
-                            const assignedDestination = destinationAssignments[record.registryKey];
-                            const assignedElsewhere = Boolean(assignedDestination && assignedDestination !== destination.id);
-
-                            return (
-                              <label
-                                key={`${destination.id}-${record.registryKey}`}
-                                className={`flex min-w-0 cursor-pointer items-start gap-2 rounded-md border px-2 py-2 text-xs ${
-                                  checked
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-                                    : assignedElsewhere
-                                      ? "border-slate-100 bg-white text-slate-400 hover:border-emerald-200"
-                                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(event) => assignRecordToDestination(record.registryKey, destination.id, event.target.checked)}
-                                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
-                                />
-                                <span className="min-w-0">
-                                  <span className="block break-words font-semibold">
-                                    {record.poSapNo} / Item {record.poSapItem}
-                                  </span>
-                                  <span className="mt-0.5 block break-words text-[11px] opacity-75">
-                                    {record.materialCode || "-"} {record.materialName ? `/ ${record.materialName}` : ""}
-                                  </span>
-                                  {fieldErrors[`assignment.${record.registryKey}`] ? (
-                                    <span className="mt-1 block text-[11px] font-medium text-red-600">
-                                      {fieldErrors[`assignment.${record.registryKey}`]}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <p className="mt-2 text-[11px] text-muted-foreground">1 รายการอยู่ได้แค่ 1 ปลายทาง</p>
-                      </div>
-                    </details>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveDestinationId(destination.id)}
+                      className="h-10 w-full justify-between gap-2 bg-slate-50 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">คลิกเพื่อย้าย PO อื่นมาปลายทางนี้</span>
+                      </span>
+                      <Badge variant={destination.poCount ? "success" : "secondary"} className="shrink-0">
+                        {destination.poCount.toLocaleString("th-TH")} รายการ
+                      </Badge>
+                    </Button>
                   </div>
                 ))}
               </div>
+
+              <PaginationBar
+                page={currentDestinationsPage}
+                totalPages={destinationsTotalPages}
+                totalItems={groupedDestinations.length}
+                pageSize={DESTINATIONS_PER_PAGE}
+                unitLabel="ปลายทาง"
+                onPrev={() => setDestinationsPage(Math.max(1, currentDestinationsPage - 1))}
+                onNext={() => setDestinationsPage(Math.min(destinationsTotalPages, currentDestinationsPage + 1))}
+                className="rounded-md border"
+              />
 
               <Button
                 type="button"
@@ -685,6 +789,93 @@ export function JobCreator() {
           </CardContent>
         </Card>
       )}
+
+      {activeDestination ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="destination-assignment-title"
+          onClick={() => setActiveDestinationId(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#d8dde6] bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b px-4 py-3 dark:border-slate-800">
+              <div className="min-w-0">
+                <p id="destination-assignment-title" className="break-words text-sm font-semibold text-slate-950 dark:text-slate-50">
+                  ย้ายรายการ PO ไปปลายทางนี้
+                </p>
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                  {destinationDrafts[activeDestination.id]?.name || activeDestination.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveDestinationId(null)}
+                aria-label="ปิด"
+                className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              <div className="grid gap-2">
+                {records.map((record) => {
+                  const checked = destinationAssignments[record.registryKey] === activeDestination.id;
+                  const assignedDestination = destinationAssignments[record.registryKey];
+                  const assignedElsewhere = Boolean(assignedDestination && assignedDestination !== activeDestination.id);
+
+                  return (
+                    <label
+                      key={`${activeDestination.id}-${record.registryKey}`}
+                      className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
+                        checked
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                          : assignedElsewhere
+                            ? "border-slate-100 bg-white text-slate-400 hover:border-emerald-200 dark:border-slate-800 dark:bg-slate-950"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => assignRecordToDestination(record.registryKey, activeDestination.id, event.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                      />
+                      <span className="min-w-0">
+                        <span className="block break-words font-semibold">
+                          {record.poSapNo} / Item {record.poSapItem}
+                        </span>
+                        <span className="mt-0.5 block break-words text-xs opacity-75">
+                          {record.materialCode || "-"} {record.materialName ? `/ ${record.materialName}` : ""}
+                        </span>
+                        {assignedElsewhere ? (
+                          <span className="mt-1 block text-[11px] opacity-80">
+                            ตอนนี้อยู่ที่ {destinationNameByRecordKey[record.registryKey] || "ปลายทางอื่น"}
+                          </span>
+                        ) : null}
+                        {fieldErrors[`assignment.${record.registryKey}`] ? (
+                          <span className="mt-1 block text-xs font-medium text-red-600">
+                            {fieldErrors[`assignment.${record.registryKey}`]}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t bg-slate-50 px-4 py-3 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+              <p>1 รายการอยู่ได้แค่ 1 ปลายทาง</p>
+              <Button type="button" size="sm" onClick={() => setActiveDestinationId(null)} className="w-full sm:w-auto">
+                เสร็จแล้ว
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-md border bg-white px-4 py-3 dark:bg-slate-950">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

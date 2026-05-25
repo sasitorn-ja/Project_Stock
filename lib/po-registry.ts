@@ -10,6 +10,7 @@ export type PORegistryRecord = {
   status: string;
   vendor: string;
   poWebNo: string;
+  plantCode: string;
   unitName: string;
   materialCode: string;
   materialName: string;
@@ -42,6 +43,7 @@ const searchableFields = [
   "status",
   "vendor",
   "poWebNo",
+  "plantCode",
   "unitName",
   "materialCode",
   "materialName",
@@ -124,5 +126,5 @@ export function recordMatchesQuery(record: PORegistryRecord, query: string) {
     return true;
   }
 
-  return searchableFields.some((field) => record[field].toLowerCase().includes(normalizedQuery));
+  return searchableFields.some((field) => String(record[field] ?? "").toLowerCase().includes(normalizedQuery));
 }

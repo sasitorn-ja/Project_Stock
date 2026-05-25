@@ -9,17 +9,9 @@ import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { Input } from "@/components/ui/input";
 import { addPORecordsToJob } from "@/lib/job-db";
 import { getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
-import { type JobSummaryRecord } from "@/lib/jobs";
+import { getDestinationNameForPORecord, slugifyDestination, type JobSummaryRecord } from "@/lib/jobs";
 
 const PAGE_SIZE = 5;
-
-function slugifyDestination(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9ก-๙]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "unknown-destination";
-}
 
 export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
   const router = useRouter();
@@ -117,13 +109,17 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
       const destinationAssignments =
         destinationMode === "from-po"
           ? Object.fromEntries(
-              chosenRecords.map((record) => [record.registryKey, slugifyDestination(record.unitName.trim() || "ไม่ระบุปลายทาง")]),
+              chosenRecords.map((record) => {
+                const name = getDestinationNameForPORecord(record);
+
+                return [record.registryKey, slugifyDestination(name)];
+              }),
             )
           : Object.fromEntries(chosenRecords.map((record) => [record.registryKey, destinationMode]));
       const destinationOverrides =
         destinationMode === "from-po"
           ? chosenRecords.map((record) => {
-              const name = record.unitName.trim() || "ไม่ระบุปลายทาง";
+              const name = getDestinationNameForPORecord(record);
 
               return {
                 id: slugifyDestination(name),
