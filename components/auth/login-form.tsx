@@ -4,14 +4,19 @@ import Image from "next/image";
 import { LogIn } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import type { SsoDiagnostics } from "@/lib/sso-diagnostics";
 
 export function LoginForm({
   callbackUrl,
   error,
+  diagnostics,
 }: {
   callbackUrl: string;
   error?: string;
+  diagnostics?: SsoDiagnostics | null;
 }) {
+  const readableError = error ? decodeURIComponent(error) : "";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f5f6f8] px-4 py-10 text-slate-900">
       <div className="w-full max-w-sm rounded-lg border border-[#d8dde6] bg-white p-6 shadow-sm">
@@ -32,7 +37,24 @@ export function LoginForm({
 
         {error ? (
           <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
+            <p className="font-medium">เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</p>
+            <p className="mt-1 text-xs text-red-600">SSO error: {readableError}</p>
+          </div>
+        ) : null}
+
+        {diagnostics ? (
+          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700">
+            <p className="font-semibold text-slate-900">SSO debug</p>
+            <div className="mt-2 space-y-1.5">
+              {diagnostics.items.map((item) => (
+                <div key={item.label} className="grid grid-cols-[112px_1fr] gap-2">
+                  <span className={item.ok ? "text-emerald-700" : "text-red-700"}>
+                    {item.ok ? "OK" : "FAIL"} {item.label}
+                  </span>
+                  <span className="break-words text-slate-600">{item.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 

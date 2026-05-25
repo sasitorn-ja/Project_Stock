@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/auth/login-form";
+import { getSsoDiagnostics } from "@/lib/sso-diagnostics";
 
 export default async function LoginPage({
   searchParams,
@@ -14,5 +15,7 @@ export default async function LoginPage({
     redirect("/po");
   }
 
-  return <LoginForm callbackUrl={callbackUrl || "/po"} error={error} />;
+  const diagnostics = error ? await getSsoDiagnostics() : null;
+
+  return <LoginForm callbackUrl={callbackUrl || "/po"} error={error} diagnostics={diagnostics} />;
 }

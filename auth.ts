@@ -1,7 +1,35 @@
 import NextAuth from "next-auth";
 
+function serializeAuthMetadata(metadata: unknown) {
+  if (!metadata) {
+    return "";
+  }
+
+  if (metadata instanceof Error) {
+    return metadata.stack ?? metadata.message;
+  }
+
+  try {
+    return JSON.stringify(metadata);
+  } catch {
+    return String(metadata);
+  }
+}
+
+function getAuthErrorDetails(error: Error) {
+  const cause = "cause" in error ? error.cause : undefined;
+
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    cause: serializeAuthMetadata(cause),
+  };
+}
+
 export const { auth, handlers, signIn, signOut } = NextAuth({
   trustHost: true,
+  debug: process.env.AUTH_DEBUG === "true",
   session: {
     strategy: "jwt",
   },
@@ -45,4 +73,17 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       },
     },
   ],
+  logger: {
+    error(error) {
+      console.error("[auth][sso][error]", JSON.stringify(getAuthErrorDetails(error), null, 2));
+    },
+    warn(code) {
+      console.warn(`[auth][sso][warn] ${code}`);
+    },
+    debug(code, metadata) {
+      if (process.env.AUTH_DEBUG === "true") {
+        console.debug(`[auth][sso][debug] ${code}`, serializeAuthMetadata(metadata));
+      }
+    },
+  },
 });
