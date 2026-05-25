@@ -15,6 +15,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       name: "RMC SSO",
       type: "oidc",
       issuer: process.env.AUTH_RMC_SSO_ISSUER ?? "https://rmc-sso.cipcloud.net",
+      // RMC SSO วาง discovery document ไว้ที่ path ไม่มาตรฐาน (ใต้ /api/auth)
+      // ถ้าไม่ระบุ wellKnown Auth.js จะไปดึง {issuer}/.well-known/openid-configuration
+      // ซึ่งไม่มีอยู่จริง ทำให้ดึง provider metadata ไม่ได้ -> error=Configuration
+      wellKnown:
+        process.env.AUTH_RMC_SSO_WELL_KNOWN ??
+        `${process.env.AUTH_RMC_SSO_ISSUER ?? "https://rmc-sso.cipcloud.net"}/api/auth/.well-known/openid-configuration`,
       clientId: process.env.AUTH_RMC_SSO_CLIENT_ID ?? "sync-drop",
       clientSecret: process.env.AUTH_RMC_SSO_CLIENT_SECRET,
       authorization: {
