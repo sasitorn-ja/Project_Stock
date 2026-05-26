@@ -29,23 +29,10 @@ type PORegistryArchiveStore = {
   records: PORegistryArchiveRecord[];
 };
 
-type PORecordsPageResult = {
-  records: PORegistryRecord[];
-  totalCount: number;
-};
-
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "po-registry.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "po-registry-archives.json");
-const poRecordsPageCacheTtlMs = 30_000;
 const existingPORecordsCacheTtlMs = 30_000;
-const poRecordsPageCache = new Map<
-  string,
-  {
-    expiresAt: number;
-    promise: Promise<PORecordsPageResult>;
-  }
->();
 const existingPORecordsCache = new Map<
   string,
   {
@@ -120,14 +107,6 @@ function buildCompletedPOExclusion(tableAlias: string) {
   `;
 }
 
-function getPORecordsPageCacheKey(input: { page: number; pageSize: number; query?: string }) {
-  return JSON.stringify({
-    page: Math.max(1, input.page),
-    pageSize: input.pageSize,
-    query: input.query?.trim() ?? "",
-  });
-}
-
 function getExistingPORecordsCacheKey(registryKeys: string[]) {
   return JSON.stringify(
     Array.from(new Set(registryKeys.map((registryKey) => registryKey.trim()).filter(Boolean))).sort(),
@@ -135,34 +114,7 @@ function getExistingPORecordsCacheKey(registryKeys: string[]) {
 }
 
 export function invalidatePORecordsPageCache() {
-  poRecordsPageCache.clear();
   existingPORecordsCache.clear();
-}
-
-async function getCachedPORecordsPageFromDatabase(input: {
-  page: number;
-  pageSize: number;
-  query?: string;
-}) {
-  const cacheKey = getPORecordsPageCacheKey(input);
-  const now = Date.now();
-  const cachedResult = poRecordsPageCache.get(cacheKey);
-
-  if (cachedResult && cachedResult.expiresAt > now) {
-    return cachedResult.promise;
-  }
-
-  const promise = getPORecordsPageFromDatabase(input).catch((error) => {
-    poRecordsPageCache.delete(cacheKey);
-    throw error;
-  });
-
-  poRecordsPageCache.set(cacheKey, {
-    expiresAt: now + poRecordsPageCacheTtlMs,
-    promise,
-  });
-
-  return promise;
 }
 
 async function getCachedExistingPORecordsFromDatabase(registryKeys: string[]) {
@@ -813,7 +765,7 @@ export async function getPORecordsPage({
   query?: string;
 }) {
   if (hasSharedDatabase()) {
-    return getCachedPORecordsPageFromDatabase({ page, pageSize, query });
+    return getPORecordsPageFromDatabase({ page, pageSize, query });
   }
 
   const store = await readStore();

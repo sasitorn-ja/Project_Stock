@@ -9,15 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { clearPORegistry, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
 
-type PORegistryListCache = {
-  records: PORegistryRecord[];
-  totalCount: number;
-  cachedAt: number;
-};
-
-const poRegistryListCacheKey = "project-stock.po-registry-list.v1";
 const selectedPOStorageKey = "project-stock.selected-po-registry-keys";
-const poRegistryListCacheTtlMs = 30_000;
 
 function readSelectedPOKeys() {
   if (typeof window === "undefined") {
@@ -49,37 +41,24 @@ function writeSelectedPOKeys(keys: string[]) {
   }
 }
 
-function readCachedPORegistryList(): PORegistryListCache | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const cachedValue = window.sessionStorage.getItem(poRegistryListCacheKey);
-    return cachedValue ? (JSON.parse(cachedValue) as PORegistryListCache) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedPORegistryList(data: PORegistryListCache) {
-  try {
-    window.sessionStorage.setItem(poRegistryListCacheKey, JSON.stringify(data));
-  } catch {
-    return;
-  }
-}
-
-function clearCachedPORegistryList() {
-  try {
-    window.sessionStorage.removeItem(poRegistryListCacheKey);
-  } catch {
-    return;
-  }
-}
-
 function getPoSapNoFromRegistryKey(registryKey: string) {
   return registryKey.split("::")[0]?.trim() || registryKey;
+}
+
+async function getAllMatchingPORecords(query: string) {
+  const pageSize = 1000;
+  let page = 1;
+  let totalCount = 0;
+  const records: PORegistryRecord[] = [];
+
+  do {
+    const result = await getPORecordsPage({ page, pageSize, query });
+    totalCount = result.totalCount;
+    records.push(...result.records);
+    page += 1;
+  } while (records.length < totalCount);
+
+  return { records, totalCount };
 }
 
 export function PORegistryList() {
@@ -93,7 +72,6 @@ export function PORegistryList() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
-  const recordsLengthRef = useRef(0);
   const hasLoadedSelectedKeysRef = useRef(false);
   const pageSize = 20;
   const normalizedQuery = query.trim();
@@ -110,40 +88,14 @@ export function PORegistryList() {
     visibleRecordKeys.length > 0 && visibleRecordKeys.every((registryKey) => selectedKeySet.has(registryKey));
 
   useEffect(() => {
-    recordsLengthRef.current = records.length;
-  }, [records.length]);
-
-  useEffect(() => {
     async function loadRecords() {
-      let hasVisibleRecords = recordsLengthRef.current > 0;
-      let canUseFreshCache = false;
-
-      if (!hasVisibleRecords && currentPage === 1 && !query.trim()) {
-        const cachedList = readCachedPORegistryList();
-
-        if (cachedList) {
-          setRecords(cachedList.records);
-          setTotalCount(cachedList.totalCount);
-          hasVisibleRecords = cachedList.records.length > 0;
-          canUseFreshCache = Date.now() - cachedList.cachedAt < poRegistryListCacheTtlMs;
-        }
-      }
-
-      setIsLoading(!hasVisibleRecords);
+      setIsLoading(true);
       setError("");
-
-      if (canUseFreshCache && reloadToken === 0) {
-        setIsLoading(false);
-        return;
-      }
 
       try {
         const result = await getPORecordsPage({ page: currentPage, pageSize, query });
         setRecords(result.records);
         setTotalCount(result.totalCount);
-        if (currentPage === 1 && !query.trim()) {
-          writeCachedPORegistryList({ ...result, cachedAt: Date.now() });
-        }
       } catch {
         setRecords([]);
         setTotalCount(0);
@@ -250,7 +202,8 @@ export function PORegistryList() {
       setIsLoading(true);
       setError("");
       setSuccessMessage("");
-      const result = await getPORecordsPage({ page: 1, pageSize: Math.max(totalCount, pageSize), query });
+      const result = await getAllMatchingPORecords(query);
+      setTotalCount(result.totalCount);
       setSelectedKeys(result.records.map((record) => record.registryKey));
     } catch {
       setError("เลือกรายการทั้งหมดไม่สำเร็จ กรุณาลองใหม่");
@@ -274,7 +227,6 @@ export function PORegistryList() {
       setError("");
       setSuccessMessage("");
       await clearPORegistry();
-      clearCachedPORegistryList();
       setSelectedKeys([]);
       setPage(1);
       setIsClearConfirmOpen(false);
