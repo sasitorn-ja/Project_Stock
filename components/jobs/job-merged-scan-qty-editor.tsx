@@ -118,7 +118,7 @@ export function JobMergedScanQtyEditor({
           value={nextValue}
           min={sumMinimum}
           onChange={setNextValue}
-          className="w-36"
+          className="min-w-0 flex-1 sm:w-36 sm:flex-none"
           inputClassName="h-9 text-sm"
         />
         <Button

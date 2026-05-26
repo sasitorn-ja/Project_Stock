@@ -187,7 +187,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   }
 
   return (
-    <div className="rounded-md border bg-white">
+    <div className="min-w-0 overflow-hidden rounded-md border bg-white">
       <div className="flex flex-col gap-2 border-b px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-900">แผนส่ง / PO</h3>
         <p className="text-xs text-muted-foreground">
@@ -197,7 +197,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
       </div>
 
       {/* Tab strip: scrollable on mobile */}
-      <div className="flex gap-1 overflow-x-auto border-b px-2 pt-2 [scrollbar-width:thin]">
+      <div className="flex max-w-full gap-1 overflow-x-auto border-b px-2 pt-2 [scrollbar-width:thin]">
         {destinations.map((destination, index) => {
           const isActive = destination.id === active?.id;
           return (
@@ -207,13 +207,13 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
               onClick={() => setActiveId(destination.id)}
               aria-selected={isActive}
               className={cn(
-                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm",
+                "flex min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-t-md border-b-2 px-2.5 py-2.5 text-xs font-medium transition-colors sm:gap-2 sm:px-3 sm:text-sm",
                 isActive
                   ? "border-cyan-700 bg-white text-slate-900"
                   : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
-              <span className="truncate max-w-[180px]">
+              <span className="max-w-[42vw] truncate sm:max-w-[180px]">
                 {index + 1}. {destination.name}
               </span>
               <span
@@ -247,7 +247,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                   <p className="mt-1 text-[11px] text-muted-foreground">GPS ส่งของ: {active.deliveryGps}</p>
                 ) : null}
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[260px]">
+              <div className="grid min-w-0 grid-cols-3 gap-2 text-center sm:min-w-[260px]">
                 <div className="rounded-md bg-white px-2 py-1.5">
                   <p className="text-[10px] text-muted-foreground">ต้องสแกน</p>
                   <p className="text-sm font-semibold text-slate-900">{active.required.toLocaleString("th-TH")}</p>
@@ -347,21 +347,21 @@ function POCard({
   const allDelivered = group.required > 0 && group.delivered >= group.required;
 
   return (
-    <div className="rounded-md border bg-white">
+    <div className="min-w-0 overflow-hidden rounded-md border bg-white">
       <button
         type="button"
         onClick={() => setCollapsed((value) => !value)}
         aria-expanded={!collapsed}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+        className="flex w-full min-w-0 flex-col gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           <Plus
             className={cn(
               "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
               !collapsed && "rotate-45",
             )}
           />
-          <span className="truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
+          <span className="min-w-0 truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
           <span className="shrink-0 text-xs text-muted-foreground">· {group.items.length} รายการ</span>
           {allDelivered ? (
             <Badge variant="success" className="ml-1 shrink-0">
@@ -370,7 +370,7 @@ function POCard({
             </Badge>
           ) : null}
         </div>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
+        <span className="w-full shrink-0 text-[11px] text-muted-foreground sm:w-auto sm:text-right">
           ขึ้นรถ {group.loaded.toLocaleString("th-TH")} / {group.required.toLocaleString("th-TH")}
         </span>
       </button>
@@ -433,7 +433,7 @@ function ItemRow({
           <span>สั่ง {item.sourceOrderQty || String(item.orderQty || "-")}</span>
         </div>
       </div>
-      <div className="shrink-0 sm:w-44">
+      <div className="w-full shrink-0 sm:w-44">
         {editableScanQty ? (
           isMerged ? (
             <JobMergedScanQtyEditor jobId={jobId} underlying={item.underlying} />

@@ -61,7 +61,7 @@ export function JobItemScanQtyEditor({
           value={nextValue}
           min={safeMinimum}
           onChange={setNextValue}
-          className="w-36"
+          className="min-w-0 flex-1 sm:w-36 sm:flex-none"
           inputClassName="h-9 text-sm"
         />
         <Button type="button" size="icon" variant={hasChanged ? "default" : "outline"} onClick={handleSave} disabled={isSaving || !hasChanged} title="บันทึกจำนวนที่ต้องสแกน">
