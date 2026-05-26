@@ -26,6 +26,19 @@ function createLoginErrorRedirect(requestUrl: URL, error: string) {
   return NextResponse.redirect(loginUrl);
 }
 
+function logInvalidClaims(input: {
+  reason: string;
+  issuer?: string;
+  expectedIssuer: string;
+  audience: Array<string | undefined>;
+  expectedAudience: string;
+  expiresAt?: number;
+  now: number;
+  hasSubject: boolean;
+}) {
+  console.error("[rmc-sso][claims]", JSON.stringify(input));
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -92,8 +105,60 @@ export async function GET(request: Request) {
     const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     const now = Math.floor(Date.now() / 1000);
 
-    if (claims.iss !== issuer || !audience.includes(getSsoClientId()) || !claims.exp || claims.exp <= now || !claims.sub) {
-      return createLoginErrorRedirect(requestUrl, "InvalidIdToken");
+    if (claims.iss !== issuer) {
+      logInvalidClaims({
+        reason: "InvalidIssuer",
+        issuer: claims.iss,
+        expectedIssuer: issuer,
+        audience,
+        expectedAudience: getSsoClientId(),
+        expiresAt: claims.exp,
+        now,
+        hasSubject: Boolean(claims.sub),
+      });
+      return createLoginErrorRedirect(requestUrl, "InvalidIssuer");
+    }
+
+    if (!audience.includes(getSsoClientId())) {
+      logInvalidClaims({
+        reason: "InvalidAudience",
+        issuer: claims.iss,
+        expectedIssuer: issuer,
+        audience,
+        expectedAudience: getSsoClientId(),
+        expiresAt: claims.exp,
+        now,
+        hasSubject: Boolean(claims.sub),
+      });
+      return createLoginErrorRedirect(requestUrl, "InvalidAudience");
+    }
+
+    if (!claims.exp || claims.exp <= now) {
+      logInvalidClaims({
+        reason: "TokenExpired",
+        issuer: claims.iss,
+        expectedIssuer: issuer,
+        audience,
+        expectedAudience: getSsoClientId(),
+        expiresAt: claims.exp,
+        now,
+        hasSubject: Boolean(claims.sub),
+      });
+      return createLoginErrorRedirect(requestUrl, "TokenExpired");
+    }
+
+    if (!claims.sub) {
+      logInvalidClaims({
+        reason: "MissingSubject",
+        issuer: claims.iss,
+        expectedIssuer: issuer,
+        audience,
+        expectedAudience: getSsoClientId(),
+        expiresAt: claims.exp,
+        now,
+        hasSubject: false,
+      });
+      return createLoginErrorRedirect(requestUrl, "MissingSubject");
     }
 
     const sessionValue = await createSessionCookieValue({
