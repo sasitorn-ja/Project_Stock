@@ -302,12 +302,19 @@ async function getPORecordsPageFromDatabase({
           SELECT *
           FROM purchase_order_queue
           WHERE ${baseWhere}
+        ),
+        filtered_counts AS (
+          SELECT
+            COUNT(*)::text AS total_count,
+            COUNT(DISTINCT purchase_order_number)::text AS total_po_count
+          FROM filtered_records
         )
         SELECT
           filtered_records.*,
-          COUNT(*) OVER ()::text AS total_count,
-          COUNT(DISTINCT purchase_order_number) OVER ()::text AS total_po_count
+          filtered_counts.total_count,
+          filtered_counts.total_po_count
         FROM filtered_records
+        CROSS JOIN filtered_counts
         ORDER BY
           MAX(first_imported_at) OVER (PARTITION BY purchase_order_number) DESC,
           MIN(import_row_number) OVER (PARTITION BY purchase_order_number) ASC,
