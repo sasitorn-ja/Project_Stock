@@ -260,6 +260,39 @@ export function getJobItemLabel(item: Pick<JobItemRecord, "materialCode" | "mate
   return item.materialCode || item.materialName || item.registryKey;
 }
 
+function parseSortableNumber(value: string) {
+  const normalizedValue = value.replace(/,/g, "").trim();
+
+  if (!normalizedValue || !/^-?\d+(\.\d+)?$/.test(normalizedValue)) {
+    return null;
+  }
+
+  return Number(normalizedValue);
+}
+
+export function sortJobItems(items: JobItemRecord[]) {
+  return [...items].sort((firstItem, secondItem) => {
+    if (firstItem.poSapNo !== secondItem.poSapNo) {
+      return firstItem.poSapNo.localeCompare(secondItem.poSapNo, "th", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+
+    const firstItemNumber = parseSortableNumber(firstItem.poSapItem);
+    const secondItemNumber = parseSortableNumber(secondItem.poSapItem);
+
+    if (firstItemNumber !== null && secondItemNumber !== null && firstItemNumber !== secondItemNumber) {
+      return firstItemNumber - secondItemNumber;
+    }
+
+    return firstItem.poSapItem.localeCompare(secondItem.poSapItem, "th", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+}
+
 export function summarizeJob(job: JobRecord) {
   const requiredTotal = job.items.reduce((sum, item) => sum + item.orderQty, 0);
   const loadedTotal = job.items.reduce((sum, item) => sum + item.loadedQty, 0);
@@ -269,7 +302,7 @@ export function summarizeJob(job: JobRecord) {
   const route = `${job.origin} -> ${job.destinations.length} ปลายทาง`;
 
   const destinations = job.destinations.map((destination) => {
-    const items = job.items.filter((item) => item.destinationId === destination.id);
+    const items = sortJobItems(job.items.filter((item) => item.destinationId === destination.id));
     const required = items.reduce((sum, item) => sum + item.orderQty, 0);
     const loaded = items.reduce((sum, item) => sum + item.loadedQty, 0);
     const delivered = items.reduce((sum, item) => sum + item.deliveredQty, 0);
