@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CheckCircle2, MapPin, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { JobItemScanQtyEditor } from "@/components/jobs/job-item-scan-qty-editor";
+import { JobMergedScanQtyEditor } from "@/components/jobs/job-merged-scan-qty-editor";
 import { cn } from "@/lib/utils";
 import { type getJob, type getJobArchive } from "@/lib/job-store";
 
@@ -16,6 +17,21 @@ type StatusFilter = "all" | "waitLoad" | "loaded" | "delivered";
 type JobLocation = JobDetail["destinations"][number];
 type JobLocationItem = JobLocation["items"][number];
 
+// item ที่อาจรวมจากหลาย registryKey ของ material code เดียวกันใน PO เดียวกัน
+type MergedItem = {
+  key: string; // ใช้เป็น React key (poSapNo + materialCode)
+  registryKeys: string[];
+  poSapNo: string;
+  materialCode: string;
+  materialName: string;
+  sourceOrderQty: string;
+  orderQty: number;
+  loadedQty: number;
+  deliveredQty: number;
+  // เก็บ underlying items ไว้ส่งเข้า MergedScanQtyEditor เพื่อกระจาย qty ตอน save
+  underlying: { registryKey: string; orderQty: number; loadedQty: number; deliveredQty: number }[];
+};
+
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "ทั้งหมด" },
   { value: "waitLoad", label: "รอโหลด" },
@@ -23,7 +39,7 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "delivered", label: "ส่งแล้ว" },
 ];
 
-function itemMatchesStatus(item: JobLocationItem, status: StatusFilter) {
+function itemMatchesStatus(item: MergedItem, status: StatusFilter) {
   const order = Math.max(0, item.orderQty);
   if (status === "all") return true;
   if (status === "waitLoad") return order > 0 && item.loadedQty < order;
@@ -32,7 +48,7 @@ function itemMatchesStatus(item: JobLocationItem, status: StatusFilter) {
   return true;
 }
 
-function itemMatchesSearch(item: JobLocationItem, query: string) {
+function itemMatchesSearch(item: MergedItem, query: string) {
   if (!query) return true;
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -43,7 +59,7 @@ function itemMatchesSearch(item: JobLocationItem, query: string) {
   );
 }
 
-function getItemStatus(item: JobLocationItem) {
+function getItemStatus(item: MergedItem) {
   const order = Math.max(0, item.orderQty);
   if (order === 0) return { tone: "muted", label: "ไม่ส่งรอบนี้" };
   if (item.deliveredQty >= order) return { tone: "delivered", label: `ส่งแล้ว ${item.deliveredQty}/${order}` };
@@ -58,15 +74,58 @@ const STATUS_TONE_CLASS: Record<string, string> = {
   muted: "bg-slate-100 text-slate-500",
 };
 
+// รวม item ที่มี (poSapNo + materialCode) เหมือนกันใน destination เดียวกันเป็นแถวเดียว
+function mergeDuplicateItems(items: JobLocationItem[]): MergedItem[] {
+  const map = new Map<string, MergedItem>();
+  items.forEach((item) => {
+    const materialCode = item.materialCode || "(ไม่มีรหัสวัสดุ)";
+    const key = `${item.poSapNo}__${materialCode}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.registryKeys.push(item.registryKey);
+      existing.orderQty += Math.max(0, item.orderQty);
+      existing.loadedQty += Math.max(0, item.loadedQty);
+      existing.deliveredQty += Math.max(0, item.deliveredQty);
+      existing.underlying.push({
+        registryKey: item.registryKey,
+        orderQty: Math.max(0, item.orderQty),
+        loadedQty: Math.max(0, item.loadedQty),
+        deliveredQty: Math.max(0, item.deliveredQty),
+      });
+    } else {
+      map.set(key, {
+        key,
+        registryKeys: [item.registryKey],
+        poSapNo: item.poSapNo,
+        materialCode,
+        materialName: item.materialName || "-",
+        sourceOrderQty: item.sourceOrderQty || String(item.orderQty || ""),
+        orderQty: Math.max(0, item.orderQty),
+        loadedQty: Math.max(0, item.loadedQty),
+        deliveredQty: Math.max(0, item.deliveredQty),
+        underlying: [
+          {
+            registryKey: item.registryKey,
+            orderQty: Math.max(0, item.orderQty),
+            loadedQty: Math.max(0, item.loadedQty),
+            deliveredQty: Math.max(0, item.deliveredQty),
+          },
+        ],
+      });
+    }
+  });
+  return Array.from(map.values());
+}
+
 type POGroup = {
   poSapNo: string;
-  items: JobLocationItem[];
+  items: MergedItem[];
   required: number;
   loaded: number;
   delivered: number;
 };
 
-function groupByPO(items: JobLocationItem[]): POGroup[] {
+function groupByPO(items: MergedItem[]): POGroup[] {
   const map = new Map<string, POGroup>();
   items.forEach((item) => {
     const key = item.poSapNo || "(ไม่มี PO)";
@@ -78,9 +137,9 @@ function groupByPO(items: JobLocationItem[]): POGroup[] {
       delivered: 0,
     };
     group.items.push(item);
-    group.required += Math.max(0, item.orderQty);
-    group.loaded += Math.max(0, item.loadedQty);
-    group.delivered += Math.max(0, item.deliveredQty);
+    group.required += item.orderQty;
+    group.loaded += item.loadedQty;
+    group.delivered += item.deliveredQty;
     map.set(key, group);
   });
   return Array.from(map.values()).sort((a, b) => a.poSapNo.localeCompare(b.poSapNo));
@@ -94,27 +153,27 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
 
   const active = destinations.find((destination) => destination.id === activeId) ?? destinations[0] ?? null;
 
-  const filteredItems = useMemo(() => {
+  const mergedItems = useMemo(() => {
     if (!active) return [];
-    return active.items.filter(
-      (item) => itemMatchesSearch(item, query) && itemMatchesStatus(item, statusFilter),
-    );
-  }, [active, query, statusFilter]);
+    return mergeDuplicateItems(active.items);
+  }, [active]);
+
+  const filteredItems = useMemo(
+    () => mergedItems.filter((item) => itemMatchesSearch(item, query) && itemMatchesStatus(item, statusFilter)),
+    [mergedItems, query, statusFilter],
+  );
 
   const poGroups = useMemo(() => groupByPO(filteredItems), [filteredItems]);
 
   const statusCounts = useMemo(() => {
-    if (!active) {
-      return { all: 0, waitLoad: 0, loaded: 0, delivered: 0 } as Record<StatusFilter, number>;
-    }
     return STATUS_FILTERS.reduce(
       (acc, filter) => {
-        acc[filter.value] = active.items.filter((item) => itemMatchesStatus(item, filter.value)).length;
+        acc[filter.value] = mergedItems.filter((item) => itemMatchesStatus(item, filter.value)).length;
         return acc;
       },
       { all: 0, waitLoad: 0, loaded: 0, delivered: 0 } as Record<StatusFilter, number>,
     );
-  }, [active]);
+  }, [mergedItems]);
 
   if (!destinations.length) {
     return (
@@ -331,7 +390,7 @@ function POCard({
       {!collapsed ? (
         <div className="divide-y border-t mt-2">
           {group.items.map((item) => (
-            <ItemRow key={item.registryKey} item={item} jobId={jobId} editableScanQty={editableScanQty} />
+            <ItemRow key={item.key} item={item} jobId={jobId} editableScanQty={editableScanQty} />
           ))}
         </div>
       ) : null}
@@ -344,15 +403,23 @@ function ItemRow({
   jobId,
   editableScanQty,
 }: {
-  item: JobLocationItem;
+  item: MergedItem;
   jobId: string;
   editableScanQty: boolean;
 }) {
   const status = getItemStatus(item);
+  const isMerged = item.registryKeys.length > 1;
   return (
     <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-[11px] text-slate-400">{item.materialCode || "-"}</p>
+        <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-400">
+          <span>{item.materialCode || "-"}</span>
+          {isMerged ? (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+              รวม {item.registryKeys.length} รายการ
+            </span>
+          ) : null}
+        </div>
         <p className="break-words text-sm text-slate-900">{item.materialName || "-"}</p>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           <span
@@ -368,12 +435,16 @@ function ItemRow({
       </div>
       <div className="shrink-0 sm:w-44">
         {editableScanQty ? (
-          <JobItemScanQtyEditor
-            jobId={jobId}
-            registryKey={item.registryKey}
-            value={item.orderQty}
-            minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
-          />
+          isMerged ? (
+            <JobMergedScanQtyEditor jobId={jobId} underlying={item.underlying} />
+          ) : (
+            <JobItemScanQtyEditor
+              jobId={jobId}
+              registryKey={item.registryKeys[0]}
+              value={item.orderQty}
+              minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
+            />
+          )
         ) : (
           <div className="rounded-md bg-slate-50 px-3 py-2 text-center text-sm">
             <p className="text-[10px] text-muted-foreground">ต้องสแกน</p>

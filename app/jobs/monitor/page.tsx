@@ -4,15 +4,10 @@ import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { JobAddPOPanel } from "@/components/jobs/job-add-po-panel";
+import { JobActionToolbar } from "@/components/jobs/job-action-toolbar";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
-import { JobMonitorActions } from "@/components/jobs/job-monitor-actions";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
-import { JobDeleteButton } from "@/components/jobs/job-delete-button";
-import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-override-button";
-import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobMonitorSelector } from "@/components/jobs/job-monitor-selector";
-import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJob, getJobArchive, listJobs } from "@/lib/job-store";
@@ -97,59 +92,27 @@ export default async function JobMonitorPage({
             ))}
           </section>
 
-          <div className="rounded-md border bg-white px-3 py-3">
-            <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{isArchivedJob ? "งานปิดแล้ว" : "ห้องคนขับ"}</p>
-                {isArchivedJob ? <p className="mt-0.5 text-xs text-muted-foreground">{job.roomName?.trim() || job.id}</p> : null}
-              </div>
-              <div className="flex flex-col gap-2 lg:items-end">
-                {isArchivedJob ? (
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
-                    <Badge variant="success">ปิดงานแล้ว</Badge>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/reports?status=archived&query=${encodeURIComponent(job.id)}`}>
-                        <History className="mr-1.5 h-3.5 w-3.5" />
-                        เปิดในประวัติงาน
-                      </Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {/* มือถือ: รวมเป็นเมนูเดียว */}
-                    <div className="w-full lg:hidden">
-                      <JobMonitorActions
-                        jobId={job.id}
-                        driver={job.driver}
-                        vehicle={job.vehicle}
-                        destinationOverrideEnabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
-                        isFullyLoaded={job.isFullyLoaded}
-                        originOverrideEnabled={Boolean(job.allowOriginRecheckAfterLocked)}
-                        isOriginLocked={job.isOriginLocked}
-                      />
-                    </div>
-                    {/* เดสก์ท็อป: ปุ่มแยกเหมือนเดิม */}
-                    <div className="hidden flex-wrap gap-2 lg:flex lg:justify-end">
-                      <JobDriverAccessCard jobId={job.id} driver={job.driver} vehicle={job.vehicle} compact />
-                      <JobDestinationOverrideButton
-                        jobId={job.id}
-                        enabled={Boolean(job.allowDestinationBeforeFullyLoaded)}
-                        isFullyLoaded={job.isFullyLoaded}
-                      />
-                      <JobOriginOverrideButton
-                        jobId={job.id}
-                        enabled={Boolean(job.allowOriginRecheckAfterLocked)}
-                        isOriginLocked={job.isOriginLocked}
-                      />
-                      <JobDeleteButton jobId={job.id} redirectTo="/jobs" />
-                    </div>
-                  </>
-                )}
+          {isArchivedJob ? (
+            <div className="rounded-md border bg-white px-3 py-3">
+              <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">งานปิดแล้ว</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{job.roomName?.trim() || job.id}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <Badge variant="success">ปิดงานแล้ว</Badge>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/reports?status=archived&query=${encodeURIComponent(job.id)}`}>
+                      <History className="mr-1.5 h-3.5 w-3.5" />
+                      เปิดในประวัติงาน
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-
-          {!isArchivedJob ? <JobAddPOPanel job={job} /> : null}
+          ) : (
+            <JobActionToolbar job={job} />
+          )}
 
           <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <JobProgress job={job} editableScanQty={!isArchivedJob} />

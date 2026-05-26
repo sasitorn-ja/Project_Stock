@@ -13,11 +13,20 @@ import { getDestinationNameForPORecord, slugifyDestination, type JobSummaryRecor
 
 const PAGE_SIZE = 5;
 
-export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
+export function JobAddPOPanel({
+  job,
+  embedded = false,
+}: {
+  job: JobSummaryRecord;
+  // เมื่อ embedded=true จะตัด header bar (badge + toggle button) ออก แล้ว render เนื้อหาทันที
+  // ใช้ในกรณีที่ parent ควบคุมการเปิด/ปิดเอง (เช่น JobActionToolbar)
+  embedded?: boolean;
+}) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(embedded);
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalPoCount, setTotalPoCount] = useState(0);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   // เก็บทั้ง record ไว้ เพื่อให้การเลือกยังอยู่ครบเมื่อเปลี่ยนหน้า
@@ -62,9 +71,11 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
         const result = await getPORecordsPage({ page: currentPage, pageSize: PAGE_SIZE, query });
         setRecords(result.records);
         setTotalCount(result.totalCount);
+        setTotalPoCount(result.totalPoCount);
       } catch {
         setRecords([]);
         setTotalCount(0);
+        setTotalPoCount(0);
         setError("โหลด PO รอจัดส่งไม่สำเร็จ");
       } finally {
         setIsLoading(false);
@@ -151,29 +162,8 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
     }
   }
 
-  return (
-    <div className="rounded-md border bg-white">
-      <div className="flex flex-col justify-between gap-3 px-3 py-3 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-slate-900">เพิ่ม PO ระหว่างงาน</p>
-          {isOpen && totalCount > 0 ? (
-            <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
-          ) : null}
-        </div>
-        <Button
-          type="button"
-          variant={isOpen ? "outline" : "default"}
-          size="sm"
-          onClick={() => setIsOpen((value) => !value)}
-          className="w-full sm:w-auto"
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          {isOpen ? "ปิด" : "เพิ่ม PO"}
-        </Button>
-      </div>
-
-      {isOpen ? (
-        <div className="space-y-3 border-t px-3 py-3">
+  const body = isOpen ? (
+    <div className={embedded ? "space-y-3 p-3 sm:p-4" : "space-y-3 border-t px-3 py-3"}>
           <div className="grid gap-2 md:grid-cols-[1fr_240px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -388,7 +378,35 @@ export function JobAddPOPanel({ job }: { job: JobSummaryRecord }) {
             </Button>
           </div>
         </div>
-      ) : null}
+  ) : null;
+
+  if (embedded) {
+    return <div className="rounded-md border bg-white">{body}</div>;
+  }
+
+  return (
+    <div className="rounded-md border bg-white">
+      <div className="flex flex-col justify-between gap-3 px-3 py-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-slate-900">เพิ่ม PO ระหว่างงาน</p>
+          {isOpen && totalPoCount > 0 ? (
+            <Badge variant="secondary">
+              {totalPoCount.toLocaleString("th-TH")} PO · {totalCount.toLocaleString("th-TH")} รายการ
+            </Badge>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          variant={isOpen ? "outline" : "default"}
+          size="sm"
+          onClick={() => setIsOpen((value) => !value)}
+          className="w-full sm:w-auto"
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          {isOpen ? "ปิด" : "เพิ่ม PO"}
+        </Button>
+      </div>
+      {body}
     </div>
   );
 }
