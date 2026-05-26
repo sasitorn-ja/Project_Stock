@@ -231,24 +231,50 @@ export function JobCreator() {
   const currentRecordsPage = Math.min(recordsPage, recordsTotalPages);
   const recordsStart = (currentRecordsPage - 1) * RECORDS_PER_PAGE;
   const pagedRecords = records.slice(recordsStart, recordsStart + RECORDS_PER_PAGE);
+  const firstRegistryKeyByPoSapNo = useMemo(() => {
+    const firstKeys: Record<string, string> = {};
+
+    records.forEach((record) => {
+      firstKeys[record.poSapNo] = firstKeys[record.poSapNo] ?? record.registryKey;
+    });
+
+    return firstKeys;
+  }, [records]);
 
   const destinationsTotalPages = Math.max(1, Math.ceil(groupedDestinations.length / DESTINATIONS_PER_PAGE));
   const currentDestinationsPage = Math.min(destinationsPage, destinationsTotalPages);
   const destinationsStart = (currentDestinationsPage - 1) * DESTINATIONS_PER_PAGE;
   const pagedDestinations = groupedDestinations.slice(destinationsStart, destinationsStart + DESTINATIONS_PER_PAGE);
 
+  function getPoScanQuantity(record: PORegistryRecord) {
+    const firstRegistryKey = firstRegistryKeyByPoSapNo[record.poSapNo] ?? record.registryKey;
+
+    return scanQuantities[firstRegistryKey] ?? scanQuantities[record.registryKey] ?? 1;
+  }
+
+  function buildItemScanQuantities() {
+    const seenPoSapNos = new Set<string>();
+
+    return Object.fromEntries(
+      records.map((record) => {
+        if (seenPoSapNos.has(record.poSapNo)) {
+          return [record.registryKey, 0];
+        }
+
+        seenPoSapNos.add(record.poSapNo);
+        return [record.registryKey, Math.max(0, Math.ceil(Number(getPoScanQuantity(record))))];
+      }),
+    );
+  }
+
   function updateScanQuantity(registryKey: string, value: number) {
     const targetRecord = records.find((record) => record.registryKey === registryKey);
-    const targetPoSapNo = targetRecord?.poSapNo;
+    const targetRegistryKey = targetRecord ? firstRegistryKeyByPoSapNo[targetRecord.poSapNo] ?? targetRecord.registryKey : registryKey;
     const normalizedValue = Math.max(0, Math.ceil(value || 0));
 
     setScanQuantities((currentQuantities) => ({
       ...currentQuantities,
-      ...Object.fromEntries(
-        records
-          .filter((record) => record.registryKey === registryKey || (targetPoSapNo && record.poSapNo === targetPoSapNo))
-          .map((record) => [record.registryKey, normalizedValue]),
-      ),
+      [targetRegistryKey]: normalizedValue,
     }));
   }
 
@@ -454,9 +480,7 @@ export function JobCreator() {
         origin,
         note,
         registryKeys: records.map((record) => record.registryKey),
-        itemScanQuantities: Object.fromEntries(
-          records.map((record) => [record.registryKey, Math.max(0, Math.ceil(Number(scanQuantities[record.registryKey] ?? 1)))]),
-        ),
+        itemScanQuantities: buildItemScanQuantities(),
         destinationAssignments,
         destinationOverrides: groupedDestinations
           .filter((destination) => destination.poCount > 0)
@@ -649,7 +673,7 @@ export function JobCreator() {
                                 rowSpan={getVisiblePoRowSpan(localIndex)}
                               >
                                 <QuantityStepper
-                                  value={scanQuantities[record.registryKey] ?? 1}
+                                  value={getPoScanQuantity(record)}
                                   min={0}
                                   onChange={(value) => updateScanQuantity(record.registryKey, value)}
                                   className="w-36"
@@ -675,7 +699,7 @@ export function JobCreator() {
                           <p className="mt-0.5 text-xs text-muted-foreground">Item {record.poSapItem}</p>
                         </div>
                         <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                          สแกน {scanQuantities[record.registryKey] ?? 1} รอบ
+                          สแกน {getPoScanQuantity(record)} รอบ
                         </span>
                       </div>
                       <div>
@@ -691,7 +715,7 @@ export function JobCreator() {
                         {isFirstVisiblePoRow ? (
                           <QuantityStepper
                             id={`scan-qty-${record.registryKey}`}
-                            value={scanQuantities[record.registryKey] ?? 1}
+                            value={getPoScanQuantity(record)}
                             min={0}
                             onChange={(value) => updateScanQuantity(record.registryKey, value)}
                           />
