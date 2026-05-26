@@ -178,16 +178,17 @@ export function POImporter() {
       const rowsMissingItem = itemRows.filter(({ row }) => !readCell(row, poSapItemColumn));
       const validRows = itemRows.filter(({ row }) => readCell(row, poSapItemColumn));
       const records = validRows.map(({ row, rowNumber }) => buildRecord(row, rowNumber, columns));
-      const recordsByKey = records.reduce((groups, record) => {
-        const currentRecords = groups.get(record.registryKey) ?? [];
+      // ตัดซ้ำด้วย PO SAP No. เท่านั้น (เก็บรายการแรกของแต่ละ PO)
+      const recordsByPo = records.reduce((groups, record) => {
+        const currentRecords = groups.get(record.poSapNo) ?? [];
         currentRecords.push(record);
-        groups.set(record.registryKey, currentRecords);
+        groups.set(record.poSapNo, currentRecords);
 
         return groups;
       }, new Map<string, POImportRecord[]>());
-      const uniqueRecords = Array.from(recordsByKey.values()).map((sameKeyRecords) => ({
-        ...sameKeyRecords[0],
-        duplicateInFileCount: sameKeyRecords.length - 1,
+      const uniqueRecords = Array.from(recordsByPo.values()).map((samePoRecords) => ({
+        ...samePoRecords[0],
+        duplicateInFileCount: samePoRecords.length - 1,
       }));
       const duplicateInFileCount = records.length - uniqueRecords.length;
       const existingRecords = await getExistingPORecords(uniqueRecords.map((record) => record.registryKey));
@@ -278,18 +279,19 @@ export function POImporter() {
       setSuccessMessage(`นำเข้าข้อมูลใหม่แล้ว ${preview.newPOs.length.toLocaleString("th-TH")} รายการ`);
       setPreview(null);
     } catch {
-      setError("บันทึกทะเบียน PO SAP No. + PO SAP Item ไม่สำเร็จ");
+      setError("บันทึกทะเบียน PO SAP No. ไม่สำเร็จ");
     } finally {
       setIsBusy(false);
     }
   }
 
   return (
-    <Card className="rounded-md">
-      <CardHeader className="border-b-0 px-6 pb-3 pt-5">
-        <CardTitle className="text-[15px] font-bold leading-5 text-slate-950">อัปโหลด PO จาก SAP</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5 px-6 pb-5 pt-3">
+    <div className="space-y-6">
+      <Card className="mx-auto w-full max-w-4xl rounded-md">
+        <CardHeader className="border-b-0 px-6 pb-3 pt-5">
+          <CardTitle className="text-[15px] font-bold leading-5 text-slate-950">อัปโหลด PO จาก SAP</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5 px-6 pb-5 pt-3">
         <div
           className="flex min-h-36 items-center justify-center rounded-md border border-dashed border-[#cfd8e3] bg-[#fafafa] px-4 py-8"
           onDragOver={(event) => event.preventDefault()}
@@ -328,7 +330,7 @@ export function POImporter() {
 
         {isBusy ? (
           <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-            กำลังประมวลผลไฟล์และเช็ค PO SAP No. + PO SAP Item
+            กำลังประมวลผลไฟล์และเช็ค PO SAP No.
           </div>
         ) : null}
 
@@ -375,7 +377,7 @@ export function POImporter() {
                     {(preview.newPOs.length + preview.skippedExistingCount).toLocaleString("th-TH")} รายการ
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    ระบบเช็คซ้ำหลังบ้านด้วย PO SAP No. + PO SAP Item และแสดงเฉพาะรายการใหม่ที่จะเพิ่ม รายการที่ถูกสร้าง Job แล้วจะไม่ถูกนำกลับเข้าคิว
+                    ระบบเช็คซ้ำหลังบ้านด้วย PO SAP No. และแสดงเฉพาะรายการใหม่ที่จะเพิ่ม รายการที่ถูกสร้าง Job แล้วจะไม่ถูกนำกลับเข้าคิว
                     {preview.missingPOCount
                       ? `, ข้ามแถวที่ไม่มี PO SAP No. ${preview.missingPOCount.toLocaleString("th-TH")} แถว`
                       : ""}
@@ -383,7 +385,7 @@ export function POImporter() {
                       ? `, ข้ามแถวที่ไม่มี PO SAP Item ${preview.missingItemCount.toLocaleString("th-TH")} แถว`
                       : ""}
                     {preview.duplicateInFileCount
-                      ? `, พบรายการซ้ำในไฟล์เดียวกัน ${preview.duplicateInFileCount.toLocaleString("th-TH")} แถว`
+                      ? `, พบ PO ซ้ำในไฟล์เดียวกัน ${preview.duplicateInFileCount.toLocaleString("th-TH")} แถว`
                       : ""}
                   </p>
                 </div>
@@ -398,24 +400,27 @@ export function POImporter() {
                 ยืนยันนำเข้ารายการใหม่
               </Button>
             </div>
-
-            <ImportTable
-              title="รายการใหม่ที่พร้อมนำเข้า"
-              records={preview.newPOs}
-              emptyText="ไม่มีรายการใหม่ในไฟล์นี้"
-              variant="success"
-            />
           </div>
         ) : null}
 
-        {successMessage ? (
-          <Button asChild>
-            <Link href="/po">ไปหน้า PO รอจัดส่ง</Link>
-          </Button>
-        ) : null}
+          {successMessage ? (
+            <Button asChild>
+              <Link href="/po">ไปหน้า PO รอจัดส่ง</Link>
+            </Button>
+          ) : null}
 
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {preview ? (
+        <ImportTable
+          title="รายการใหม่ที่พร้อมนำเข้า"
+          records={preview.newPOs}
+          emptyText="ไม่มีรายการใหม่ในไฟล์นี้"
+          variant="success"
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -445,7 +450,7 @@ function ImportTable({
   }, [records]);
 
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-md border bg-background">
       <div className="flex items-center justify-between border-b bg-background px-4 py-3">
         <p className="font-medium">{title}</p>
         <Badge variant={variant === "warning" ? "warning" : "secondary"}>{records.length} รายการ</Badge>
