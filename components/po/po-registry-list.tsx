@@ -90,10 +90,11 @@ export function PORegistryList() {
   const [successMessage, setSuccessMessage] = useState("");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [selectedKeys, setSelectedKeys] = useState<string[]>(readSelectedPOKeys);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const recordsLengthRef = useRef(0);
+  const hasLoadedSelectedKeysRef = useRef(false);
   const pageSize = 20;
   const normalizedQuery = query.trim();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -160,6 +161,15 @@ export function PORegistryList() {
   }, [query]);
 
   useEffect(() => {
+    setSelectedKeys(readSelectedPOKeys());
+    hasLoadedSelectedKeysRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedSelectedKeysRef.current) {
+      return;
+    }
+
     writeSelectedPOKeys(selectedKeys);
   }, [selectedKeys]);
 
