@@ -105,7 +105,7 @@ export async function GET(request: Request) {
     const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     const now = Math.floor(Date.now() / 1000);
 
-    if (claims.iss !== issuer) {
+    if (claims.iss && claims.iss !== issuer) {
       logInvalidClaims({
         reason: "InvalidIssuer",
         issuer: claims.iss,
@@ -117,6 +117,21 @@ export async function GET(request: Request) {
         hasSubject: Boolean(claims.sub),
       });
       return createLoginErrorRedirect(requestUrl, "InvalidIssuer");
+    }
+    if (!claims.iss) {
+      console.warn(
+        "[rmc-sso][claims]",
+        JSON.stringify({
+          reason: "MissingIssuerTolerated",
+          issuer: null,
+          expectedIssuer: issuer,
+          audience,
+          expectedAudience: getSsoClientId(),
+          expiresAt: claims.exp,
+          now,
+          hasSubject: Boolean(claims.sub),
+        }),
+      );
     }
 
     if (!audience.includes(getSsoClientId())) {
