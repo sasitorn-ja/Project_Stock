@@ -52,9 +52,12 @@ type ImportPreview = {
   missingItemCount: number;
   duplicateInFileCount: number;
   skippedExistingCount: number;
+  skippedExistingPoCount: number;
   skippedQueuedCount: number;
   skippedInJobCount: number;
   newPOs: POImportRecord[];
+  newPoNoCount: number;
+  uniquePoNoCount: number;
 };
 
 function normalizeHeader(value: string) {
@@ -178,17 +181,17 @@ export function POImporter() {
       const rowsMissingItem = itemRows.filter(({ row }) => !readCell(row, poSapItemColumn));
       const validRows = itemRows.filter(({ row }) => readCell(row, poSapItemColumn));
       const records = validRows.map(({ row, rowNumber }) => buildRecord(row, rowNumber, columns));
-      // ตัดซ้ำด้วย PO SAP No. เท่านั้น (เก็บรายการแรกของแต่ละ PO)
-      const recordsByPo = records.reduce((groups, record) => {
-        const currentRecords = groups.get(record.poSapNo) ?? [];
+      // เก็บทุก (PO + Item) ไว้ครบ ตัดเฉพาะแถวที่ซ้ำเป๊ะ (PO + Item เดียวกัน)
+      const recordsByKey = records.reduce((groups, record) => {
+        const currentRecords = groups.get(record.registryKey) ?? [];
         currentRecords.push(record);
-        groups.set(record.poSapNo, currentRecords);
+        groups.set(record.registryKey, currentRecords);
 
         return groups;
       }, new Map<string, POImportRecord[]>());
-      const uniqueRecords = Array.from(recordsByPo.values()).map((samePoRecords) => ({
-        ...samePoRecords[0],
-        duplicateInFileCount: samePoRecords.length - 1,
+      const uniqueRecords = Array.from(recordsByKey.values()).map((sameKeyRecords) => ({
+        ...sameKeyRecords[0],
+        duplicateInFileCount: sameKeyRecords.length - 1,
       }));
       const duplicateInFileCount = records.length - uniqueRecords.length;
       const existingRecords = await getExistingPORecords(uniqueRecords.map((record) => record.registryKey));
@@ -201,6 +204,23 @@ export function POImporter() {
       }, new Map<string, PORegistryRecord[]>());
       const existingPoNos = new Set(existingRecordsByPo.keys());
 
+      const newPOs = uniqueRecords.filter((record) => !existingPoNos.has(record.poSapNo));
+      const skippedExistingRecords = uniqueRecords.filter((record) => existingPoNos.has(record.poSapNo));
+      const newPoNoSet = new Set(newPOs.map((record) => record.poSapNo));
+      const skippedPoNoSet = new Set(skippedExistingRecords.map((record) => record.poSapNo));
+      const allUniquePoNos = new Set(uniqueRecords.map((record) => record.poSapNo));
+      const queuedPoNoSet = new Set<string>();
+      const inJobPoNoSet = new Set<string>();
+      skippedExistingRecords.forEach((record) => {
+        const samePoRecords = existingRecordsByPo.get(record.poSapNo) ?? [];
+        if (samePoRecords.some((existingRecord) => !existingRecord.assignedJobId && existingRecord.lifecycle === "active")) {
+          queuedPoNoSet.add(record.poSapNo);
+        }
+        if (samePoRecords.some((existingRecord) => Boolean(existingRecord.assignedJobId) || existingRecord.lifecycle !== "active")) {
+          inJobPoNoSet.add(record.poSapNo);
+        }
+      });
+
       setPreview({
         fileName: file.name,
         sheetName,
@@ -208,16 +228,13 @@ export function POImporter() {
         missingPOCount: rows.length - itemRows.length,
         missingItemCount: rowsMissingItem.length,
         duplicateInFileCount,
-        skippedExistingCount: uniqueRecords.filter((record) => existingPoNos.has(record.poSapNo)).length,
-        skippedQueuedCount: uniqueRecords.filter((record) => {
-          const samePoRecords = existingRecordsByPo.get(record.poSapNo) ?? [];
-          return samePoRecords.some((existingRecord) => !existingRecord.assignedJobId && existingRecord.lifecycle === "active");
-        }).length,
-        skippedInJobCount: uniqueRecords.filter((record) => {
-          const samePoRecords = existingRecordsByPo.get(record.poSapNo) ?? [];
-          return samePoRecords.some((existingRecord) => Boolean(existingRecord.assignedJobId) || existingRecord.lifecycle !== "active");
-        }).length,
-        newPOs: uniqueRecords.filter((record) => !existingPoNos.has(record.poSapNo)),
+        skippedExistingCount: skippedExistingRecords.length,
+        skippedExistingPoCount: skippedPoNoSet.size,
+        skippedQueuedCount: queuedPoNoSet.size,
+        skippedInJobCount: inJobPoNoSet.size,
+        newPOs,
+        newPoNoCount: newPoNoSet.size,
+        uniquePoNoCount: allUniquePoNos.size,
       });
     } catch {
       setError("อ่านไฟล์ Excel / CSV ไม่สำเร็จ กรุณาตรวจสอบว่าเป็นไฟล์ที่เปิดได้ปกติ");
@@ -276,7 +293,9 @@ export function POImporter() {
       );
 
       window.sessionStorage.removeItem("project-stock.po-registry-list.v1");
-      setSuccessMessage(`นำเข้าข้อมูลใหม่แล้ว ${preview.newPOs.length.toLocaleString("th-TH")} รายการ`);
+      setSuccessMessage(
+        `นำเข้าข้อมูลใหม่แล้ว ${preview.newPoNoCount.toLocaleString("th-TH")} PO (${preview.newPOs.length.toLocaleString("th-TH")} รายการ item)`,
+      );
       setPreview(null);
     } catch {
       setError("บันทึกทะเบียน PO SAP No. ไม่สำเร็จ");
@@ -346,23 +365,25 @@ export function POImporter() {
                 <p className="mt-1 font-medium">{preview.sheetName}</p>
               </div>
               <div className="rounded-md border p-5">
-                <p className="text-xs text-muted-foreground">รายการใหม่</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-600">{preview.newPOs.length}</p>
+                <p className="text-xs text-muted-foreground">รายการใหม่ (PO)</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-600">{preview.newPoNoCount.toLocaleString("th-TH")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{preview.newPOs.length.toLocaleString("th-TH")} แถวรวมทุก item</p>
               </div>
               <div className="rounded-md border p-5">
-                <p className="text-xs text-muted-foreground">มีอยู่แล้ว ไม่นำเข้าซ้ำ</p>
-                <p className="mt-1 text-2xl font-bold text-amber-600">{preview.skippedExistingCount}</p>
+                <p className="text-xs text-muted-foreground">มีอยู่แล้ว ไม่นำเข้าซ้ำ (PO)</p>
+                <p className="mt-1 text-2xl font-bold text-amber-600">{preview.skippedExistingPoCount.toLocaleString("th-TH")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{preview.skippedExistingCount.toLocaleString("th-TH")} แถวรวมทุก item</p>
               </div>
             </div>
 
-            {preview.skippedExistingCount ? (
+            {preview.skippedExistingPoCount ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-slate-200 bg-white p-4">
-                  <p className="text-xs text-muted-foreground">อยู่ในคิวรอจัดส่งแล้ว</p>
+                  <p className="text-xs text-muted-foreground">อยู่ในคิวรอจัดส่งแล้ว (PO)</p>
                   <p className="mt-1 text-2xl font-bold text-slate-900">{preview.skippedQueuedCount.toLocaleString("th-TH")}</p>
                 </div>
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs text-amber-800">ถูกสร้าง Job แล้ว / ไม่อยู่ในคิว</p>
+                  <p className="text-xs text-amber-800">ถูกสร้าง Job แล้ว / ไม่อยู่ในคิว (PO)</p>
                   <p className="mt-1 text-2xl font-bold text-amber-700">{preview.skippedInJobCount.toLocaleString("th-TH")}</p>
                 </div>
               </div>
@@ -373,11 +394,11 @@ export function POImporter() {
                 <FileSpreadsheet className="mt-1 h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">
-                    อ่านข้อมูล {preview.totalRows.toLocaleString("th-TH")} แถว พบรายการจริง{" "}
-                    {(preview.newPOs.length + preview.skippedExistingCount).toLocaleString("th-TH")} รายการ
+                    อ่านข้อมูล {preview.totalRows.toLocaleString("th-TH")} แถว พบ PO ไม่ซ้ำ{" "}
+                    {preview.uniquePoNoCount.toLocaleString("th-TH")} เลข
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    ระบบเช็คซ้ำหลังบ้านด้วย PO SAP No. และแสดงเฉพาะรายการใหม่ที่จะเพิ่ม รายการที่ถูกสร้าง Job แล้วจะไม่ถูกนำกลับเข้าคิว
+                    ระบบนับเฉพาะ PO SAP No. ที่ไม่ซ้ำ (เลขเดียวกันนับเป็น 1) แต่จะเก็บทุก item ของ PO นั้นไว้ครบ รายการที่ถูกสร้าง Job แล้วจะไม่ถูกนำกลับเข้าคิว
                     {preview.missingPOCount
                       ? `, ข้ามแถวที่ไม่มี PO SAP No. ${preview.missingPOCount.toLocaleString("th-TH")} แถว`
                       : ""}
@@ -385,7 +406,7 @@ export function POImporter() {
                       ? `, ข้ามแถวที่ไม่มี PO SAP Item ${preview.missingItemCount.toLocaleString("th-TH")} แถว`
                       : ""}
                     {preview.duplicateInFileCount
-                      ? `, พบ PO ซ้ำในไฟล์เดียวกัน ${preview.duplicateInFileCount.toLocaleString("th-TH")} แถว`
+                      ? `, พบ (PO+Item) ซ้ำในไฟล์เดียวกัน ${preview.duplicateInFileCount.toLocaleString("th-TH")} แถว`
                       : ""}
                   </p>
                 </div>
