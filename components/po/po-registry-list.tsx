@@ -64,6 +64,7 @@ async function getAllMatchingPORecords(query: string) {
 export function PORegistryList() {
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalPoCount, setTotalPoCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -96,9 +97,11 @@ export function PORegistryList() {
         const result = await getPORecordsPage({ page: currentPage, pageSize, query });
         setRecords(result.records);
         setTotalCount(result.totalCount);
+        setTotalPoCount(result.totalPoCount);
       } catch {
         setRecords([]);
         setTotalCount(0);
+        setTotalPoCount(0);
         setError("โหลดข้อมูล PO ไม่สำเร็จ กรุณาลองรีเฟรชรายการอีกครั้ง");
       } finally {
         setIsLoading(false);
@@ -204,6 +207,7 @@ export function PORegistryList() {
       setSuccessMessage("");
       const result = await getAllMatchingPORecords(query);
       setTotalCount(result.totalCount);
+      setTotalPoCount(new Set(result.records.map((record) => record.poSapNo)).size);
       setSelectedKeys(result.records.map((record) => record.registryKey));
     } catch {
       setError("เลือกรายการทั้งหมดไม่สำเร็จ กรุณาลองใหม่");
@@ -248,7 +252,7 @@ export function PORegistryList() {
             <CardDescription>ค้นหาและเลือกรายการที่ต้องนำไปสร้าง Job</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{totalCount.toLocaleString("th-TH")} รายการ</Badge>
+            <Badge variant="secondary">{totalPoCount.toLocaleString("th-TH")} รายการ</Badge>
             <Button type="button" variant="outline" size="sm" onClick={refreshRecords} disabled={isLoading}>
               รีเฟรชรายการ
             </Button>
@@ -542,7 +546,7 @@ export function PORegistryList() {
                     ยืนยันลบข้อมูลทั้งหมด
                   </p>
                   <p className="mt-1 text-sm text-red-800 dark:text-red-200">
-                    จะลบ PO รอจัดส่งทั้งหมด {totalCount.toLocaleString("th-TH")} รายการออกจากคิว
+                    จะลบ PO รอจัดส่งทั้งหมด {totalPoCount.toLocaleString("th-TH")} รายการออกจากคิว
                   </p>
                 </div>
               </div>

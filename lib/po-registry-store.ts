@@ -305,7 +305,8 @@ async function getPORecordsPageFromDatabase({
         )
         SELECT
           filtered_records.*,
-          COUNT(*) OVER ()::text AS total_count
+          COUNT(*) OVER ()::text AS total_count,
+          COUNT(DISTINCT purchase_order_number) OVER ()::text AS total_po_count
         FROM filtered_records
         ORDER BY
           MAX(first_imported_at) OVER (PARTITION BY purchase_order_number) DESC,
@@ -323,6 +324,7 @@ async function getPORecordsPageFromDatabase({
     return {
       records: rowsResult.rows.map(mapDatabasePORecord),
       totalCount: Number(rowsResult.rows[0]?.total_count ?? "0"),
+      totalPoCount: Number(rowsResult.rows[0]?.total_po_count ?? "0"),
     };
   });
 }
@@ -784,6 +786,7 @@ export async function getPORecordsPage({
   return {
     records: matchedRecords.slice(skipCount, skipCount + pageSize),
     totalCount: matchedRecords.length,
+    totalPoCount: new Set(matchedRecords.map((record) => record.poSapNo)).size,
   };
 }
 

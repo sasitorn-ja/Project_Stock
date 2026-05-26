@@ -45,6 +45,7 @@ export async function getPORecordsPage({
   return readResponse<{
     records: PORegistryRecord[];
     totalCount: number;
+    totalPoCount: number;
   }>(
     await fetch(`/api/po-registry?${searchParams.toString()}`, {
       cache: "no-store",
