@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getSessionFromCookieValue, sessionCookieName } from "@/lib/rmc-session";
 
 function isAssetPath(pathname: string) {
   return (
@@ -55,12 +55,17 @@ function isDriverApiPath(pathname: string, method: string) {
   return false;
 }
 
-export default auth((request) => {
-  const { nextUrl, auth: session, method } = request;
+export default async function middleware(request: Request & { nextUrl: URL; cookies: { get: (name: string) => { value?: string } | undefined } }) {
+  const { nextUrl, method } = request;
   const pathname = nextUrl.pathname;
   const hasJobId = Boolean(nextUrl.searchParams.get("jobId")?.trim());
+  const session = await getSessionFromCookieValue(request.cookies.get(sessionCookieName)?.value);
 
   if (isAssetPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (pathname === "/" && (nextUrl.searchParams.has("code") || nextUrl.searchParams.has("error"))) {
     return NextResponse.next();
   }
 
@@ -99,7 +104,7 @@ export default auth((request) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

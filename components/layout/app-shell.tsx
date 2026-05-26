@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import type { AppSession } from "@/lib/rmc-session";
 import { cn } from "@/lib/utils";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, session }: { children: React.ReactNode; session: AppSession | null }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <Header
+          session={session}
           isSidebarOpen={isSidebarOpen}
           isMobileOpen={isMobileOpen}
           onMenuClick={() => setIsMobileOpen((value) => !value)}

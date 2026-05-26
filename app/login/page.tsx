@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
+import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { getSsoDiagnostics } from "@/lib/sso-diagnostics";
 
@@ -67,12 +67,8 @@ export default async function LoginPage({
           </div>
         ) : null}
 
-        <form
-          action={async () => {
-            "use server";
-            await signIn("rmc-sso", { redirectTo: safeCallbackUrl });
-          }}
-        >
+        <form action="/api/auth/rmc-sso/login" method="GET">
+          <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <Button
             type="submit"
             className="h-11 w-full text-base"

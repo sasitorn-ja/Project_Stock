@@ -4,6 +4,8 @@ type SsoDiagnosticItem = {
   ok: boolean;
 };
 
+import { getAppBaseUrl, getSsoRedirectUri, getSsoWellKnownUrl } from "@/lib/rmc-sso";
+
 export type SsoDiagnostics = {
   items: SsoDiagnosticItem[];
 };
@@ -21,8 +23,7 @@ function maskUrl(value: string | undefined) {
 }
 
 function getWellKnownUrl() {
-  const issuer = process.env.AUTH_RMC_SSO_ISSUER || "https://rmc-sso.cipcloud.net";
-  return process.env.AUTH_RMC_SSO_WELL_KNOWN || `${issuer}/api/auth/.well-known/openid-configuration`;
+  return getSsoWellKnownUrl();
 }
 
 async function checkWellKnownEndpoint(url: string) {
@@ -43,7 +44,7 @@ async function checkWellKnownEndpoint(url: string) {
 export async function getSsoDiagnostics(): Promise<SsoDiagnostics> {
   const wellKnownUrl = getWellKnownUrl();
   const wellKnownStatus = await checkWellKnownEndpoint(wellKnownUrl);
-  const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL;
+  const authUrl = getAppBaseUrl();
 
   return {
     items: [
@@ -66,6 +67,11 @@ export async function getSsoDiagnostics(): Promise<SsoDiagnostics> {
         label: "AUTH_RMC_SSO_CLIENT_SECRET",
         value: process.env.AUTH_RMC_SSO_CLIENT_SECRET?.trim() ? "configured" : "missing",
         ok: Boolean(process.env.AUTH_RMC_SSO_CLIENT_SECRET?.trim()),
+      },
+      {
+        label: "SSO_REDIRECT_URI",
+        value: getSsoRedirectUri(),
+        ok: getSsoRedirectUri().endsWith("/"),
       },
       {
         label: "AUTH_RMC_SSO_ISSUER",

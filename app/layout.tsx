@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { auth } from "@/auth";
 import { AppShell } from "@/components/layout/app-shell";
-import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 export const metadata: Metadata = {
@@ -17,9 +16,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="th" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <AuthProvider session={session}>
-            <AppShell>{children}</AppShell>
-          </AuthProvider>
+          <AppShell session={session}>{children}</AppShell>
         </ThemeProvider>
       </body>
     </html>

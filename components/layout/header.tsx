@@ -2,22 +2,23 @@
 
 import Image from "next/image";
 import { LogOut, Menu, UserCircle } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import type { AppSession } from "@/lib/rmc-session";
 import { cn } from "@/lib/utils";
 
 export function Header({
+  session,
   isSidebarOpen,
   isMobileOpen,
   onMenuClick,
   onToggleSidebar,
 }: {
+  session: AppSession | null;
   isSidebarOpen: boolean;
   isMobileOpen: boolean;
   onMenuClick: () => void;
   onToggleSidebar: () => void;
 }) {
-  const { data: session } = useSession();
   const displayName = session?.user?.name || session?.user?.email || "ผู้ใช้งาน";
 
   return (
@@ -77,13 +78,15 @@ export function Header({
               <span className="max-w-48 truncate">{displayName}</span>
             </div>
             <Button
+              asChild
               variant="outline"
               size="sm"
               className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
-              onClick={() => void signOut({ callbackUrl: "/login" })}
             >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">ออกจากระบบ</span>
+              <a href="/api/auth/logout">
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
+              </a>
             </Button>
           </div>
         ) : (
