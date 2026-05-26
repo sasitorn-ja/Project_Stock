@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncDrop · ออกแบบหน้าแผนส่ง / PO (3 แบบ)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.5.0/tabler-icons.min.css">
+<style>
+  :root {
+    --bg-page: #f5f6f8;
+    --bg-card: #ffffff;
+    --bg-sec: #f1f3f6;
+    --bg-tri: #fafbfc;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #94a3b8;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --primary: #042C53;
+    --primary-light: #185FA5;
+    --amber-bg: #FAEEDA; --amber-text: #854F0B;
+    --teal-bg: #E1F5EE; --teal-text: #0F6E56;
+    --blue-bg: #E6F1FB; --blue-text: #185FA5;
+    --amber-mid: #BA7517;
+    --green-mid: #0F6E56;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-page); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Sukhumvit Set", "Noto Sans Thai", "Helvetica Neue", sans-serif; line-height: 1.5; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+  .page-title { font-size: 24px; font-weight: 600; margin: 0 0 4px; }
+  .page-sub { font-size: 14px; color: var(--text-secondary); margin: 0 0 24px; }
+  .nav { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bg-page); padding: 12px 0; z-index: 10; border-bottom: 1px solid var(--border); }
+  .nav a { padding: 8px 14px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); font-size: 13px; }
+  .nav a:hover { background: var(--bg-sec); }
+  .opt-section { margin-bottom: 48px; }
+  .opt-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .opt-title { font-size: 20px; font-weight: 600; margin: 0; }
+  .opt-desc { font-size: 14px; color: var(--text-secondary); margin: 6px 0 0; max-width: 720px; line-height: 1.6; }
+  .opt-tag { font-size: 12px; padding: 4px 10px; border-radius: var(--radius-md); background: var(--bg-sec); color: var(--text-secondary); white-space: nowrap; }
+  .preview-row { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .preview-row { grid-template-columns: 1fr; } }
+  .preview-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px; font-weight: 600; }
+  .surface { background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; }
+  .mobile-frame { background: #0f172a; border-radius: 28px; padding: 14px 10px; max-width: 280px; margin: 0 auto; }
+  .mobile-screen { background: var(--bg-card); border-radius: 18px; padding: 10px; min-height: 480px; }
+
+  /* common widgets */
+  .chip { font-size: 12px; padding: 3px 9px; border-radius: var(--radius-md); display: inline-flex; align-items: center; gap: 4px; }
+  .c-must { background: var(--amber-bg); color: var(--amber-text); }
+  .c-load { background: var(--teal-bg); color: var(--teal-text); }
+  .c-deliv { background: var(--blue-bg); color: var(--blue-text); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); font-size: 12px; cursor: pointer; }
+  .pill.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .pill .n { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg-sec); color: var(--text-secondary); }
+  .pill.on .n { background: rgba(255,255,255,0.25); color: #fff; }
+  .search { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); }
+  .search input { border: 0; outline: 0; background: transparent; flex: 1; min-width: 0; font-size: 13px; font-family: inherit; }
+  .cb { width: 16px; height: 16px; border: 1.5px solid var(--border-strong); border-radius: 3px; display: inline-block; box-sizing: border-box; flex-shrink: 0; }
+  .cb.on { background: var(--primary); border-color: var(--primary); position: relative; }
+  .cb.on::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .step { display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius-md); overflow: hidden; height: 32px; background: var(--bg-card); }
+  .step button { border: 0; background: transparent; width: 30px; height: 100%; cursor: pointer; font-size: 16px; color: var(--text-secondary); }
+  .step button:hover { background: var(--bg-sec); }
+  .step .v { padding: 0 8px; min-width: 32px; text-align: center; font-weight: 500; font-size: 14px; }
+  .row-meta .code { font-family: ui-monospace, SF Mono, Menlo, monospace; font-size: 11px; color: var(--text-tertiary); display: block; }
+  .row-meta .name { font-size: 13px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Option A */
+  .a-bulk { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: var(--primary); color: #fff; border-radius: var(--radius-md); margin-bottom: 12px; font-size: 13px; }
+  .a-bulk button { background: rgba(255,255,255,0.18); border: 0; color: #fff; padding: 6px 12px; border-radius: var(--radius-md); font-size: 12px; cursor: pointer; font-family: inherit; }
+  .a-bulk button:hover { background: rgba(255,255,255,0.28); }
+  .a-dest { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 10px; }
+  .a-dest-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .a-dest-h .ttl { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+  .a-dest-h .count { background: var(--bg-sec); padding: 2px 10px; border-radius: var(--radius-md); font-size: 12px; color: var(--text-secondary); }
+  .a-row { display: grid; grid-template-columns: 18px minmax(0,1fr) 140px; gap: 10px; align-items: center; padding: 10px 4px; border-top: 1px solid var(--border); }
+  .a-row:first-of-type { border-top: 0; }
+  .a-row .qty { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+  .a-row .qty .of { font-size: 11px; color: var(--text-tertiary); }
+
+  /* Option B */
+  .b-tabs { display: flex; gap: 0; padding: 0 4px; margin-bottom: 12px; overflow-x: auto; background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border); }
+  .b-tab { padding: 10px 16px; font-size: 13px; color: var(--text-secondary); border-bottom: 2px solid transparent; white-space: nowrap; cursor: pointer; }
+  .b-tab.on { color: var(--text-primary); border-bottom-color: var(--primary); font-weight: 500; }
+  .b-tab .n { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg-sec); color: var(--text-secondary); margin-left: 6px; }
+  .b-tab.on .n { background: var(--primary); color: #fff; }
+  .b-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .b-toolbar .search { flex: 1; min-width: 180px; }
+  .b-po-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 10px; }
+  .b-po-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; }
+  .b-po-head .num { font-weight: 500; font-family: ui-monospace, SF Mono, Menlo, monospace; }
+  .b-po-head .sub { color: var(--text-tertiary); font-weight: 400; font-family: inherit; margin-left: 6px; }
+  .b-po-head .prog { font-size: 11px; color: var(--text-secondary); }
+  .bar { height: 5px; background: var(--bg-sec); border-radius: 999px; overflow: hidden; margin-bottom: 10px; }
+  .bar > div { height: 100%; background: var(--amber-mid); }
+  .b-row { display: grid; grid-template-columns: minmax(0,1fr) 80px 140px; gap: 10px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--border); }
+  .b-row:first-of-type { border-top: 0; }
+  .b-row .status { font-size: 11px; padding: 3px 9px; border-radius: var(--radius-md); text-align: center; }
+  .b-row .qty-cell { display: flex; align-items: center; justify-content: flex-end; }
+
+  /* Option C */
+  .c-steps { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 12px; font-size: 13px; flex-wrap: wrap; }
+  .c-st { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+  .c-st .dot { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-sec); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .c-st.done .dot { background: var(--green-mid); color: #fff; }
+  .c-st.on .dot { background: var(--primary); color: #fff; }
+  .c-st.on { color: var(--text-primary); font-weight: 500; }
+  .c-sep { color: var(--text-tertiary); }
+  .c-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 12px; }
+  .c-panel-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; flex-wrap: wrap; gap: 8px; }
+  .c-panel-h .ttl { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .c-quick { display: flex; gap: 6px; font-size: 12px; color: var(--text-secondary); align-items: center; }
+  .c-quick button { border: 1px solid var(--border-strong); background: transparent; padding: 5px 12px; border-radius: var(--radius-md); font-size: 12px; cursor: pointer; font-family: inherit; }
+  .c-quick button:hover { background: var(--bg-sec); }
+  .c-row { display: grid; grid-template-columns: minmax(0,1fr) 90px 140px; gap: 10px; align-items: center; padding: 10px 4px; border-top: 1px solid var(--border); }
+  .c-row:first-of-type { border-top: 0; }
+  .c-row .order-num { text-align: right; font-size: 12px; color: var(--text-secondary); }
+  .c-row .order-num b { color: var(--text-primary); font-weight: 600; }
+  .c-row .qty-cell { display: flex; justify-content: flex-end; }
+  .c-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); flex-wrap: wrap; }
+  .btn-ghost { border: 1px solid var(--border-strong); background: transparent; padding: 9px 16px; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; font-family: inherit; }
+  .btn-ghost:hover { background: var(--bg-sec); }
+  .btn-primary { background: var(--primary); color: #fff; border: 0; padding: 9px 20px; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; font-weight: 500; font-family: inherit; }
+  .btn-primary:hover { background: var(--primary-light); }
+  .summary { font-size: 13px; color: var(--text-secondary); }
+  .summary b { color: var(--text-primary); font-weight: 600; }
+
+  /* choose button */
+  .choose-row { display: flex; justify-content: flex-end; padding-top: 14px; }
+  .choose { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-md); background: var(--text-primary); color: #fff; border: 0; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .choose:hover { opacity: 0.85; }
+
+  /* Mobile-only adjustments */
+  .m-row { display: grid; grid-template-columns: 16px minmax(0,1fr) auto; gap: 6px; align-items: center; padding: 7px 2px; border-top: 1px solid var(--border); font-size: 11px; }
+  .m-row:first-of-type { border-top: 0; }
+  .m-row .step { height: 26px; }
+  .m-row .step button { width: 24px; font-size: 13px; }
+  .m-row .step .v { padding: 0 4px; min-width: 24px; font-size: 12px; }
+  .m-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+  .m-stat { background: var(--bg-sec); border-radius: var(--radius-md); padding: 6px 8px; }
+  .m-stat .lbl { font-size: 10px; color: var(--text-secondary); }
+  .m-stat .num { font-size: 16px; font-weight: 600; }
+  .m-tab-strip { display: flex; gap: 0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); margin-bottom: 8px; font-size: 11px; }
+  .m-tab-strip .mt { flex: 1; padding: 7px 4px; text-align: center; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; }
+  .m-tab-strip .mt.on { background: var(--primary); color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">SyncDrop · ออกแบบหน้าแผนส่ง / PO</h1>
+  <p class="page-sub">เลือกแบบที่ชอบที่สุด แต่ละแบบมี preview ของ desktop + mobile</p>
+
+  <div class="nav">
+    <a href="#opt-a">ออกแบบ A · กลุ่มตามปลายทาง</a>
+    <a href="#opt-b">ออกแบบ B · แท็บปลายทาง</a>
+    <a href="#opt-c">ออกแบบ C · wizard 3 ขั้น</a>
+  </div>
+
+  <!-- ============ OPTION A ============ -->
+  <section class="opt-section" id="opt-a">
+    <div class="opt-header">
+      <div>
+        <h2 class="opt-title">ออกแบบ A · กลุ่มตามปลายทาง + เลือกหลายรายการ</h2>
+        <p class="opt-desc">เก็บโครงสร้างเดิมที่กลุ่มตามปลายทาง แต่เพิ่ม chip กรอง PO, ใส่ checkbox เลือกหลายรายการพร้อมแถบ bulk action ลอยขึ้นมา, มี search ในแต่ละปลายทาง เหมาะกับผู้ใช้ที่คุ้นเคย flow เดิม</p>
+      </div>
+      <span class="opt-tag">เหมาะกับผู้ใช้เดิม</span>
+    </div>
+
+    <div class="preview-row">
+      <div>
+        <p class="preview-label">เดสก์ท็อป</p>
+        <div class="surface">
+          <div class="a-bulk">
+            <span><i class="ti ti-checks"></i> เลือกแล้ว 2 รายการ</span>
+            <span style="display: flex; gap: 6px;">
+              <button>ตั้งจำนวนทั้งหมด</button>
+              <button>= สั่งซื้อ</button>
+              <button>ไม่ส่งรอบนี้</button>
+              <button><i class="ti ti-x"></i></button>
+            </span>
+          </div>
+
+          <div class="a-dest">
+            <div class="a-dest-h">
+              <span class="ttl"><i class="ti ti-map-pin"></i>(19xx) เหนือ <span class="count">6 รายการ</span></span>
+              <span style="display: flex; gap: 6px;">
+                <span class="chip c-must">ต้องสแกน 2</span>
+                <span class="chip c-load">ขึ้นรถ 0</span>
+                <span class="chip c-deliv">ส่งแล้ว 0</span>
+              </span>
+            </div>
+
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+              <span class="pill on">ทั้งหมด <span class="n">6</span></span>
+              <span class="pill">8030557032 <span class="n">4</span></span>
+              <span class="pill">4609014667 <span class="n">2</span></span>
+            </div>
+
+            <div class="search" style="margin-bottom: 10px;"><i class="ti ti-search" style="font-size: 14px; color: var(--text-tertiary);"></i><input placeholder="ค้นหารหัสวัสดุหรือสินค้า..."></div>
+
+            <div class="a-row">
+              <span class="cb on"></span>
+              <span class="row-meta"><span class="code">80230656 · 8030557032</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 4.05 เมตร</span></span>
+              <span class="qty"><span class="of">/ 3</span><span class="step"><button>−</button><span class="v">1</span><button>+</button></span></span>
+            </div>
+            <div class="a-row">
+              <span class="cb on"></span>
+              <span class="row-meta"><span class="code">80230657 · 8030557032</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 6.50 เมตร</span></span>
+              <span class="qty"><span class="of">/ 1</span><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+            <div class="a-row">
+              <span class="cb"></span>
+              <span class="row-meta"><span class="code">80230679 · 8030557032</span><span class="name">B-7473 สาย HYD 16-4 ชั้น GJS16-16-45+GJS16-16-90 ยาว 1.28 เมตร</span></span>
+              <span class="qty"><span class="of">/ 2</span><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+            <div class="a-row">
+              <span class="cb"></span>
+              <span class="row-meta"><span class="code">80230655 · 8030557032</span><span class="name">B-7475 สาย HYD 08R1 GJS08-08x2 ยาว 6.10 เมตร</span></span>
+              <span class="qty"><span class="of">/ 2</span><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="preview-label">มือถือ</p>
+        <div class="mobile-frame">
+          <div class="mobile-screen">
+            <div class="a-dest" style="margin: 0; padding: 10px 12px;">
+              <div class="a-dest-h" style="margin-bottom: 8px;">
+                <span class="ttl" style="font-size: 12px;"><i class="ti ti-map-pin"></i>(19xx) เหนือ</span>
+                <i class="ti ti-chevron-down"></i>
+              </div>
+              <div class="m-stat-grid">
+                <div class="m-stat"><div class="lbl">สแกน</div><div class="num" style="color: var(--amber-text);">2</div></div>
+                <div class="m-stat"><div class="lbl">ขึ้นรถ</div><div class="num" style="color: var(--teal-text);">0</div></div>
+                <div class="m-stat"><div class="lbl">ส่ง</div><div class="num" style="color: var(--blue-text);">0</div></div>
+              </div>
+              <div style="display: flex; gap: 4px; overflow-x: auto; margin-bottom: 6px;">
+                <span class="pill on" style="font-size: 10px; padding: 4px 9px; flex-shrink: 0;">ทั้งหมด</span>
+                <span class="pill" style="font-size: 10px; padding: 4px 9px; flex-shrink: 0;">8030557032</span>
+              </div>
+              <div class="m-row">
+                <span class="cb on" style="width: 14px; height: 14px;"></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230656</span><span class="name" style="font-size: 11px;">B-7100 สาย HYD 04R2 4.05ม.</span></span>
+                <span class="step"><button>−</button><span class="v">1</span><button>+</button></span>
+              </div>
+              <div class="m-row">
+                <span class="cb on" style="width: 14px; height: 14px;"></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230657</span><span class="name" style="font-size: 11px;">B-7100 6.50ม.</span></span>
+                <span class="step"><button>−</button><span class="v">0</span><button>+</button></span>
+              </div>
+              <div class="m-row">
+                <span class="cb" style="width: 14px; height: 14px;"></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230679</span><span class="name" style="font-size: 11px;">B-7473 16-4 ชั้น 1.28ม.</span></span>
+                <span class="step"><button>−</button><span class="v">0</span><button>+</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="choose-row">
+      <button class="choose" onclick="alert('คุณเลือก: ออกแบบ A — กลุ่มตามปลายทาง\nกลับไปบอก Claude ว่า เลือก A ได้เลย')">เลือกแบบ A <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </section>
+
+  <!-- ============ OPTION B ============ -->
+  <section class="opt-section" id="opt-b">
+    <div class="opt-header">
+      <div>
+        <h2 class="opt-title">ออกแบบ B · แท็บปลายทาง + progress bar</h2>
+        <p class="opt-desc">ใช้แท็บปลายทางด้านบน โฟกัสทีละปลายทาง ในแท็บมี search + filter chip และจัด PO เป็นการ์ดที่มี progress bar บอกความคืบหน้าสแกน เหมาะถ้ามีปลายทางหลายที่และไม่อยากเลื่อนข้ามไปมา</p>
+      </div>
+      <span class="opt-tag">โฟกัสทีละปลายทาง</span>
+    </div>
+
+    <div class="preview-row">
+      <div>
+        <p class="preview-label">เดสก์ท็อป</p>
+        <div class="surface">
+          <div class="b-tabs">
+            <span class="b-tab on">(19xx) เหนือ<span class="n">6</span></span>
+            <span class="b-tab">(13xx) ตะวันออก, ตะวันตก<span class="n">20</span></span>
+            <span class="b-tab"><i class="ti ti-plus"></i> เพิ่ม</span>
+          </div>
+
+          <div class="b-toolbar">
+            <div class="search"><i class="ti ti-search" style="font-size: 14px; color: var(--text-tertiary);"></i><input placeholder="ค้นหา PO หรือรหัสวัสดุ..."></div>
+            <span class="pill on">ทั้งหมด · 6</span>
+            <span class="pill">รอสแกน · 2</span>
+            <span class="pill">ขึ้นรถแล้ว · 0</span>
+          </div>
+
+          <div class="b-po-card">
+            <div class="b-po-head">
+              <span><span class="num">PO 8030557032</span><span class="sub">· 4 รายการ</span></span>
+              <span class="prog">สแกนแล้ว 1 / 8</span>
+            </div>
+            <div class="bar"><div style="width: 12%;"></div></div>
+
+            <div class="b-row">
+              <span class="row-meta"><span class="code">80230656</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 4.05 เมตร</span></span>
+              <span class="status c-must">รอ 1/3</span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">1</span><button>+</button></span></span>
+            </div>
+            <div class="b-row">
+              <span class="row-meta"><span class="code">80230657</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 6.50 เมตร</span></span>
+              <span class="status c-must">รอ 0/1</span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+            <div class="b-row">
+              <span class="row-meta"><span class="code">80230679</span><span class="name">B-7473 สาย HYD 16-4 ชั้น GJS16-16-45+GJS16-16-90 ยาว 1.28 เมตร</span></span>
+              <span class="status c-must">รอ 0/2</span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+          </div>
+
+          <div class="b-po-card">
+            <div class="b-po-head">
+              <span><span class="num">PO 4609014667</span><span class="sub">· 2 รายการ</span></span>
+              <span class="prog">สแกนแล้ว 0 / 3</span>
+            </div>
+            <div class="bar"><div style="width: 0%;"></div></div>
+            <div class="b-row">
+              <span class="row-meta"><span class="code">4004213</span><span class="name">ป้ายพลาสวูดติดสติ๊กเกอร์ UV 11 กฎ ขนาด 1.20X2.40 เมตร</span></span>
+              <span class="status c-must">รอ 0/1</span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">0</span><button>+</button></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="preview-label">มือถือ</p>
+        <div class="mobile-frame">
+          <div class="mobile-screen">
+            <div class="m-tab-strip">
+              <span class="mt on">(19xx) เหนือ</span>
+              <span class="mt">(13xx)</span>
+            </div>
+            <div class="search" style="padding: 5px 10px; margin-bottom: 6px;"><i class="ti ti-search" style="font-size: 12px;"></i><input placeholder="ค้นหา" style="font-size: 11px;"></div>
+            <div style="display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto;">
+              <span class="pill on" style="font-size: 10px; padding: 3px 8px; flex-shrink: 0;">ทั้งหมด</span>
+              <span class="pill" style="font-size: 10px; padding: 3px 8px; flex-shrink: 0;">รอสแกน</span>
+              <span class="pill" style="font-size: 10px; padding: 3px 8px; flex-shrink: 0;">ขึ้นรถ</span>
+            </div>
+            <div class="b-po-card" style="padding: 8px 10px; margin-bottom: 6px;">
+              <div style="font-size: 11px; font-weight: 500; margin-bottom: 4px; font-family: ui-monospace, SF Mono, Menlo, monospace;">PO 8030557032</div>
+              <div class="bar" style="height: 3px; margin-bottom: 6px;"><div style="width: 12%;"></div></div>
+              <div class="m-row">
+                <span></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230656</span><span class="name" style="font-size: 11px;">B-7100 04R2 4.05ม.</span></span>
+                <span class="step"><button>−</button><span class="v">1</span><button>+</button></span>
+              </div>
+              <div class="m-row">
+                <span></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230657</span><span class="name" style="font-size: 11px;">B-7100 6.50ม.</span></span>
+                <span class="step"><button>−</button><span class="v">0</span><button>+</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="choose-row">
+      <button class="choose" onclick="alert('คุณเลือก: ออกแบบ B — แท็บปลายทาง\nกลับไปบอก Claude ว่า เลือก B ได้เลย')">เลือกแบบ B <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </section>
+
+  <!-- ============ OPTION C ============ -->
+  <section class="opt-section" id="opt-c">
+    <div class="opt-header">
+      <div>
+        <h2 class="opt-title">ออกแบบ C · wizard 3 ขั้น (เลือก → กำหนด → ยืนยัน)</h2>
+        <p class="opt-desc">เปลี่ยนเป็น flow 3 ขั้น เลือก PO ที่จะใส่ก่อน แล้วค่อยกำหนดจำนวนเฉพาะรายการที่เลือก สุดท้ายดู summary ก่อนบันทึก เหมาะถ้าผู้ใช้คิดเป็นชุดและต้องการ confirm ก่อนบันทึก</p>
+      </div>
+      <span class="opt-tag">ลดความเข้าใจผิด</span>
+    </div>
+
+    <div class="preview-row">
+      <div>
+        <p class="preview-label">เดสก์ท็อป — กำลังอยู่ขั้นที่ 2</p>
+        <div class="surface">
+          <div class="c-steps">
+            <span class="c-st done"><span class="dot"><i class="ti ti-check" style="font-size: 13px;"></i></span>1. เลือก PO</span>
+            <span class="c-sep">›</span>
+            <span class="c-st on"><span class="dot">2</span>กำหนดจำนวนสแกน</span>
+            <span class="c-sep">›</span>
+            <span class="c-st"><span class="dot">3</span>ยืนยันและบันทึก</span>
+          </div>
+
+          <div class="c-panel">
+            <div class="c-panel-h">
+              <span class="ttl"><i class="ti ti-map-pin"></i>(19xx) เหนือ · 4 รายการที่เลือก</span>
+              <span class="c-quick">ใส่ค่ารวม: <button>= สั่งซื้อ</button><button>= 0</button></span>
+            </div>
+
+            <div class="c-row">
+              <span class="row-meta"><span class="code">80230656 · 8030557032</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 4.05 เมตร</span></span>
+              <span class="order-num">สั่ง <b>3</b></span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">3</span><button>+</button></span></span>
+            </div>
+            <div class="c-row">
+              <span class="row-meta"><span class="code">80230657 · 8030557032</span><span class="name">B-7100 สาย HYD 04R2 GJS04-04x2 ยาว 6.50 เมตร</span></span>
+              <span class="order-num">สั่ง <b>1</b></span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">1</span><button>+</button></span></span>
+            </div>
+            <div class="c-row">
+              <span class="row-meta"><span class="code">80230679 · 8030557032</span><span class="name">B-7473 สาย HYD 16-4 ชั้น GJS16-16-45+GJS16-16-90 ยาว 1.28 เมตร</span></span>
+              <span class="order-num">สั่ง <b>2</b></span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">2</span><button>+</button></span></span>
+            </div>
+            <div class="c-row">
+              <span class="row-meta"><span class="code">80230655 · 8030557032</span><span class="name">B-7475 สาย HYD 08R1 GJS08-08x2 ยาว 6.10 เมตร</span></span>
+              <span class="order-num">สั่ง <b>2</b></span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">2</span><button>+</button></span></span>
+            </div>
+          </div>
+
+          <div class="c-panel">
+            <div class="c-panel-h">
+              <span class="ttl"><i class="ti ti-map-pin"></i>(13xx) ตะวันออก, ตะวันตก · 2 รายการที่เลือก</span>
+              <span class="c-quick">ใส่ค่ารวม: <button>= สั่งซื้อ</button><button>= 0</button></span>
+            </div>
+            <div class="c-row">
+              <span class="row-meta"><span class="code">4004213 · 4609014667</span><span class="name">ป้ายพลาสวูดติดสติ๊กเกอร์ UV 11 กฎ ขนาด 1.20X2.40 เมตร</span></span>
+              <span class="order-num">สั่ง <b>1</b></span>
+              <span class="qty-cell"><span class="step"><button>−</button><span class="v">1</span><button>+</button></span></span>
+            </div>
+          </div>
+
+          <div class="c-footer">
+            <button class="btn-ghost"><i class="ti ti-arrow-left"></i> ย้อนกลับ</button>
+            <span class="summary">รวม <b>5 รายการ</b> · จำนวนสแกน <b>9 ชิ้น</b></span>
+            <button class="btn-primary">ต่อไป: ยืนยัน <i class="ti ti-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="preview-label">มือถือ</p>
+        <div class="mobile-frame">
+          <div class="mobile-screen">
+            <div class="c-steps" style="font-size: 11px; padding: 8px 10px; gap: 6px; margin-bottom: 8px;">
+              <span class="c-st done"><span class="dot" style="width: 18px; height: 18px; font-size: 11px;"><i class="ti ti-check" style="font-size: 11px;"></i></span></span>
+              <span class="c-sep">›</span>
+              <span class="c-st on"><span class="dot" style="width: 18px; height: 18px; font-size: 11px;">2</span>จำนวน</span>
+              <span class="c-sep">›</span>
+              <span class="c-st"><span class="dot" style="width: 18px; height: 18px; font-size: 11px;">3</span></span>
+            </div>
+            <div class="c-panel" style="padding: 8px 10px; margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 500; margin-bottom: 6px;"><i class="ti ti-map-pin"></i> (19xx) เหนือ</div>
+              <div class="m-row">
+                <span></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230656</span><span class="name" style="font-size: 11px;">B-7100 04R2 4.05ม.</span></span>
+                <span class="step"><button>−</button><span class="v">3</span><button>+</button></span>
+              </div>
+              <div class="m-row">
+                <span></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230657</span><span class="name" style="font-size: 11px;">B-7100 6.50ม.</span></span>
+                <span class="step"><button>−</button><span class="v">1</span><button>+</button></span>
+              </div>
+              <div class="m-row">
+                <span></span>
+                <span class="row-meta"><span class="code" style="font-size: 10px;">80230679</span><span class="name" style="font-size: 11px;">B-7473 16-4 1.28ม.</span></span>
+                <span class="step"><button>−</button><span class="v">2</span><button>+</button></span>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; gap: 6px; padding: 8px; background: var(--bg-sec); border-radius: var(--radius-md); font-size: 11px;">
+              <button class="btn-ghost" style="padding: 5px 10px; font-size: 11px;">ย้อน</button>
+              <span style="align-self: center; color: var(--text-secondary);">9 ชิ้น</span>
+              <button class="btn-primary" style="padding: 5px 12px; font-size: 11px;">ต่อไป</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="choose-row">
+      <button class="choose" onclick="alert('คุณเลือก: ออกแบบ C — wizard 3 ขั้น\nกลับไปบอก Claude ว่า เลือก C ได้เลย')">เลือกแบบ C <i class="ti ti-arrow-right"></i></button>
+    </div>
+  </section>
+
+  <div style="margin-top: 40px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); font-size: 13px; color: var(--text-secondary);">
+    <strong style="color: var(--text-primary);">วิธีใช้:</strong> ดู mockup ทั้ง 3 แบบ → ตัดสินใจแล้วกลับไปที่ chat แล้วบอก Claude ว่า "เลือก A" / "เลือก B" / "เลือก C" หรือจะผสมไอเดียจากหลายแบบก็ได้ครับ
+  </div>
+</div>
+</body>
+</html>

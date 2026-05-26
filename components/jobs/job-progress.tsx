@@ -1,189 +1,385 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, ChevronDown, Circle, MapPin } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, MapPin, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { JobItemScanQtyEditor } from "@/components/jobs/job-item-scan-qty-editor";
+import { cn } from "@/lib/utils";
 import { type getJob, type getJobArchive } from "@/lib/job-store";
 
 type JobDetail =
   | NonNullable<Awaited<ReturnType<typeof getJob>>>
   | NonNullable<Awaited<ReturnType<typeof getJobArchive>>>;
 
+type StatusFilter = "all" | "waitLoad" | "loaded" | "delivered";
+
+type JobLocation = JobDetail["destinations"][number];
+type JobLocationItem = JobLocation["items"][number];
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "waitLoad", label: "รอโหลด" },
+  { value: "loaded", label: "ขึ้นรถแล้ว" },
+  { value: "delivered", label: "ส่งแล้ว" },
+];
+
+function itemMatchesStatus(item: JobLocationItem, status: StatusFilter) {
+  const order = Math.max(0, item.orderQty);
+  if (status === "all") return true;
+  if (status === "waitLoad") return order > 0 && item.loadedQty < order;
+  if (status === "loaded") return order > 0 && item.loadedQty >= order && item.deliveredQty < order;
+  if (status === "delivered") return order > 0 && item.deliveredQty >= order;
+  return true;
+}
+
+function itemMatchesSearch(item: JobLocationItem, query: string) {
+  if (!query) return true;
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    item.poSapNo.toLowerCase().includes(needle) ||
+    item.materialCode.toLowerCase().includes(needle) ||
+    item.materialName.toLowerCase().includes(needle)
+  );
+}
+
+function getItemStatus(item: JobLocationItem) {
+  const order = Math.max(0, item.orderQty);
+  if (order === 0) return { tone: "muted", label: "ไม่ส่งรอบนี้" };
+  if (item.deliveredQty >= order) return { tone: "delivered", label: `ส่งแล้ว ${item.deliveredQty}/${order}` };
+  if (item.loadedQty >= order) return { tone: "loaded", label: `ขึ้นรถแล้ว ${item.loadedQty}/${order}` };
+  return { tone: "wait", label: `รอ ${item.loadedQty}/${order}` };
+}
+
+const STATUS_TONE_CLASS: Record<string, string> = {
+  wait: "bg-amber-100 text-amber-800",
+  loaded: "bg-cyan-100 text-cyan-800",
+  delivered: "bg-emerald-100 text-emerald-800",
+  muted: "bg-slate-100 text-slate-500",
+};
+
+type POGroup = {
+  poSapNo: string;
+  items: JobLocationItem[];
+  required: number;
+  loaded: number;
+  delivered: number;
+};
+
+function groupByPO(items: JobLocationItem[]): POGroup[] {
+  const map = new Map<string, POGroup>();
+  items.forEach((item) => {
+    const key = item.poSapNo || "(ไม่มี PO)";
+    const group = map.get(key) ?? {
+      poSapNo: key,
+      items: [],
+      required: 0,
+      loaded: 0,
+      delivered: 0,
+    };
+    group.items.push(item);
+    group.required += Math.max(0, item.orderQty);
+    group.loaded += Math.max(0, item.loadedQty);
+    group.delivered += Math.max(0, item.deliveredQty);
+    map.set(key, group);
+  });
+  return Array.from(map.values()).sort((a, b) => a.poSapNo.localeCompare(b.poSapNo));
+}
+
 export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; editableScanQty?: boolean }) {
   const destinations = job.destinations;
-  // ค่าเริ่มต้น: เปิดปลายทางแรกไว้ ที่เหลือพับเก็บ เพื่อให้หน้าไม่ยาวเกินไป
-  const [openIds, setOpenIds] = useState<Set<string>>(
-    () => new Set(destinations.slice(0, 1).map((destination) => destination.id)),
-  );
+  const [activeId, setActiveId] = useState<string>(() => destinations[0]?.id ?? "");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const allOpen = destinations.length > 0 && destinations.every((destination) => openIds.has(destination.id));
+  const active = destinations.find((destination) => destination.id === activeId) ?? destinations[0] ?? null;
 
-  function toggle(id: string) {
-    setOpenIds((current) => {
-      const next = new Set(current);
+  const filteredItems = useMemo(() => {
+    if (!active) return [];
+    return active.items.filter(
+      (item) => itemMatchesSearch(item, query) && itemMatchesStatus(item, statusFilter),
+    );
+  }, [active, query, statusFilter]);
 
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+  const poGroups = useMemo(() => groupByPO(filteredItems), [filteredItems]);
 
-      return next;
-    });
-  }
+  const statusCounts = useMemo(() => {
+    if (!active) {
+      return { all: 0, waitLoad: 0, loaded: 0, delivered: 0 } as Record<StatusFilter, number>;
+    }
+    return STATUS_FILTERS.reduce(
+      (acc, filter) => {
+        acc[filter.value] = active.items.filter((item) => itemMatchesStatus(item, filter.value)).length;
+        return acc;
+      },
+      { all: 0, waitLoad: 0, loaded: 0, delivered: 0 } as Record<StatusFilter, number>,
+    );
+  }, [active]);
 
-  function toggleAll() {
-    setOpenIds(allOpen ? new Set() : new Set(destinations.map((destination) => destination.id)));
+  if (!destinations.length) {
+    return (
+      <div className="rounded-md border bg-white">
+        <div className="border-b px-3 py-3">
+          <h3 className="text-sm font-semibold text-slate-900">แผนส่ง / PO</h3>
+        </div>
+        <p className="p-6 text-center text-sm text-muted-foreground">ยังไม่มีปลายทางสำหรับงานนี้</p>
+      </div>
+    );
   }
 
   return (
     <div className="rounded-md border bg-white">
-      <div className="flex items-center justify-between gap-3 border-b px-3 py-3">
+      <div className="flex flex-col gap-2 border-b px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-900">แผนส่ง / PO</h3>
-        {destinations.length > 1 ? (
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
-          >
-            {allOpen ? "ย่อทั้งหมด" : "ขยายทั้งหมด"}
-          </button>
-        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {destinations.length.toLocaleString("th-TH")} ปลายทาง ·{" "}
+          {destinations.reduce((sum, destination) => sum + destination.items.length, 0).toLocaleString("th-TH")} รายการ
+        </p>
       </div>
-      <div className="space-y-3 p-3">
-        {destinations.map((location, index) => {
-          const complete = location.delivered >= location.required && location.required > 0;
-          const scrollHint = location.items.length > 5;
-          const isOpen = openIds.has(location.id);
 
+      {/* Tab strip: scrollable on mobile */}
+      <div className="flex gap-1 overflow-x-auto border-b px-2 pt-2 [scrollbar-width:thin]">
+        {destinations.map((destination, index) => {
+          const isActive = destination.id === active?.id;
           return (
-            <div key={location.id} className="rounded-md border">
-              <button
-                type="button"
-                onClick={() => toggle(location.id)}
-                aria-expanded={isOpen}
-                className="relative flex w-full flex-col gap-3 px-3 py-3 pr-10 text-left transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-start sm:justify-between"
+            <button
+              type="button"
+              key={destination.id}
+              onClick={() => setActiveId(destination.id)}
+              aria-selected={isActive}
+              className={cn(
+                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 px-3 py-2.5 text-xs font-medium transition-colors sm:text-sm",
+                isActive
+                  ? "border-cyan-700 bg-white text-slate-900"
+                  : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+              )}
+            >
+              <span className="truncate max-w-[180px]">
+                {index + 1}. {destination.name}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px]",
+                  isActive ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-600",
+                )}
               >
-                <div className="flex gap-3">
-                  <div className="mt-1 text-cyan-700 dark:text-cyan-300">
-                    {complete ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{index + 1}. {location.name}</p>
-                      <Badge variant={complete ? "success" : "secondary"}>{location.status}</Badge>
-                      <span className="text-[11px] text-muted-foreground">{location.items.length} รายการ</span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{location.address}</p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {location.gps} / รัศมี {location.radiusMeters} ม.
-                    </p>
-                    {location.deliveryGps ? <p className="mt-1 text-xs text-muted-foreground">GPS ส่งของ: {location.deliveryGps}</p> : null}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-sm sm:min-w-72">
-                  <div className="rounded-md bg-slate-50 px-2 py-2 dark:bg-slate-900">
-                    <p className="text-xs text-muted-foreground">ต้องสแกน</p>
-                    <p className="font-semibold">{location.required}</p>
-                  </div>
-                  <div className="rounded-md bg-cyan-50 px-2 py-2 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300">
-                    <p className="text-xs">ขึ้นรถแล้ว</p>
-                    <p className="font-semibold">{location.loaded}</p>
-                  </div>
-                  <div className="rounded-md bg-emerald-50 px-2 py-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <p className="text-xs">ลงของแล้ว</p>
-                    <p className="font-semibold">{location.delivered}</p>
-                  </div>
-                </div>
-                <ChevronDown
-                  className={`absolute right-3 top-3.5 h-4 w-4 shrink-0 text-slate-400 transition-transform ${
-                    isOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {isOpen ? (
-                <div className="overflow-hidden border-t">
-                  {scrollHint ? (
-                    <p className="bg-slate-50 px-3 py-1.5 text-[11px] text-muted-foreground dark:bg-slate-900">
-                      {location.items.length} รายการ — เลื่อนดูในตาราง
-                    </p>
-                  ) : null}
-                  <div className="hidden max-h-[280px] overflow-auto md:block">
-                    <table className="w-full min-w-[820px] text-[13px]">
-                      <thead className="sticky top-0 z-10 bg-slate-50 text-left text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                        <tr>
-                          <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">PO</th>
-                          <th className="w-32 whitespace-nowrap px-3 py-2 font-medium">รหัสวัสดุ</th>
-                          <th className="min-w-[220px] px-3 py-2 font-medium">สินค้า</th>
-                          <th className="w-28 whitespace-nowrap px-3 py-2 font-medium">จำนวนสั่งซื้อ</th>
-                          <th className="w-36 whitespace-nowrap px-3 py-2 font-medium">ต้องสแกน</th>
-                          <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ขึ้นรถ</th>
-                          <th className="w-24 whitespace-nowrap px-3 py-2 font-medium">ลงของ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {location.items.map((item) => (
-                          <tr key={item.registryKey}>
-                            <td className="whitespace-nowrap px-3 py-2 align-top font-medium">{item.poSapNo}</td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top">{item.materialCode || "-"}</td>
-                            <td className="break-words px-3 py-2 align-top">{item.materialName || "-"}</td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top">{item.sourceOrderQty || String(item.orderQty || "-")}</td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top">
-                              {editableScanQty ? (
-                                <JobItemScanQtyEditor
-                                  jobId={job.id}
-                                  registryKey={item.registryKey}
-                                  value={item.orderQty}
-                                  minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
-                                />
-                              ) : (
-                                item.orderQty
-                              )}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top">{item.loadedQty}</td>
-                            <td className="whitespace-nowrap px-3 py-2 align-top">{item.deliveredQty}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="max-h-[420px] divide-y overflow-y-auto md:hidden">
-                    {location.items.map((item) => (
-                      <div key={item.registryKey} className="space-y-2 p-4 text-sm">
-                        <div>
-                          <p className="break-words font-semibold">{item.poSapNo}</p>
-                          <p className="mt-0.5 break-words text-xs text-muted-foreground">{item.materialCode || "-"}</p>
-                        </div>
-                        <p className="break-words text-muted-foreground">{item.materialName || "-"}</p>
-                        <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                          <div className="rounded-md bg-slate-50 px-2 py-2">
-                            <p className="text-muted-foreground">จำนวนสั่งซื้อ</p>
-                            <p className="font-semibold text-slate-950">{item.sourceOrderQty || String(item.orderQty || "-")}</p>
-                          </div>
-                          <div className="rounded-md bg-slate-50 px-2 py-2">
-                            <p className="text-muted-foreground">ต้องสแกน</p>
-                            <p className="font-semibold text-slate-950">{item.orderQty}</p>
-                          </div>
-                          <div className="rounded-md bg-cyan-50 px-2 py-2 text-cyan-700">
-                            <p>ขึ้นรถ</p>
-                            <p className="font-semibold">{item.loadedQty}</p>
-                          </div>
-                          <div className="rounded-md bg-emerald-50 px-2 py-2 text-emerald-700">
-                            <p>ลงของ</p>
-                            <p className="font-semibold">{item.deliveredQty}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+                {destination.items.length.toLocaleString("th-TH")}
+              </span>
+            </button>
           );
         })}
+      </div>
+
+      {active ? (
+        <div className="p-3 sm:p-4">
+          {/* Destination info + status summary */}
+          <div className="mb-3 rounded-md bg-slate-50 px-3 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <MapPin className="h-4 w-4 shrink-0 text-cyan-700" />
+                  <span className="truncate">{active.name}</span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{active.address}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  GPS {active.gps} / รัศมี {active.radiusMeters} ม.
+                </p>
+                {active.deliveryGps ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">GPS ส่งของ: {active.deliveryGps}</p>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[260px]">
+                <div className="rounded-md bg-white px-2 py-1.5">
+                  <p className="text-[10px] text-muted-foreground">ต้องสแกน</p>
+                  <p className="text-sm font-semibold text-slate-900">{active.required.toLocaleString("th-TH")}</p>
+                </div>
+                <div className="rounded-md bg-cyan-50 px-2 py-1.5 text-cyan-700">
+                  <p className="text-[10px]">ขึ้นรถ</p>
+                  <p className="text-sm font-semibold">{active.loaded.toLocaleString("th-TH")}</p>
+                </div>
+                <div className="rounded-md bg-emerald-50 px-2 py-1.5 text-emerald-700">
+                  <p className="text-[10px]">ส่งแล้ว</p>
+                  <p className="text-sm font-semibold">{active.delivered.toLocaleString("th-TH")}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Toolbar: search + status filter */}
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex flex-1 items-center gap-2 rounded-md border bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-cyan-100">
+              <Search className="h-4 w-4 shrink-0 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="ค้นหา PO หรือรหัสวัสดุ..."
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+              />
+            </label>
+            <div className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:thin]">
+              {STATUS_FILTERS.map((filter) => {
+                const isActiveFilter = filter.value === statusFilter;
+                const count = statusCounts[filter.value];
+                return (
+                  <button
+                    type="button"
+                    key={filter.value}
+                    onClick={() => setStatusFilter(filter.value)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      isActiveFilter
+                        ? "border-cyan-700 bg-cyan-700 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                    )}
+                  >
+                    {filter.label}
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 text-[10px]",
+                        isActiveFilter ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
+                      )}
+                    >
+                      {count.toLocaleString("th-TH")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* PO cards */}
+          {poGroups.length === 0 ? (
+            <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/40 py-10 text-center text-sm text-muted-foreground">
+              {query || statusFilter !== "all"
+                ? "ไม่พบรายการตามเงื่อนไขที่กรอง"
+                : "ยังไม่มีรายการในปลายทางนี้"}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {poGroups.map((group) => (
+                <POCard
+                  key={group.poSapNo}
+                  group={group}
+                  jobId={job.id}
+                  editableScanQty={editableScanQty}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function POCard({
+  group,
+  jobId,
+  editableScanQty,
+}: {
+  group: POGroup;
+  jobId: string;
+  editableScanQty: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const progress = group.required > 0 ? Math.min(100, Math.round((group.loaded / group.required) * 100)) : 0;
+  const allLoaded = group.required > 0 && group.loaded >= group.required;
+  const allDelivered = group.required > 0 && group.delivered >= group.required;
+
+  return (
+    <div className="rounded-md border bg-white">
+      <button
+        type="button"
+        onClick={() => setCollapsed((value) => !value)}
+        aria-expanded={!collapsed}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <Plus
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
+              !collapsed && "rotate-45",
+            )}
+          />
+          <span className="truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">· {group.items.length} รายการ</span>
+          {allDelivered ? (
+            <Badge variant="success" className="ml-1 shrink-0">
+              <CheckCircle2 className="mr-1 h-3 w-3" />
+              ส่งครบ
+            </Badge>
+          ) : null}
+        </div>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          ขึ้นรถ {group.loaded.toLocaleString("th-TH")} / {group.required.toLocaleString("th-TH")}
+        </span>
+      </button>
+
+      <div className="px-3">
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              allDelivered ? "bg-emerald-500" : allLoaded ? "bg-cyan-500" : "bg-amber-500",
+            )}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {!collapsed ? (
+        <div className="divide-y border-t mt-2">
+          {group.items.map((item) => (
+            <ItemRow key={item.registryKey} item={item} jobId={jobId} editableScanQty={editableScanQty} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ItemRow({
+  item,
+  jobId,
+  editableScanQty,
+}: {
+  item: JobLocationItem;
+  jobId: string;
+  editableScanQty: boolean;
+}) {
+  const status = getItemStatus(item);
+  return (
+    <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-[11px] text-slate-400">{item.materialCode || "-"}</p>
+        <p className="break-words text-sm text-slate-900">{item.materialName || "-"}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span
+            className={cn(
+              "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+              STATUS_TONE_CLASS[status.tone] ?? STATUS_TONE_CLASS.muted,
+            )}
+          >
+            {status.label}
+          </span>
+          <span>สั่ง {item.sourceOrderQty || String(item.orderQty || "-")}</span>
+        </div>
+      </div>
+      <div className="shrink-0 sm:w-44">
+        {editableScanQty ? (
+          <JobItemScanQtyEditor
+            jobId={jobId}
+            registryKey={item.registryKey}
+            value={item.orderQty}
+            minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
+          />
+        ) : (
+          <div className="rounded-md bg-slate-50 px-3 py-2 text-center text-sm">
+            <p className="text-[10px] text-muted-foreground">ต้องสแกน</p>
+            <p className="font-semibold text-slate-900">{item.orderQty}</p>
+          </div>
+        )}
       </div>
     </div>
   );
