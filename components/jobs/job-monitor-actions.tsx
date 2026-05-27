@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import QRCode from "react-qr-code";
-import { ChevronDown, ExternalLink, LockKeyhole, QrCode, ShieldCheck, ShieldOff, Trash2, UnlockKeyhole, X } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, LockKeyhole, QrCode, ShieldCheck, ShieldOff, Trash2, UnlockKeyhole, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { buildDriverRoomPath, buildDriverRoomUrl } from "@/lib/driver-room";
@@ -26,6 +26,18 @@ function DriverQrModal({
   url: string;
   onClose: () => void;
 }) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 1600);
+    } catch {
+      window.prompt("คัดลอกลิงก์นี้", url);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
@@ -33,7 +45,7 @@ function DriverQrModal({
       role="presentation"
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-xl border border-[#d8dde6] bg-white p-5 shadow-xl"
+        className="w-full max-w-md overflow-hidden rounded-xl border border-[#d8dde6] bg-white p-5 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -60,7 +72,13 @@ function DriverQrModal({
             คนขับ: <span className="font-medium">{driver || "-"}</span> / รถ:{" "}
             <span className="font-medium">{vehicle || "-"}</span>
           </p>
-          <p className="[overflow-wrap:anywhere] rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{url}</p>
+          <div className="rounded-md bg-slate-50 px-3 py-2">
+            <p className="max-h-24 overflow-y-auto break-all text-xs leading-5 text-slate-600">{url}</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={copyUrl} className="w-full gap-2">
+            {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {isCopied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}
+          </Button>
           <p className="text-xs text-muted-foreground">ให้คนขับสแกน QR นี้เพื่อเปิดห้องงานทันที</p>
         </div>
       </div>

@@ -75,7 +75,7 @@ export function JobDriverAccessCard({
               </p>
               <p>คนขับ: <span className="font-medium">{driver || "-"}</span></p>
               <p>รถ: <span className="font-medium">{vehicle || "-"}</span></p>
-              <p className="break-all rounded-md bg-white/80 px-3 py-2 text-xs text-cyan-900 dark:bg-slate-950/60 dark:text-cyan-100">
+              <p className="max-h-24 overflow-y-auto break-all rounded-md bg-white/80 px-3 py-2 text-xs leading-5 text-cyan-900 dark:bg-slate-950/60 dark:text-cyan-100">
                 {driverRoomUrl}
               </p>
               <p className="text-xs text-cyan-800 dark:text-cyan-200">

@@ -27,6 +27,10 @@
 
 ค่า SSO_REDIRECT_URI ต้องตรงกับ Redirect URI ที่ลงทะเบียนไว้ทุกตัวอักษร
 
+## Post Logout Redirect URIs
+
+- Post Logout Redirect URI: https://project-syncdrop.vercel.app/
+
 ## Allowed Origins
 
 - Allowed Origin: https://project-syncdrop.vercel.app/
@@ -38,6 +42,7 @@
 - Authorize: https://rmc-sso.cipcloud.net/api/auth/oauth2/authorize
 - Token: https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 - UserInfo: https://rmc-sso.cipcloud.net/api/auth/oauth2/userinfo
+- End Session: https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession
 
 ## Required OIDC Values
 
@@ -60,7 +65,9 @@ SSO_CLIENT_SECRET=v3zczpdRRxco1kO5g1grco3mjX6vqG2hc9VC8WQZxes
 SSO_AUTHORIZE_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/authorize
 SSO_TOKEN_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 SSO_USERINFO_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/userinfo
+SSO_END_SESSION_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession
 SSO_REDIRECT_URI=https://project-syncdrop.vercel.app/
+SSO_POST_LOGOUT_REDIRECT_URI=https://project-syncdrop.vercel.app/
 SSO_SCOPE=openid profile email offline_access
 SSO_TOKEN_AUTH_METHOD=client_secret_post
 APP_SESSION_SECRET=<generate-a-strong-random-secret>
@@ -73,6 +80,8 @@ APP_SESSION_SECRET=<generate-a-strong-random-secret>
 - GET /: รับ code และ state จาก RMC SSO แล้วเริ่ม callback flow ของ application
 - Token exchange endpoint: ควรทำบน server เมื่อ client มี Client Secret หรือเมื่อต้องควบคุม session ภายในเอง
 - Session endpoint: หลังตรวจ id_token สำเร็จ ให้สร้าง session/cookie ของ application ตาม framework ที่ใช้งาน
+- Logout endpoint: ต้องล้าง application session ก่อน แล้ว redirect browser ไป RMC SSO End Session endpoint เพื่อปิด SSO session กลาง
+- Current implementation: GET `/api/auth/logout` ลบ cookie `syncdrop.session` แล้ว redirect ไป `SSO_END_SESSION_URL` พร้อม `client_id`, `post_logout_redirect_uri` และ `state`
 
 ## Login Flow
 
@@ -146,11 +155,28 @@ POST https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 - API ภายในควรตรวจ session ทุกครั้งก่อนคืนข้อมูล
 - ถ้ามี gateway ยืนยันตัวตนแล้ว สามารถรับ trusted identity headers เป็น fallback ได้
 
+### Step 7: ออกจากระบบ
+
+เมื่อผู้ใช้กด logout ให้ application ล้าง session ภายในก่อน แล้ว redirect browser ไปที่ RMC SSO End Session endpoint
+
+```text
+https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession?client_id=sync-drop&post_logout_redirect_uri=https%3A%2F%2Fproject-syncdrop.vercel.app%2F&state=<random-state>
+```
+
+- post_logout_redirect_uri ต้องเป็น URL ที่ลงทะเบียนไว้กับ client นี้
+- ปลายทางหลัง logout ต้องเป็น public signed-out page หรือหน้า home ที่ไม่ auto redirect ไป authorize
+- ถ้า redirect กลับหน้า protected หรือมี auth guard ที่เริ่ม login ทันที ผู้ใช้จะถูกพาเข้า SSO ใหม่เพราะ browser ยังอาจมี session/cookie เหลือใน flow เดิม
+- ควรลบ local/session storage ที่เก็บ state, code_verifier, id_token และ access token ของ application ด้วย
+- ใน SyncDrop ปุ่มออกจากระบบที่ header เรียก `/api/auth/logout`; route นี้ต้องไม่ redirect กลับ `/login` โดยตรงก่อนเรียก End Session เพราะจะล้างเฉพาะ session ของแอป แต่ SSO session กลางยังอยู่
+
 ## Operational Notes
 
 - ห้าม commit หรือเผยแพร่ Client Secret ใน public repository
 - production ควรตั้ง session secret แยกจาก SSO_CLIENT_SECRET
 - Redirect URI ต้องตรงกับค่าที่ลงทะเบียนไว้ทุกตัวอักษร รวมถึง trailing slash
+- Logout ต้องเรียก RMC SSO End Session endpoint หลังล้าง application session ไม่เช่นนั้น auth guard ของ application อาจ redirect ไป authorize และ SSO จะ login กลับทันที
+- post_logout_redirect_uri ต้องเป็น URL ที่ลงทะเบียนไว้ และควรเป็นหน้า signed-out ที่ไม่บังคับ login อัตโนมัติ
+- สำหรับ deployment ปัจจุบันให้ตั้ง `SSO_END_SESSION_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession` และ `SSO_POST_LOGOUT_REDIRECT_URI=https://project-syncdrop.vercel.app/`
 - ถ้าเปลี่ยน Client Secret ต้อง update ทั้ง environment variable และค่า secret ใน RMC SSO Admin
 - ถ้า token endpoint ไม่อนุญาต CORS สำหรับ browser flow ต้องย้าย token exchange ไปทำที่ server endpoint
 - ถ้าจะใช้ RS256 ใน production ควรเพิ่ม JWKS verification ก่อนรับ id_token
@@ -393,6 +419,6 @@ document.querySelector("#login").addEventListener("click", async () => {
 
 ### Step 6: รองรับ session ต่อเนื่องและ sign-out
 
-หากต้องการต่ออายุ session ให้ใช้ refresh token flow ด้วย grant_type=refresh_token เมื่อขอ scope offline_access และถ้าต้องการ sign-out ฝั่ง OIDC ให้เรียก End Session endpoint จาก discovery document ตาม flow ของ framework ที่ใช้งาน
+หากต้องการต่ออายุ session ให้ใช้ refresh token flow ด้วย grant_type=refresh_token เมื่อขอ scope offline_access สำหรับ sign-out ต้องล้าง session/cookie ของ application ก่อน จากนั้น redirect browser ไปที่ End Session endpoint พร้อม client_id และ post_logout_redirect_uri ที่ลงทะเบียนไว้ ห้าม redirect กลับหน้า protected หรือหน้า login อัตโนมัติ เพราะจะทำให้ application เริ่ม authorize ใหม่ทันที
 
 Generated from RMC SSO Admin and structured from docs/stepsso.md principles. Treat this document as confidential because it may include the client secret.

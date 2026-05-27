@@ -30,6 +30,14 @@ export function getSsoTokenUrl() {
   return process.env.SSO_TOKEN_URL || `${getSsoIssuer()}/api/auth/oauth2/token`;
 }
 
+export function getSsoEndSessionUrl() {
+  return process.env.SSO_END_SESSION_URL || `${getSsoIssuer()}/api/auth/oauth2/endsession`;
+}
+
+export function getSsoPostLogoutRedirectUri() {
+  return process.env.SSO_POST_LOGOUT_REDIRECT_URI || `${getAppBaseUrl()}/`;
+}
+
 export function getSsoWellKnownUrl() {
   return process.env.AUTH_RMC_SSO_WELL_KNOWN || `${getSsoIssuer()}/api/auth/.well-known/openid-configuration`;
 }
