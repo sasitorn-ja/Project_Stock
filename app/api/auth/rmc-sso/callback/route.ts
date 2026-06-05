@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { withBasePath } from "@/lib/app-paths";
 import {
+  getAppBaseUrl,
   getCookieOptions,
   getSsoClientId,
   getSsoClientSecret,
@@ -21,7 +23,7 @@ import {
 export const dynamic = "force-dynamic";
 
 function createLoginErrorRedirect(requestUrl: URL, error: string) {
-  const loginUrl = new URL("/login", requestUrl);
+  const loginUrl = new URL(withBasePath("/login"), getAppBaseUrl());
   loginUrl.searchParams.set("error", error);
   return NextResponse.redirect(loginUrl);
 }
@@ -181,7 +183,7 @@ export async function GET(request: Request) {
       name: claims.name ?? claims.email ?? claims.sub,
       email: claims.email ?? null,
     });
-    const response = NextResponse.redirect(new URL(callbackUrl, requestUrl));
+    const response = NextResponse.redirect(new URL(withBasePath(callbackUrl), getAppBaseUrl()));
 
     response.cookies.set(sessionCookieName, sessionValue, getCookieOptions(getSessionCookieMaxAge()));
     response.cookies.set(ssoStateCookieName, "", getCookieOptions(0));

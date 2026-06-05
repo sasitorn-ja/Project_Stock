@@ -55,6 +55,7 @@ const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "jobs.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "job-archives.json");
 const retentionWindowMs = 100 * 24 * 60 * 60 * 1000;
+const permanentArchiveDeleteAfterAt = "9999-12-31T23:59:59.999Z";
 
 async function ensureStoreFile() {
   if (!canUseLocalFileStorage()) {
@@ -94,10 +95,6 @@ function isExpiredJob(job: JobRecord) {
   }
 
   return new Date(job.purgeAfterAt).getTime() <= Date.now();
-}
-
-function isExpiredJobArchive(job: JobArchiveRecord) {
-  return new Date(job.deleteAfterAt).getTime() <= Date.now();
 }
 
 function normalizeStoredJob<T extends JobRecord | JobArchiveRecord>(job: T): T {
@@ -140,14 +137,9 @@ async function readArchiveStore() {
 
   try {
     const parsed = JSON.parse(fileContents) as Partial<JobArchiveStore>;
-    const storedJobs = Array.isArray(parsed.jobs)
+    const jobs = Array.isArray(parsed.jobs)
       ? parsed.jobs.map((job) => normalizeStoredJob(job as JobArchiveRecord))
       : [];
-    const jobs = storedJobs.filter((job) => !isExpiredJobArchive(job));
-
-    if (jobs.length !== storedJobs.length) {
-      await writeArchiveStore({ jobs });
-    }
 
     return { jobs };
   } catch {
@@ -619,13 +611,11 @@ function findMatchingItemInJobs(jobs: JobRecord[], currentJobId: string, code: s
 
 function buildJobArchiveRecord(job: JobRecord): JobArchiveRecord {
   const archivedAt = job.completedAt ?? job.updatedAt;
-  const deleteAfterAt =
-    job.purgeAfterAt ?? new Date(new Date(archivedAt).getTime() + retentionWindowMs).toISOString();
 
   return {
     ...job,
     archivedAt,
-    deleteAfterAt,
+    deleteAfterAt: permanentArchiveDeleteAfterAt,
   };
 }
 

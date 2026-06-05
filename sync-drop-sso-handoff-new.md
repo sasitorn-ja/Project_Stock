@@ -1,10 +1,10 @@
-# Sync drop SSO Handoff
+# Store SSO Handoff
 
 เอกสารนี้มีข้อมูลลับและมี Client Secret อยู่ภายใน โปรดส่งต่อผ่านช่องทางที่ปลอดภัยเท่านั้น
 
 ## Current Authentication Model
 
-- Sync drop ควรใช้ RMC SSO ผ่าน OIDC Authorization Code Flow พร้อม PKCE แล้วสร้าง session ของ application เองหลังจากตรวจสอบ token สำเร็จ
+- Store ควรใช้ RMC SSO ผ่าน OIDC Authorization Code Flow พร้อม PKCE แล้วสร้าง session ของ application เองหลังจากตรวจสอบ token สำเร็จ
 - Frontend หรือ server เริ่ม login ด้วยการ redirect ไป RMC SSO Authorize endpoint
 - RMC SSO redirect กลับมาที่ Redirect URI พร้อม code และ state
 - Application ต้องตรวจ state และใช้ code_verifier แลก token ที่ Token endpoint
@@ -13,27 +13,27 @@
 
 ## Project Summary
 
-- Client ID: sync-drop
-- Client Secret: v3zczpdRRxco1kO5g1grco3mjX6vqG2hc9VC8WQZxes
+- Client ID: store
+- Client Secret: tIt8n0dh-CL8Y0Wewt3LRhRtuR_v_bopdnoC98Y1q2M
 - Protocol: OIDC
 - Environment: production
 - Status: Active
 - Owner: SASITOJA@SCG.COM
-- Home URL: https://project-syncdrop.vercel.app/
+- Home URL: https://store.cipcloud.net/syncdrop/
 
 ## Redirect URIs
 
-- Redirect URI: https://project-syncdrop.vercel.app/
+- Redirect URI: https://store.cipcloud.net/syncdrop/
 
 ค่า SSO_REDIRECT_URI ต้องตรงกับ Redirect URI ที่ลงทะเบียนไว้ทุกตัวอักษร
 
 ## Post Logout Redirect URIs
 
-- Post Logout Redirect URI: https://project-syncdrop.vercel.app/
+- Post Logout Redirect URI: https://store.cipcloud.net/syncdrop/
 
 ## Allowed Origins
 
-- Allowed Origin: https://project-syncdrop.vercel.app/
+- Allowed Origin: http://store.cipcloud.net/
 
 ## OIDC Provider Endpoints
 
@@ -58,16 +58,16 @@
 ตั้งค่าที่ server runtime หรือ `.env` ตาม environment ที่ deploy
 
 ```bash
-UI_BASE_URL=https://project-syncdrop.vercel.app/
+UI_BASE_URL=https://store.cipcloud.net/syncdrop/
 SSO_ISSUER=https://rmc-sso.cipcloud.net
-SSO_CLIENT_ID=sync-drop
-SSO_CLIENT_SECRET=v3zczpdRRxco1kO5g1grco3mjX6vqG2hc9VC8WQZxes
+SSO_CLIENT_ID=store
+SSO_CLIENT_SECRET=tIt8n0dh-CL8Y0Wewt3LRhRtuR_v_bopdnoC98Y1q2M
 SSO_AUTHORIZE_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/authorize
 SSO_TOKEN_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 SSO_USERINFO_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/userinfo
 SSO_END_SESSION_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession
-SSO_REDIRECT_URI=https://project-syncdrop.vercel.app/
-SSO_POST_LOGOUT_REDIRECT_URI=https://project-syncdrop.vercel.app/
+SSO_REDIRECT_URI=https://store.cipcloud.net/syncdrop/
+SSO_POST_LOGOUT_REDIRECT_URI=https://store.cipcloud.net/syncdrop/
 SSO_SCOPE=openid profile email offline_access
 SSO_TOKEN_AUTH_METHOD=client_secret_post
 APP_SESSION_SECRET=<generate-a-strong-random-secret>
@@ -77,20 +77,19 @@ APP_SESSION_SECRET=<generate-a-strong-random-secret>
 
 ## Application Endpoints
 
-- GET /: รับ code และ state จาก RMC SSO แล้วเริ่ม callback flow ของ application
+- GET /syncdrop/: รับ code และ state จาก RMC SSO แล้วเริ่ม callback flow ของ application
 - Token exchange endpoint: ควรทำบน server เมื่อ client มี Client Secret หรือเมื่อต้องควบคุม session ภายในเอง
 - Session endpoint: หลังตรวจ id_token สำเร็จ ให้สร้าง session/cookie ของ application ตาม framework ที่ใช้งาน
 - Logout endpoint: ต้องล้าง application session ก่อน แล้ว redirect browser ไป RMC SSO End Session endpoint เพื่อปิด SSO session กลาง
-- Current implementation: GET `/api/auth/logout` ลบ cookie `syncdrop.session` แล้ว redirect ไป `SSO_END_SESSION_URL` พร้อม `client_id`, `post_logout_redirect_uri` และ `state`
 
 ## Login Flow
 
-### Step 1: ผู้ใช้เปิด Sync drop
+### Step 1: ผู้ใช้เปิด Store
 
 ผู้ใช้เข้าใช้งานผ่าน
 
 ```text
-https://project-syncdrop.vercel.app/
+https://store.cipcloud.net/syncdrop/
 ```
 
 - ถ้ายังไม่มี session ให้แสดงหน้า login หรือ redirect ไป RMC SSO ตาม UX ของ application
@@ -101,23 +100,23 @@ https://project-syncdrop.vercel.app/
 จากนั้น redirect browser ไปที่ RMC SSO domain ตาม URL ตัวอย่างนี้
 
 ```text
-https://rmc-sso.cipcloud.net/api/auth/oauth2/authorize?client_id=sync-drop&redirect_uri=https%3A%2F%2Fproject-syncdrop.vercel.app%2F&response_type=code&scope=openid+profile+email+offline_access&state=%3Crandom-state%3E&code_challenge=%3Cs256-code-challenge%3E&code_challenge_method=S256
+https://rmc-sso.cipcloud.net/api/auth/oauth2/authorize?client_id=store&redirect_uri=https%3A%2F%2Fstore.cipcloud.net%2Fsyncdrop%2F&response_type=code&scope=openid+profile+email+offline_access&state=%3Crandom-state%3E&code_challenge=%3Cs256-code-challenge%3E&code_challenge_method=S256
 ```
 
-- client_id=sync-drop
-- redirect_uri=https://project-syncdrop.vercel.app/
+- client_id=store
+- redirect_uri=https://store.cipcloud.net/syncdrop/
 - response_type=code
 - scope=openid profile email offline_access
 - state=<random>
 - code_challenge=<SHA256(code_verifier)>
 - code_challenge_method=S256
 
-### Step 3: RMC SSO redirect กลับ Sync drop
+### Step 3: RMC SSO redirect กลับ Store
 
 หลังผู้ใช้ยืนยันตัวตนสำเร็จ RMC SSO จะ redirect กลับมาที่
 
 ```text
-https://project-syncdrop.vercel.app/?code=...&state=...
+https://store.cipcloud.net/syncdrop/?code=...&state=...
 ```
 
 - application ต้องตรวจว่า state ที่กลับมาตรงกับค่าที่สร้างไว้ก่อนเริ่ม login
@@ -131,9 +130,9 @@ POST https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 ```
 
 - grant_type=authorization_code
-- client_id=sync-drop
+- client_id=store
 - client_secret=<SSO_CLIENT_SECRET>
-- redirect_uri=https://project-syncdrop.vercel.app/
+- redirect_uri=https://store.cipcloud.net/syncdrop/
 - code=<authorization_code>
 - code_verifier=<stored-code-verifier>
 
@@ -143,7 +142,7 @@ POST https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 
 - ตรวจ signature ตาม algorithm ที่รองรับ
 - iss ต้องตรงกับ https://rmc-sso.cipcloud.net
-- aud ต้องมี sync-drop
+- aud ต้องมี store
 - exp ต้องยังไม่หมดอายุ
 - สร้าง HTTP-only cookie หรือ server-side session ของ application
 
@@ -160,14 +159,13 @@ POST https://rmc-sso.cipcloud.net/api/auth/oauth2/token
 เมื่อผู้ใช้กด logout ให้ application ล้าง session ภายในก่อน แล้ว redirect browser ไปที่ RMC SSO End Session endpoint
 
 ```text
-https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession?client_id=sync-drop&post_logout_redirect_uri=https%3A%2F%2Fproject-syncdrop.vercel.app%2F&state=<random-state>
+https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession?client_id=store&post_logout_redirect_uri=https%3A%2F%2Fstore.cipcloud.net%2Fsyncdrop%2F&state=<random-state>
 ```
 
 - post_logout_redirect_uri ต้องเป็น URL ที่ลงทะเบียนไว้กับ client นี้
 - ปลายทางหลัง logout ต้องเป็น public signed-out page หรือหน้า home ที่ไม่ auto redirect ไป authorize
 - ถ้า redirect กลับหน้า protected หรือมี auth guard ที่เริ่ม login ทันที ผู้ใช้จะถูกพาเข้า SSO ใหม่เพราะ browser ยังอาจมี session/cookie เหลือใน flow เดิม
 - ควรลบ local/session storage ที่เก็บ state, code_verifier, id_token และ access token ของ application ด้วย
-- ใน SyncDrop ปุ่มออกจากระบบที่ header เรียก `/api/auth/logout`; route นี้ต้องไม่ redirect กลับ `/login` โดยตรงก่อนเรียก End Session เพราะจะล้างเฉพาะ session ของแอป แต่ SSO session กลางยังอยู่
 
 ## Operational Notes
 
@@ -176,7 +174,6 @@ https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession?client_id=sync-drop&post
 - Redirect URI ต้องตรงกับค่าที่ลงทะเบียนไว้ทุกตัวอักษร รวมถึง trailing slash
 - Logout ต้องเรียก RMC SSO End Session endpoint หลังล้าง application session ไม่เช่นนั้น auth guard ของ application อาจ redirect ไป authorize และ SSO จะ login กลับทันที
 - post_logout_redirect_uri ต้องเป็น URL ที่ลงทะเบียนไว้ และควรเป็นหน้า signed-out ที่ไม่บังคับ login อัตโนมัติ
-- สำหรับ deployment ปัจจุบันให้ตั้ง `SSO_END_SESSION_URL=https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession` และ `SSO_POST_LOGOUT_REDIRECT_URI=https://project-syncdrop.vercel.app/`
 - ถ้าเปลี่ยน Client Secret ต้อง update ทั้ง environment variable และค่า secret ใน RMC SSO Admin
 - ถ้า token endpoint ไม่อนุญาต CORS สำหรับ browser flow ต้องย้าย token exchange ไปทำที่ server endpoint
 - ถ้าจะใช้ RS256 ใน production ควรเพิ่ม JWKS verification ก่อนรับ id_token
@@ -196,8 +193,8 @@ https://rmc-sso.cipcloud.net/api/auth/oauth2/endsession?client_id=sync-drop&post
 
 ```
 const issuer = "https://rmc-sso.cipcloud.net";
-const clientId = "sync-drop";
-const redirectUri = "https://project-syncdrop.vercel.app/";
+const clientId = "store";
+const redirectUri = "https://store.cipcloud.net/syncdrop/";
 
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
@@ -249,9 +246,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const issuer = process.env.RMC_SSO_ISSUER ?? "https://rmc-sso.cipcloud.net";
-const clientId = process.env.RMC_SSO_CLIENT_ID ?? "sync-drop";
+const clientId = process.env.RMC_SSO_CLIENT_ID ?? "store";
 const clientSecret = process.env.RMC_SSO_CLIENT_SECRET;
-const redirectUri = process.env.RMC_SSO_REDIRECT_URI ?? "https://project-syncdrop.vercel.app/";
+const redirectUri = process.env.RMC_SSO_REDIRECT_URI ?? "https://store.cipcloud.net/syncdrop/";
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -304,9 +301,9 @@ export async function GET(request) {
 session_start();
 
 $issuer = "https://rmc-sso.cipcloud.net";
-$clientId = "sync-drop";
+$clientId = "store";
 $clientSecret = getenv("RMC_SSO_CLIENT_SECRET");
-$redirectUri = "https://project-syncdrop.vercel.app/";
+$redirectUri = "https://store.cipcloud.net/syncdrop/";
 
 if (!isset($_GET["code"], $_GET["state"]) || $_GET["state"] !== ($_SESSION["rmc_sso_state"] ?? "")) {
     http_response_code(400);
@@ -365,8 +362,8 @@ exit;
 <button type="button" id="login">Sign in with RMC SSO</button>
 <script type="module">
 const issuer = "https://rmc-sso.cipcloud.net";
-const clientId = "sync-drop";
-const redirectUri = "https://project-syncdrop.vercel.app/";
+const clientId = "store";
+const redirectUri = "https://store.cipcloud.net/syncdrop/";
 
 document.querySelector("#login").addEventListener("click", async () => {
   const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
@@ -399,7 +396,7 @@ document.querySelector("#login").addEventListener("click", async () => {
 
 ### Step 1: ลงทะเบียนค่า client ใน application
 
-ตั้งค่า Client ID เป็น sync-drop, Client Secret เป็นค่าที่ระบุในเอกสารนี้, Issuer/Discovery URL เป็น https://rmc-sso.cipcloud.net/api/auth/.well-known/openid-configuration และ Redirect URI ต้องตรงกับค่าที่ลงทะเบียนไว้ทุกตัวอักษร โดยเฉพาะ https://project-syncdrop.vercel.app/
+ตั้งค่า Client ID เป็น store, Client Secret เป็นค่าที่ระบุในเอกสารนี้, Issuer/Discovery URL เป็น https://rmc-sso.cipcloud.net/api/auth/.well-known/openid-configuration และ Redirect URI ต้องตรงกับค่าที่ลงทะเบียนไว้ทุกตัวอักษร โดยเฉพาะ https://store.cipcloud.net/syncdrop/
 
 ### Step 2: เริ่ม Sign-In ด้วย Authorization Code Flow
 

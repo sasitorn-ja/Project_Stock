@@ -3,6 +3,7 @@ import {
   type NewPORegistryRecord,
   type PORegistryRecord,
 } from "@/lib/po-registry";
+import { apiPath } from "@/lib/app-paths";
 
 const legacyStorageKey = "project-stock.imported-po-sap-nos";
 
@@ -19,7 +20,7 @@ export { createPORegistryKey, type NewPORegistryRecord, type PORegistryRecord };
 
 export async function getPORegistryCount() {
   const data = await readResponse<{ count: number }>(
-    await fetch("/api/po-registry/count", {
+    await fetch(apiPath("/api/po-registry/count"), {
       cache: "no-store",
     }),
   );
@@ -47,7 +48,7 @@ export async function getPORecordsPage({
     totalCount: number;
     totalPoCount: number;
   }>(
-    await fetch(`/api/po-registry?${searchParams.toString()}`, {
+    await fetch(apiPath(`/api/po-registry?${searchParams.toString()}`), {
       cache: "no-store",
     }),
   );
@@ -55,7 +56,7 @@ export async function getPORecordsPage({
 
 export async function getExistingPORecords(registryKeys: string[]) {
   const data = await readResponse<{ records: PORegistryRecord[] }>(
-    await fetch("/api/po-registry/existing", {
+    await fetch(apiPath("/api/po-registry/existing"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -69,7 +70,7 @@ export async function getExistingPORecords(registryKeys: string[]) {
 
 export async function getPORecordsByPoSapNos(poSapNos: string[]) {
   const data = await readResponse<{ records: PORegistryRecord[] }>(
-    await fetch("/api/po-registry/by-po", {
+    await fetch(apiPath("/api/po-registry/by-po"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +84,7 @@ export async function getPORecordsByPoSapNos(poSapNos: string[]) {
 
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
   const data = await readResponse<{ savedCount: number }>(
-    await fetch("/api/po-registry", {
+    await fetch(apiPath("/api/po-registry"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -97,7 +98,7 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
 
 export async function clearPORegistry() {
   await readResponse<{ cleared: true; deletedCount: number | null }>(
-    await fetch("/api/po-registry", {
+    await fetch(apiPath("/api/po-registry"), {
       method: "DELETE",
     }),
   );
@@ -105,7 +106,7 @@ export async function clearPORegistry() {
 
 export async function deletePORecords(registryKeys: string[]) {
   const data = await readResponse<{ deletedCount: number }>(
-    await fetch("/api/po-registry", {
+    await fetch(apiPath("/api/po-registry"), {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",

@@ -1,0 +1,26 @@
+services:
+  syncdrop:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/syncdrop}
+    container_name: syncdrop
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/syncdrop}
+    extra_hosts:
+      - "rmc-sso.cipcloud.net:192.168.1.48"
+      - "ep-twilight-feather-am0h9uwv-pooler.c-5.us-east-1.aws.neon.tech:54.209.204.248"
+    ports:
+      - "3000:3000"
+    volumes:
+      - syncdrop_data:/app/data
+
+volumes:
+  syncdrop_data:

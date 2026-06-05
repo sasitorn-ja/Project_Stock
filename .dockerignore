@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.env.*
+!.env.production.example
+.git
+.next
+node_modules
+npm-debug.log*
+Dockerfile
+docker-compose.yml
+docs

@@ -4,6 +4,7 @@ import { Download, FileSpreadsheet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { apiPath } from "@/lib/app-paths";
 
 export type JobReportListItem = {
   id: string;
@@ -47,7 +48,7 @@ function buildExportUrl(filters: JobReportTableFilters, jobIds: string[] = []) {
   }
   jobIds.forEach((jobId) => searchParams.append("jobIds", jobId));
 
-  return `/api/reports/jobs/export?${searchParams.toString()}`;
+  return apiPath(`/api/reports/jobs/export?${searchParams.toString()}`);
 }
 
 export function JobReportTable({

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/app-paths";
 import { getSsoDiagnostics } from "@/lib/sso-diagnostics";
 
 type SearchParams = Promise<{ callbackUrl?: string; error?: string }>;
@@ -30,10 +31,11 @@ export default async function LoginPage({
       <div className="w-full max-w-md rounded-xl border border-[#d8dde6] bg-white p-8 shadow-sm">
         <div className="mb-6 flex flex-col items-center text-center">
           <Image
-            src="/logo.png"
+            src={withBasePath("/logo.png")}
             alt="SyncDrop Logo"
             width={64}
             height={53}
+            unoptimized
             className="mb-3 h-14 w-auto object-contain"
           />
           <h1 className="text-xl font-semibold text-slate-900">
@@ -67,7 +69,7 @@ export default async function LoginPage({
           </div>
         ) : null}
 
-        <form action="/api/auth/rmc-sso/login" method="GET">
+        <form action={withBasePath("/api/auth/rmc-sso/login")} method="GET">
           <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <Button
             type="submit"

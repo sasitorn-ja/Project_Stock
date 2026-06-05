@@ -1,4 +1,5 @@
 import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
+import { apiPath } from "@/lib/app-paths";
 
 async function readResponse<T>(response: Response) {
   if (!response.ok) {
@@ -11,7 +12,7 @@ async function readResponse<T>(response: Response) {
 
 export async function getJobs() {
   const data = await readResponse<{ jobs: JobSummaryRecord[] }>(
-    await fetch("/api/jobs", {
+    await fetch(apiPath("/api/jobs"), {
       cache: "no-store",
     }),
   );
@@ -21,7 +22,7 @@ export async function getJobs() {
 
 export async function getJob(jobId: string) {
   const data = await readResponse<{ job: JobSummaryRecord | null }>(
-    await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(jobId)}`), {
       cache: "no-store",
     }),
   );
@@ -46,7 +47,7 @@ export async function createJob(input: {
   }[];
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch("/api/jobs", {
+    await fetch(apiPath("/api/jobs"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -64,7 +65,7 @@ export async function updateJobItemScanQuantity(input: {
   scanQty: number;
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}`), {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -84,7 +85,7 @@ export async function updateJobDestinationOverride(input: {
   allowDestinationBeforeFullyLoaded: boolean;
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}`), {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -103,7 +104,7 @@ export async function updateJobOriginOverride(input: {
   allowOriginRecheckAfterLocked: boolean;
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}`), {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -119,7 +120,7 @@ export async function updateJobOriginOverride(input: {
 
 export async function deleteJob(jobId: string) {
   await readResponse<{ ok: true }>(
-    await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(jobId)}`), {
       method: "DELETE",
     }),
   );
@@ -138,7 +139,7 @@ export async function addPORecordsToJob(input: {
   }[];
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/items`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}/items`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -157,7 +158,7 @@ export async function checkInJobOrigin(input: {
   accuracy?: number;
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-origin`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-origin`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -177,7 +178,7 @@ export async function checkInJobDestination(input: {
   accuracy?: number;
 }) {
   const data = await readResponse<{ job: JobSummaryRecord }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-destination`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}/check-in-destination`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -199,7 +200,7 @@ export async function clearUnusedDestinationCheckIn(input: {
     cleared: boolean;
     message: string;
   }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/clear-unused-destination-check-in`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}/clear-unused-destination-check-in`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -220,7 +221,7 @@ export async function submitJobScan(input: {
     result: "ok" | "alert";
     message: string;
   }>(
-    await fetch(`/api/jobs/${encodeURIComponent(input.jobId)}/scan`, {
+    await fetch(apiPath(`/api/jobs/${encodeURIComponent(input.jobId)}/scan`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

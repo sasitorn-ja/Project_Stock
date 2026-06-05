@@ -102,6 +102,7 @@ export function JobCreator() {
   const [scanQuantities, setScanQuantities] = useState<Record<string, number>>({});
   const [recordsPage, setRecordsPage] = useState(1);
   const [destinationsPage, setDestinationsPage] = useState(1);
+  const [unassignedDestinationWarning, setUnassignedDestinationWarning] = useState<PORegistryRecord | null>(null);
 
   useEffect(() => {
     async function loadSelectedRecords() {
@@ -322,6 +323,16 @@ export function JobCreator() {
 
   function assignRecordToDestination(registryKey: string, destinationId: string, checked: boolean) {
     clearFieldError(`assignment.${registryKey}`);
+    const record = records.find((currentRecord) => currentRecord.registryKey === registryKey);
+
+    if (!checked && record) {
+      setUnassignedDestinationWarning(record);
+      setFieldErrors((currentErrors) => ({
+        ...currentErrors,
+        [`assignment.${registryKey}`]: "รายการนี้ยังไม่มีปลายทาง กรุณาเลือกปลายทางก่อนสร้างงาน",
+      }));
+    }
+
     setDestinationAssignments((currentAssignments) => ({
       ...currentAssignments,
       [registryKey]: checked ? destinationId : "",
@@ -950,6 +961,64 @@ export function JobCreator() {
               <Button type="button" size="sm" onClick={() => setActiveDestinationId(null)} className="w-full sm:w-auto">
                 เสร็จแล้ว
               </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {unassignedDestinationWarning ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/55 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="unassigned-destination-title"
+          onClick={() => setUnassignedDestinationWarning(null)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-lg border border-amber-200 bg-white shadow-xl dark:border-amber-900 dark:bg-slate-950"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-amber-100 bg-amber-50 px-4 py-4 dark:border-amber-950 dark:bg-amber-950/30">
+              <div className="flex min-w-0 gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
+                  <AlertCircle className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p id="unassigned-destination-title" className="font-semibold text-amber-950 dark:text-amber-100">
+                    รายการนี้ยังไม่มีปลายทาง
+                  </p>
+                  <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                    ต้องเลือกปลายทางให้ครบก่อนสร้างงาน
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUnassignedDestinationWarning(null)}
+                aria-label="ปิด"
+                className="rounded-md p-1 text-amber-600 transition-colors hover:bg-amber-100 hover:text-amber-800 dark:hover:bg-amber-950"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <div className="rounded-md border border-amber-100 bg-amber-50/60 px-3 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                <p className="font-semibold">
+                  PO {unassignedDestinationWarning.poSapNo} / Item {unassignedDestinationWarning.poSapItem}
+                </p>
+                <p className="mt-1 break-words text-xs">
+                  {unassignedDestinationWarning.materialCode || "-"}
+                  {unassignedDestinationWarning.materialName ? ` / ${unassignedDestinationWarning.materialName}` : ""}
+                </p>
+              </div>
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                ถ้าต้องการเอารายการนี้ออกจากปลายทางเดิม ให้ติ๊กเลือกปลายทางใหม่ในหน้าต่างย้ายรายการก่อนกดสร้างงาน
+              </p>
+              <div className="flex justify-end">
+                <Button type="button" onClick={() => setUnassignedDestinationWarning(null)}>
+                  รับทราบ
+                </Button>
+              </div>
             </div>
           </div>
         </div>

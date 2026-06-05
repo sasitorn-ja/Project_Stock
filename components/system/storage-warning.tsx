@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { apiPath } from "@/lib/app-paths";
 
 type StorageStatus = {
   mode: "local-file" | "postgres";
@@ -17,7 +18,7 @@ export function StorageWarning() {
   useEffect(() => {
     async function loadStatus() {
       try {
-        const response = await fetch("/api/system/storage-status", { cache: "no-store" });
+        const response = await fetch(apiPath("/api/system/storage-status"), { cache: "no-store" });
         if (!response.ok) {
           return;
         }

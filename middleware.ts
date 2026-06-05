@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withBasePath, withoutBasePath } from "@/lib/app-paths";
 import { getSessionFromCookieValue, sessionCookieName } from "@/lib/rmc-session";
 
 function isAssetPath(pathname: string) {
@@ -57,7 +58,7 @@ function isDriverApiPath(pathname: string, method: string) {
 
 export default async function middleware(request: Request & { nextUrl: URL; cookies: { get: (name: string) => { value?: string } | undefined } }) {
   const { nextUrl, method } = request;
-  const pathname = nextUrl.pathname;
+  const pathname = withoutBasePath(nextUrl.pathname);
   const hasJobId = Boolean(nextUrl.searchParams.get("jobId")?.trim());
   const session = await getSessionFromCookieValue(request.cookies.get(sessionCookieName)?.value);
 
@@ -71,7 +72,7 @@ export default async function middleware(request: Request & { nextUrl: URL; cook
 
   // ถ้า login แล้วเข้าหน้า /login ให้ส่งไป /po
   if (pathname === "/login" && session) {
-    return NextResponse.redirect(new URL("/po", nextUrl));
+    return NextResponse.redirect(new URL(withBasePath("/po"), nextUrl));
   }
 
   if (isPublicPath(pathname)) {
@@ -98,7 +99,7 @@ export default async function middleware(request: Request & { nextUrl: URL; cook
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const loginUrl = new URL("/login", nextUrl);
+    const loginUrl = new URL(withBasePath("/login"), nextUrl);
     loginUrl.searchParams.set("callbackUrl", pathname + nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }

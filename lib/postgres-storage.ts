@@ -287,16 +287,6 @@ export async function cleanupExpiredSharedData() {
 
   cleanupPromise = withPostgresTransaction(async (client) => {
     await client.query(`
-      DELETE FROM purchase_order_history
-      WHERE delete_after_at <= NOW()
-    `);
-
-    await client.query(`
-      DELETE FROM delivery_job_history
-      WHERE delete_after_at <= NOW()
-    `);
-
-    await client.query(`
       DELETE FROM delivery_jobs
       WHERE cleanup_after_at IS NOT NULL
         AND cleanup_after_at <= NOW()

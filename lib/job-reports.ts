@@ -48,7 +48,7 @@ export const jobReportExcelHeaders = [
   "จำนวนปลายทาง",
   "จำนวน alerts",
   "จำนวน scan logs",
-  "ลบอัตโนมัติ",
+  "การเก็บประวัติ",
   "registry key",
   "PO SAP",
   "PO item",
@@ -96,8 +96,8 @@ function getArchivedAt(job: JobReportRecord) {
   return job.reportKind === "archived" ? job.archivedAt : "";
 }
 
-function getDeleteAfterAt(job: JobReportRecord) {
-  return job.reportKind === "archived" ? job.deleteAfterAt : "";
+function getHistoryRetentionText(job: JobReportRecord) {
+  return job.reportKind === "archived" ? "เก็บถาวร" : "";
 }
 
 function getReportEventDate(job: JobSummaryRecord | JobArchiveSummaryRecord, reportKind: JobReportRecord["reportKind"]) {
@@ -270,7 +270,7 @@ export function buildJobReportExcelRows(jobs: JobReportRecord[]): JobReportExcel
       "จำนวนปลายทาง": job.destinations.length,
       "จำนวน alerts": job.alerts.length,
       "จำนวน scan logs": job.scanLogs.length,
-      "ลบอัตโนมัติ": formatDateTime(getDeleteAfterAt(job)),
+      "การเก็บประวัติ": getHistoryRetentionText(job),
     };
 
     if (!job.items.length) {

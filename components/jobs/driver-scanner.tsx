@@ -74,6 +74,43 @@ function getScanSuccessNoticeTitle(message: string) {
   return "";
 }
 
+function playScanTickSound() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioContextClass) {
+      return;
+    }
+
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const startedAt = audioContext.currentTime;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(1320, startedAt);
+    oscillator.frequency.exponentialRampToValueAtTime(1760, startedAt + 0.06);
+    gain.gain.setValueAtTime(0.001, startedAt);
+    gain.gain.exponentialRampToValueAtTime(0.16, startedAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, startedAt + 0.09);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(startedAt);
+    oscillator.stop(startedAt + 0.1);
+    window.setTimeout(() => {
+      void audioContext.close().catch(() => {});
+    }, 180);
+  } catch {
+    // Audio feedback is optional; scanning must continue even when browsers block sound.
+  }
+}
+
 async function requestCurrentPosition() {
   if (!("geolocation" in navigator)) {
     throw new Error("อุปกรณ์นี้ไม่รองรับการดึง GPS");
@@ -729,6 +766,7 @@ export function DriverScanner({
               // ignore
             }
           }
+          playScanTickSound();
 
           setCode(scannedCode);
           setCameraMessage(`พบรหัส ${scannedCode} กำลังบันทึก`);
@@ -1092,6 +1130,9 @@ export function DriverScanner({
               <p className="text-xs text-slate-500">ต้นทาง</p>
               <p className="mt-0.5 break-words text-sm font-medium text-slate-900">{job.origin || "-"}</p>
             </div>
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800">
+              ระบบใช้ GPS จากมือถือแบบ high accuracy ค่า accuracy คือความคลาดเคลื่อนโดยประมาณ หน่วยเป็นเมตร เช่น accuracy 25 m หมายถึงพิกัดอาจคลาดเคลื่อนราว 25 เมตร
+            </div>
             <Button
               type="button"
               className="h-12 w-full gap-2 text-base"
@@ -1176,6 +1217,9 @@ export function DriverScanner({
             )}
             <p className="mt-2 whitespace-pre-line break-words text-xs leading-5 text-slate-500">
               {currentDestination?.deliveryGps || "ยังไม่เช็กอินปลายทาง"}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              ค่า accuracy ที่แสดงหลังเช็กอินคือความคลาดเคลื่อนโดยประมาณจากมือถือ หน่วยเป็นเมตร
             </p>
             <Button
               type="button"

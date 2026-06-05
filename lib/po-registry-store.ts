@@ -192,10 +192,6 @@ async function readStore() {
   }
 }
 
-function isExpiredArchiveRecord(record: PORegistryArchiveRecord) {
-  return new Date(record.deleteAfterAt).getTime() <= Date.now();
-}
-
 async function readArchiveStore() {
   if (!(await ensureArchiveStoreFile())) {
     return { records: [] };
@@ -205,12 +201,7 @@ async function readArchiveStore() {
 
   try {
     const parsed = JSON.parse(fileContents) as Partial<PORegistryArchiveStore>;
-    const storedRecords = Array.isArray(parsed.records) ? parsed.records : [];
-    const records = storedRecords.filter((record) => !isExpiredArchiveRecord(record));
-
-    if (records.length !== storedRecords.length) {
-      await writeArchiveStore({ records });
-    }
+    const records = Array.isArray(parsed.records) ? parsed.records : [];
 
     return { records };
   } catch {

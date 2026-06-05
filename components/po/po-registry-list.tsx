@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronLeft, ChevronRight, ClipboardList, FilePlus2, Search, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/app-paths";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { clearPORegistry, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
@@ -197,7 +198,7 @@ export function PORegistryList() {
 
   function createJobFromSelection() {
     writeSelectedPOKeys(selectedKeys);
-    window.location.href = "/jobs/new";
+    window.location.href = withBasePath("/jobs/new");
   }
 
   async function selectAllMatchingRecords() {

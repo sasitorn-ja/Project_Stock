@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { LogOut, Menu, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/app-paths";
 import type { AppSession } from "@/lib/rmc-session";
 import { cn } from "@/lib/utils";
 
@@ -56,10 +57,11 @@ export function Header({
           >
             <div className="flex h-11 shrink-0 items-center justify-center">
               <Image
-                src="/logo.png"
+                src={withBasePath("/logo.png")}
                 alt="SyncDrop Logo"
                 width={53}
                 height={44}
+                unoptimized
                 className="h-11 w-auto object-contain"
               />
             </div>
@@ -83,7 +85,7 @@ export function Header({
               size="sm"
               className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
             >
-              <a href="/api/auth/logout">
+              <a href={withBasePath("/api/auth/logout")}>
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">ออกจากระบบ</span>
               </a>

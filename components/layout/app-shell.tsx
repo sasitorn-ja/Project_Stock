@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import { withoutBasePath } from "@/lib/app-paths";
 import type { AppSession } from "@/lib/rmc-session";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children, session }: { children: React.ReactNode; session: AppSession | null }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const pathname = usePathname();
+  const pathname = withoutBasePath(usePathname());
   const searchParams = useSearchParams();
 
   useEffect(() => {

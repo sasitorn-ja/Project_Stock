@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { withBasePath, withoutBasePath } from "@/lib/app-paths";
 import { Button } from "@/components/ui/button";
 
 const sections = [
@@ -43,7 +44,7 @@ export function Sidebar({
   isMobileOpen: boolean;
   onCloseMobile: () => void;
 }) {
-  const pathname = usePathname();
+  const pathname = withoutBasePath(usePathname());
 
   return (
     <>
@@ -68,10 +69,11 @@ export function Sidebar({
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-12 shrink-0 items-center justify-center">
                 <Image
-                  src="/logo.png"
+                  src={withBasePath("/logo.png")}
                   alt="SyncDrop Logo"
                   width={58}
                   height={48}
+                  unoptimized
                   className="h-12 w-auto object-contain"
                 />
               </div>

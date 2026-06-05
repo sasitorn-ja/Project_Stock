@@ -25,6 +25,7 @@ export async function GET(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "โหลดข้อมูล PO ไม่สำเร็จ";
+    console.error("[po-registry] GET failed", error);
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
