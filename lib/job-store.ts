@@ -20,8 +20,14 @@ import {
 } from "@/lib/jobs";
 import {
   cleanupExpiredSharedData,
+  hasMySQLDatabase,
   hasSharedDatabase,
   triggerExpiredSharedDataCleanup,
+  type MySQLClient,
+  type MySQLResult,
+  type MySQLRows,
+  withMySQLClient,
+  withMySQLTransaction,
   withPostgresClient,
   withPostgresTransaction,
 } from "@/lib/postgres-storage";
@@ -56,6 +62,28 @@ const dataFilePath = path.join(dataDirectoryPath, "jobs.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "job-archives.json");
 const retentionWindowMs = 100 * 24 * 60 * 60 * 1000;
 const permanentArchiveDeleteAfterAt = "9999-12-31T23:59:59.999Z";
+
+function buildPlaceholders(values: unknown[]) {
+  return values.length ? values.map(() => "?").join(", ") : "NULL";
+}
+
+async function queryMySQLRows<T extends Record<string, unknown> = Record<string, unknown>>(
+  client: MySQLClient,
+  sql: string,
+  params: unknown[] = [],
+) {
+  const [rows] = await client.query(sql, params);
+  return rows as MySQLRows & T[];
+}
+
+async function queryMySQLResult(client: MySQLClient, sql: string, params: unknown[] = []) {
+  const [result] = await client.query(sql, params);
+  return result as MySQLResult;
+}
+
+function toMySQLDate(value: string | null | undefined) {
+  return value ? new Date(value) : null;
+}
 
 async function ensureStoreFile() {
   if (!canUseLocalFileStorage()) {
@@ -900,6 +928,969 @@ async function listJobsFromDatabase() {
       .map((row) => summarizeJob(mapDatabaseJob(row)))
       .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
   });
+}
+
+async function getNextMySQLJobSequence(client: MySQLClient) {
+  const result = await queryMySQLResult(client, "INSERT INTO delivery_job_sequence () VALUES ()");
+  return String(result.insertId || 0).padStart(6, "0");
+}
+
+async function insertMySQLJob(client: MySQLClient, job: JobRecord) {
+  const payload = serializeJobRecordForDatabase(job);
+
+  await client.query(
+    `
+      INSERT INTO delivery_jobs (
+        delivery_job_id,
+        job_room_name,
+        created_at,
+        updated_at,
+        job_status,
+        driver_name,
+        vehicle_plate,
+        origin_location_name,
+        origin_check_in_coordinates,
+        origin_checked_in_at,
+        origin_locked_at,
+        allow_origin_recheck_after_locked,
+        allow_destination_before_fully_loaded,
+        job_note,
+        selected_line_registry_keys,
+        job_items_json,
+        delivery_destinations_json,
+        job_alerts_json,
+        scan_events_json,
+        completed_at,
+        cleanup_after_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), ?, ?)
+    `,
+    [
+      payload.delivery_job_id,
+      payload.job_room_name,
+      toMySQLDate(payload.created_at),
+      toMySQLDate(payload.updated_at),
+      payload.job_status,
+      payload.driver_name,
+      payload.vehicle_plate,
+      payload.origin_location_name,
+      payload.origin_check_in_coordinates,
+      toMySQLDate(payload.origin_checked_in_at),
+      toMySQLDate(payload.origin_locked_at),
+      payload.allow_origin_recheck_after_locked,
+      payload.allow_destination_before_fully_loaded,
+      payload.job_note,
+      JSON.stringify(payload.selected_line_registry_keys),
+      JSON.stringify(payload.job_items_json),
+      JSON.stringify(payload.delivery_destinations_json),
+      JSON.stringify(payload.job_alerts_json),
+      JSON.stringify(payload.scan_events_json),
+      toMySQLDate(payload.completed_at),
+      toMySQLDate(payload.cleanup_after_at),
+    ],
+  );
+}
+
+async function updateMySQLJob(client: MySQLClient, job: JobRecord) {
+  const payload = serializeJobRecordForDatabase(job);
+
+  await client.query(
+    `
+      UPDATE delivery_jobs
+      SET
+        updated_at = ?,
+        job_status = ?,
+        job_items_json = CAST(? AS JSON),
+        delivery_destinations_json = CAST(? AS JSON),
+        job_alerts_json = CAST(? AS JSON),
+        scan_events_json = CAST(? AS JSON),
+        allow_destination_before_fully_loaded = ?,
+        origin_locked_at = ?,
+        allow_origin_recheck_after_locked = ?,
+        completed_at = ?,
+        cleanup_after_at = ?
+      WHERE delivery_job_id = ?
+    `,
+    [
+      toMySQLDate(payload.updated_at),
+      payload.job_status,
+      JSON.stringify(payload.job_items_json),
+      JSON.stringify(payload.delivery_destinations_json),
+      JSON.stringify(payload.job_alerts_json),
+      JSON.stringify(payload.scan_events_json),
+      payload.allow_destination_before_fully_loaded,
+      toMySQLDate(payload.origin_locked_at),
+      payload.allow_origin_recheck_after_locked,
+      toMySQLDate(payload.completed_at),
+      toMySQLDate(payload.cleanup_after_at),
+      payload.delivery_job_id,
+    ],
+  );
+}
+
+async function upsertMySQLJobArchive(client: MySQLClient, archiveJob: JobArchiveRecord) {
+  const payload = serializeJobArchiveRecordForDatabase(archiveJob);
+
+  await client.query(
+    `
+      INSERT INTO delivery_job_history (
+        delivery_job_id,
+        job_room_name,
+        created_at,
+        updated_at,
+        job_status,
+        driver_name,
+        vehicle_plate,
+        origin_location_name,
+        origin_check_in_coordinates,
+        origin_checked_in_at,
+        origin_locked_at,
+        allow_origin_recheck_after_locked,
+        allow_destination_before_fully_loaded,
+        job_note,
+        selected_line_registry_keys,
+        job_items_json,
+        delivery_destinations_json,
+        job_alerts_json,
+        scan_events_json,
+        completed_at,
+        archived_at,
+        delete_after_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        job_room_name = VALUES(job_room_name),
+        created_at = VALUES(created_at),
+        updated_at = VALUES(updated_at),
+        job_status = VALUES(job_status),
+        driver_name = VALUES(driver_name),
+        vehicle_plate = VALUES(vehicle_plate),
+        origin_location_name = VALUES(origin_location_name),
+        origin_check_in_coordinates = VALUES(origin_check_in_coordinates),
+        origin_checked_in_at = VALUES(origin_checked_in_at),
+        origin_locked_at = VALUES(origin_locked_at),
+        allow_origin_recheck_after_locked = VALUES(allow_origin_recheck_after_locked),
+        allow_destination_before_fully_loaded = VALUES(allow_destination_before_fully_loaded),
+        job_note = VALUES(job_note),
+        selected_line_registry_keys = VALUES(selected_line_registry_keys),
+        job_items_json = VALUES(job_items_json),
+        delivery_destinations_json = VALUES(delivery_destinations_json),
+        job_alerts_json = VALUES(job_alerts_json),
+        scan_events_json = VALUES(scan_events_json),
+        completed_at = VALUES(completed_at),
+        archived_at = VALUES(archived_at),
+        delete_after_at = VALUES(delete_after_at)
+    `,
+    [
+      payload.delivery_job_id,
+      payload.job_room_name,
+      toMySQLDate(payload.created_at),
+      toMySQLDate(payload.updated_at),
+      payload.job_status,
+      payload.driver_name,
+      payload.vehicle_plate,
+      payload.origin_location_name,
+      payload.origin_check_in_coordinates,
+      toMySQLDate(payload.origin_checked_in_at),
+      toMySQLDate(payload.origin_locked_at),
+      payload.allow_origin_recheck_after_locked,
+      payload.allow_destination_before_fully_loaded,
+      payload.job_note,
+      JSON.stringify(payload.selected_line_registry_keys),
+      JSON.stringify(payload.job_items_json),
+      JSON.stringify(payload.delivery_destinations_json),
+      JSON.stringify(payload.job_alerts_json),
+      JSON.stringify(payload.scan_events_json),
+      toMySQLDate(payload.completed_at),
+      toMySQLDate(payload.archived_at),
+      toMySQLDate(payload.delete_after_at),
+    ],
+  );
+}
+
+async function listJobsFromMySQL() {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const rows = await queryMySQLRows(client, `
+      SELECT *
+      FROM delivery_jobs
+      WHERE completed_at IS NULL
+      ORDER BY created_at DESC
+    `);
+
+    return rows
+      .map((row) => summarizeJob(mapDatabaseJob(row)))
+      .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
+  });
+}
+
+async function listJobArchivesFromMySQL(filters: {
+  query?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const rows = await queryMySQLRows(client, `
+      SELECT *
+      FROM delivery_job_history
+      ORDER BY archived_at DESC
+    `);
+
+    return rows
+      .map((row) => mapDatabaseJobArchive(row))
+      .filter((job) => jobMatchesHistoryFilters(job, filters))
+      .map((job) => summarizeJobArchive(job));
+  });
+}
+
+async function getJobFromMySQL(jobId: string) {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+      `,
+      [jobId],
+    );
+    const row = rows[0];
+    return row ? summarizeJob(mapDatabaseJob(row)) : null;
+  });
+}
+
+async function getJobArchiveFromMySQL(jobId: string) {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_job_history
+        WHERE delivery_job_id = ?
+      `,
+      [jobId],
+    );
+    const row = rows[0];
+    return row ? summarizeJobArchive(mapDatabaseJobArchive(row)) : null;
+  });
+}
+
+async function deleteJobFromMySQL(jobId: string) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      return false;
+    }
+
+    const job = mapDatabaseJob(row);
+
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'active',
+          assigned_delivery_job_id = NULL,
+          assigned_to_job_at = NULL
+        WHERE line_registry_key IN (${buildPlaceholders(job.poRegistryKeys)})
+          AND assigned_delivery_job_id = ?
+          AND record_state = 'assigned'
+      `,
+      [...job.poRegistryKeys, job.id],
+    );
+
+    await client.query("DELETE FROM delivery_jobs WHERE delivery_job_id = ?", [job.id]);
+
+    return true;
+  });
+}
+
+async function createJobInMySQL(input: {
+  roomName?: string;
+  driver: string;
+  vehicle: string;
+  origin: string;
+  note?: string;
+  registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
+  destinationOverrides?: JobDestinationOverrideInput[];
+}) {
+  if (!input.registryKeys.length) {
+    throw new Error("กรุณากลับไปเลือก PO ที่ต้องการสร้าง Job ก่อน");
+  }
+
+  assertWritableStorage();
+  await cleanupExpiredSharedData();
+  invalidatePORecordsPageCache();
+
+  return withMySQLTransaction(async (client) => {
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const sequence = await getNextMySQLJobSequence(client);
+    const jobId = `${buildJobId(nowDate)}-${sequence}`;
+
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'assigned',
+          assigned_delivery_job_id = ?,
+          assigned_to_job_at = ?
+        WHERE line_registry_key IN (${buildPlaceholders(input.registryKeys)})
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+      `,
+      [jobId, toMySQLDate(now), ...input.registryKeys],
+    );
+
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM purchase_order_queue
+        WHERE assigned_delivery_job_id = ?
+          AND line_registry_key IN (${buildPlaceholders(input.registryKeys)})
+      `,
+      [jobId, ...input.registryKeys],
+    );
+    const availableRecords = rows.map(mapDatabasePORecord);
+
+    if (!availableRecords.length) {
+      throw new Error("รายการ PO ที่เลือกถูกใช้สร้าง Job แล้ว หรือไม่พร้อมสร้างงาน กรุณากลับไปเลือก PO ใหม่");
+    }
+
+    const baseItems = applyDestinationAssignments(
+      buildJobItems(availableRecords, input.itemScanQuantities),
+      input.destinationAssignments,
+      input.destinationOverrides,
+    );
+    const baseDestinations = buildJobDestinations(baseItems);
+    const { items, destinations } = applyDestinationOverrides(
+      baseItems,
+      baseDestinations,
+      input.destinationOverrides,
+    );
+    const job: JobRecord = {
+      id: jobId,
+      roomName: input.roomName?.trim() || `ห้อง ${jobId}`,
+      createdAt: now,
+      updatedAt: now,
+      status: "ready",
+      driver: input.driver.trim(),
+      vehicle: input.vehicle.trim(),
+      origin: input.origin.trim(),
+      originGps: "",
+      allowOriginRecheckAfterLocked: false,
+      allowDestinationBeforeFullyLoaded: false,
+      note: input.note?.trim() ?? "",
+      poRegistryKeys: items.map((item) => item.registryKey),
+      items,
+      destinations,
+      alerts: [],
+      scanLogs: [],
+    };
+
+    await insertMySQLJob(client, job);
+
+    return summarizeJob(job);
+  });
+}
+
+async function addPORecordsToJobInMySQL(input: {
+  jobId: string;
+  registryKeys: string[];
+  itemScanQuantities?: Record<string, number>;
+  destinationAssignments?: Record<string, string>;
+  destinationOverrides?: JobDestinationOverrideInput[];
+}) {
+  if (!input.registryKeys.length) {
+    throw new Error("กรุณาเลือก PO ที่ต้องการเพิ่มเข้า Job");
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  return withMySQLTransaction(async (client) => {
+    const jobRows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = jobRows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+    }
+
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'assigned',
+          assigned_delivery_job_id = ?,
+          assigned_to_job_at = UTC_TIMESTAMP(3)
+        WHERE line_registry_key IN (${buildPlaceholders(input.registryKeys)})
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+      `,
+      [input.jobId, ...input.registryKeys],
+    );
+
+    const poRows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM purchase_order_queue
+        WHERE assigned_delivery_job_id = ?
+          AND line_registry_key IN (${buildPlaceholders(input.registryKeys)})
+      `,
+      [input.jobId, ...input.registryKeys],
+    );
+    const records = poRows.map(mapDatabasePORecord);
+
+    if (!records.length) {
+      throw new Error("ไม่พบ PO ที่ยังว่างสำหรับเพิ่มเข้า Job");
+    }
+
+    const job = mapDatabaseJob(row);
+    addPORecordsToJobRecord(job, records, input);
+    const payload = serializeJobRecordForDatabase(job);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          updated_at = ?,
+          job_status = ?,
+          selected_line_registry_keys = CAST(? AS JSON),
+          job_items_json = CAST(? AS JSON),
+          delivery_destinations_json = CAST(? AS JSON),
+          job_alerts_json = CAST(? AS JSON)
+        WHERE delivery_job_id = ?
+      `,
+      [
+        toMySQLDate(payload.updated_at),
+        payload.job_status,
+        JSON.stringify(payload.selected_line_registry_keys),
+        JSON.stringify(payload.job_items_json),
+        JSON.stringify(payload.delivery_destinations_json),
+        JSON.stringify(payload.job_alerts_json),
+        payload.delivery_job_id,
+      ],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function updateJobDestinationOverrideInMySQL(input: {
+  jobId: string;
+  allowDestinationBeforeFullyLoaded: boolean;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    job.allowDestinationBeforeFullyLoaded = input.allowDestinationBeforeFullyLoaded;
+    job.updatedAt = new Date().toISOString();
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          allow_destination_before_fully_loaded = ?,
+          updated_at = ?
+        WHERE delivery_job_id = ?
+      `,
+      [Boolean(job.allowDestinationBeforeFullyLoaded), toMySQLDate(job.updatedAt), job.id],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function updateJobOriginOverrideInMySQL(input: {
+  jobId: string;
+  allowOriginRecheckAfterLocked: boolean;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    job.allowOriginRecheckAfterLocked = input.allowOriginRecheckAfterLocked;
+    job.updatedAt = new Date().toISOString();
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          allow_origin_recheck_after_locked = ?,
+          updated_at = ?
+        WHERE delivery_job_id = ?
+      `,
+      [Boolean(job.allowOriginRecheckAfterLocked), toMySQLDate(job.updatedAt), job.id],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function checkInJobOriginInMySQL(input: {
+  jobId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  locationText?: string;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      "SELECT * FROM delivery_jobs WHERE delivery_job_id = ? FOR UPDATE",
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = applyOriginCheckIn(mapDatabaseJob(row), input);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          origin_check_in_coordinates = ?,
+          origin_checked_in_at = ?,
+          origin_locked_at = ?,
+          allow_origin_recheck_after_locked = ?,
+          updated_at = ?,
+          job_alerts_json = CAST(? AS JSON)
+        WHERE delivery_job_id = ?
+      `,
+      [
+        job.originGps,
+        toMySQLDate(job.originCheckedInAt),
+        toMySQLDate(job.originLockedAt),
+        Boolean(job.allowOriginRecheckAfterLocked),
+        toMySQLDate(job.updatedAt),
+        JSON.stringify(job.alerts),
+        job.id,
+      ],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function updateJobItemScanQuantityInMySQL(input: {
+  jobId: string;
+  registryKey: string;
+  scanQty: number;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM delivery_jobs
+        WHERE delivery_job_id = ?
+          AND completed_at IS NULL
+        FOR UPDATE
+      `,
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    const item = job.items.find((currentItem) => currentItem.registryKey === input.registryKey);
+
+    if (!item) {
+      throw new Error("ไม่พบรายการที่ต้องการแก้ใน Job นี้");
+    }
+
+    item.orderQty = normalizeScanQty(input.scanQty, Math.max(item.loadedQty, item.deliveredQty, 0));
+    job.updatedAt = new Date().toISOString();
+    updateJobStatus(job);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          updated_at = ?,
+          job_status = ?,
+          job_items_json = CAST(? AS JSON)
+        WHERE delivery_job_id = ?
+      `,
+      [toMySQLDate(job.updatedAt), job.status, JSON.stringify(job.items), job.id],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function checkInJobDestinationInMySQL(input: {
+  jobId: string;
+  destinationId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  locationText?: string;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      "SELECT * FROM delivery_jobs WHERE delivery_job_id = ? FOR UPDATE",
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = applyDestinationCheckIn(mapDatabaseJob(row), input);
+
+    await client.query(
+      `
+        UPDATE delivery_jobs
+        SET
+          delivery_destinations_json = CAST(? AS JSON),
+          updated_at = ?,
+          job_alerts_json = CAST(? AS JSON)
+        WHERE delivery_job_id = ?
+      `,
+      [JSON.stringify(job.destinations), toMySQLDate(job.updatedAt), JSON.stringify(job.alerts), job.id],
+    );
+
+    return summarizeJob(job);
+  });
+}
+
+async function clearUnusedDestinationCheckInInMySQL(input: {
+  jobId: string;
+  destinationId: string;
+  nextDestinationId?: string;
+}) {
+  assertWritableStorage();
+
+  return withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      "SELECT * FROM delivery_jobs WHERE delivery_job_id = ? FOR UPDATE",
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const response = applyUnusedDestinationCheckInClear(mapDatabaseJob(row), input);
+
+    if (response.cleared) {
+      await client.query(
+        `
+          UPDATE delivery_jobs
+          SET
+            delivery_destinations_json = CAST(? AS JSON),
+            updated_at = ?,
+            job_alerts_json = CAST(? AS JSON)
+          WHERE delivery_job_id = ?
+        `,
+        [
+          JSON.stringify(response.job.destinations),
+          toMySQLDate(response.job.updatedAt),
+          JSON.stringify(response.job.alerts),
+          response.job.id,
+        ],
+      );
+    }
+
+    return {
+      job: summarizeJob(response.job),
+      cleared: response.cleared,
+      message: response.message,
+    };
+  });
+}
+
+async function upsertMySQLPOArchiveRecords(
+  client: MySQLClient,
+  records: ReturnType<typeof serializePORegistryArchiveRecordForDatabase>[],
+) {
+  for (const record of records) {
+    await client.query(
+      `
+        INSERT INTO purchase_order_history (
+          archived_from_delivery_job_id,
+          line_registry_key,
+          purchase_order_number,
+          purchase_order_item_number,
+          first_imported_at,
+          last_imported_at,
+          import_file_name,
+          import_sheet_name,
+          import_row_number,
+          document_status,
+          vendor_name,
+          web_order_number,
+          plant_code,
+          business_unit_name,
+          material_code,
+          material_name,
+          ordered_quantity_text,
+          received_quantity_text,
+          total_amount_text,
+          import_count,
+          record_state,
+          assigned_delivery_job_id,
+          assigned_to_job_at,
+          archived_at,
+          completed_at,
+          delete_after_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          purchase_order_number = VALUES(purchase_order_number),
+          purchase_order_item_number = VALUES(purchase_order_item_number),
+          first_imported_at = VALUES(first_imported_at),
+          last_imported_at = VALUES(last_imported_at),
+          import_file_name = VALUES(import_file_name),
+          import_sheet_name = VALUES(import_sheet_name),
+          import_row_number = VALUES(import_row_number),
+          document_status = VALUES(document_status),
+          vendor_name = VALUES(vendor_name),
+          web_order_number = VALUES(web_order_number),
+          plant_code = VALUES(plant_code),
+          business_unit_name = VALUES(business_unit_name),
+          material_code = VALUES(material_code),
+          material_name = VALUES(material_name),
+          ordered_quantity_text = VALUES(ordered_quantity_text),
+          received_quantity_text = VALUES(received_quantity_text),
+          total_amount_text = VALUES(total_amount_text),
+          import_count = VALUES(import_count),
+          record_state = VALUES(record_state),
+          assigned_delivery_job_id = VALUES(assigned_delivery_job_id),
+          assigned_to_job_at = VALUES(assigned_to_job_at),
+          archived_at = VALUES(archived_at),
+          completed_at = VALUES(completed_at),
+          delete_after_at = VALUES(delete_after_at)
+      `,
+      [
+        record.archived_from_delivery_job_id,
+        record.line_registry_key,
+        record.purchase_order_number,
+        record.purchase_order_item_number,
+        toMySQLDate(record.first_imported_at),
+        toMySQLDate(record.last_imported_at),
+        record.import_file_name,
+        record.import_sheet_name,
+        record.import_row_number,
+        record.document_status,
+        record.vendor_name,
+        record.web_order_number,
+        record.plant_code,
+        record.business_unit_name,
+        record.material_code,
+        record.material_name,
+        record.ordered_quantity_text,
+        record.received_quantity_text,
+        record.total_amount_text,
+        record.import_count,
+        record.record_state,
+        record.assigned_delivery_job_id,
+        toMySQLDate(record.assigned_to_job_at),
+        toMySQLDate(record.archived_at),
+        toMySQLDate(record.completed_at),
+        toMySQLDate(record.delete_after_at),
+      ],
+    );
+  }
+}
+
+async function registerJobScanInMySQL(input: {
+  jobId: string;
+  code: string;
+  mode: ScanMode;
+  destinationId?: string;
+}) {
+  assertWritableStorage();
+
+  const scanResult = await withMySQLTransaction(async (client) => {
+    const rows = await queryMySQLRows(
+      client,
+      "SELECT * FROM delivery_jobs WHERE delivery_job_id = ? FOR UPDATE",
+      [input.jobId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error("ไม่พบ Job ที่เลือก");
+    }
+
+    const job = mapDatabaseJob(row);
+    assertOriginCheckInCompleted(job);
+    const allRows = await queryMySQLRows(client, "SELECT * FROM delivery_jobs WHERE completed_at IS NULL");
+    const allJobs = allRows.map((jobRow) => mapDatabaseJob(jobRow));
+    const response = applyJobScan(job, {
+      ...input,
+      otherActiveJobs: allJobs,
+    });
+
+    if (response.job.status === "completed" && response.job.completedAt) {
+      const completedRegistryKeys = getCompletedRegistryKeysForArchive(response.job);
+      const skippedRegistryKeys = getSkippedRegistryKeysForRelease(response.job);
+      const poRows = completedRegistryKeys.length
+        ? await queryMySQLRows(
+            client,
+            `
+              SELECT *
+              FROM purchase_order_queue
+              WHERE line_registry_key IN (${buildPlaceholders(response.job.poRegistryKeys)})
+              FOR UPDATE
+            `,
+            response.job.poRegistryKeys,
+          )
+        : [];
+      const archiveJob = buildJobArchiveRecord(response.job);
+      const completedKeySet = new Set(completedRegistryKeys);
+      const archivePORecords = poRows
+        .map(mapDatabasePORecord)
+        .filter((record) => completedKeySet.has(record.registryKey))
+        .map((record) => ({
+          ...record,
+          lifecycle: "completed" as const,
+          archivedFromJobId: response.job.id,
+          archivedAt: archiveJob.archivedAt,
+          completedAt: response.job.completedAt,
+          deleteAfterAt: archiveJob.deleteAfterAt,
+        }))
+        .map(serializePORegistryArchiveRecordForDatabase);
+
+      await upsertMySQLJobArchive(client, archiveJob);
+
+      if (archivePORecords.length) {
+        await upsertMySQLPOArchiveRecords(client, archivePORecords);
+      }
+
+      await client.query("DELETE FROM delivery_jobs WHERE delivery_job_id = ?", [response.job.id]);
+
+      if (completedRegistryKeys.length) {
+        await client.query(
+          `
+            DELETE FROM purchase_order_queue
+            WHERE line_registry_key IN (${buildPlaceholders(completedRegistryKeys)})
+          `,
+          completedRegistryKeys,
+        );
+      }
+
+      if (skippedRegistryKeys.length) {
+        await client.query(
+          `
+            UPDATE purchase_order_queue
+            SET
+              record_state = 'active',
+              assigned_delivery_job_id = NULL,
+              assigned_to_job_at = NULL,
+              archived_at = NULL,
+              completed_at = NULL,
+              cleanup_after_at = NULL
+            WHERE line_registry_key IN (${buildPlaceholders(skippedRegistryKeys)})
+              AND assigned_delivery_job_id = ?
+          `,
+          [...skippedRegistryKeys, response.job.id],
+        );
+      }
+    } else {
+      await updateMySQLJob(client, response.job);
+    }
+
+    return {
+      job: summarizeJob(response.job),
+      result: response.result,
+      message: response.message,
+    };
+  });
+
+  if (scanResult.job.status === "completed") {
+    invalidatePORecordsPageCache();
+  }
+
+  return scanResult;
 }
 
 async function listJobArchivesFromDatabase(filters: {
@@ -1894,6 +2885,10 @@ async function registerJobScanInDatabase(input: {
 }
 
 export async function listJobs() {
+  if (hasMySQLDatabase()) {
+    return listJobsFromMySQL();
+  }
+
   if (hasSharedDatabase()) {
     return listJobsFromDatabase();
   }
@@ -1906,6 +2901,10 @@ export async function listJobs() {
 }
 
 export async function getJob(jobId: string) {
+  if (hasMySQLDatabase()) {
+    return getJobFromMySQL(jobId);
+  }
+
   if (hasSharedDatabase()) {
     return getJobFromDatabase(jobId);
   }
@@ -1917,6 +2916,10 @@ export async function getJob(jobId: string) {
 }
 
 export async function deleteJob(jobId: string) {
+  if (hasMySQLDatabase()) {
+    return deleteJobFromMySQL(jobId);
+  }
+
   if (hasSharedDatabase()) {
     return deleteJobFromDatabase(jobId);
   }
@@ -1943,6 +2946,10 @@ export async function listJobArchives(filters: {
   dateFrom?: string;
   dateTo?: string;
 } = {}) {
+  if (hasMySQLDatabase()) {
+    return listJobArchivesFromMySQL(filters);
+  }
+
   if (hasSharedDatabase()) {
     return listJobArchivesFromDatabase(filters);
   }
@@ -1956,6 +2963,10 @@ export async function listJobArchives(filters: {
 }
 
 export async function getJobArchive(jobId: string) {
+  if (hasMySQLDatabase()) {
+    return getJobArchiveFromMySQL(jobId);
+  }
+
   if (hasSharedDatabase()) {
     return getJobArchiveFromDatabase(jobId);
   }
@@ -1977,6 +2988,10 @@ export async function createJob(input: {
   destinationAssignments?: Record<string, string>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
+  if (hasMySQLDatabase()) {
+    return createJobInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return createJobInDatabase(input);
   }
@@ -2041,6 +3056,10 @@ export async function addPORecordsToJob(input: {
   destinationAssignments?: Record<string, string>;
   destinationOverrides?: JobDestinationOverrideInput[];
 }) {
+  if (hasMySQLDatabase()) {
+    return addPORecordsToJobInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return addPORecordsToJobInDatabase(input);
   }
@@ -2075,6 +3094,10 @@ export async function updateJobDestinationOverride(input: {
   jobId: string;
   allowDestinationBeforeFullyLoaded: boolean;
 }) {
+  if (hasMySQLDatabase()) {
+    return updateJobDestinationOverrideInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return updateJobDestinationOverrideInDatabase(input);
   }
@@ -2099,6 +3122,10 @@ export async function updateJobOriginOverride(input: {
   jobId: string;
   allowOriginRecheckAfterLocked: boolean;
 }) {
+  if (hasMySQLDatabase()) {
+    return updateJobOriginOverrideInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return updateJobOriginOverrideInDatabase(input);
   }
@@ -2124,6 +3151,10 @@ export async function updateJobItemScanQuantity(input: {
   registryKey: string;
   scanQty: number;
 }) {
+  if (hasMySQLDatabase()) {
+    return updateJobItemScanQuantityInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return updateJobItemScanQuantityInDatabase(input);
   }
@@ -2158,6 +3189,10 @@ export async function checkInJobOrigin(input: {
   accuracy?: number;
   locationText?: string;
 }) {
+  if (hasMySQLDatabase()) {
+    return checkInJobOriginInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return checkInJobOriginInDatabase(input);
   }
@@ -2184,6 +3219,10 @@ export async function checkInJobDestination(input: {
   accuracy?: number;
   locationText?: string;
 }) {
+  if (hasMySQLDatabase()) {
+    return checkInJobDestinationInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return checkInJobDestinationInDatabase(input);
   }
@@ -2207,6 +3246,10 @@ export async function clearUnusedDestinationCheckIn(input: {
   destinationId: string;
   nextDestinationId?: string;
 }) {
+  if (hasMySQLDatabase()) {
+    return clearUnusedDestinationCheckInInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return clearUnusedDestinationCheckInInDatabase(input);
   }
@@ -2237,6 +3280,10 @@ export async function registerJobScan(input: {
   mode: ScanMode;
   destinationId?: string;
 }) {
+  if (hasMySQLDatabase()) {
+    return registerJobScanInMySQL(input);
+  }
+
   if (hasSharedDatabase()) {
     return registerJobScanInDatabase(input);
   }

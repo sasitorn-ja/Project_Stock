@@ -9,13 +9,20 @@ import {
 } from "@/lib/po-registry";
 import {
   cleanupExpiredSharedData,
+  hasMySQLDatabase,
   hasSharedDatabase,
   triggerExpiredSharedDataCleanup,
+  type MySQLClient,
+  type MySQLResult,
+  type MySQLRows,
+  withMySQLClient,
+  withMySQLTransaction,
   withPostgresClient,
   withPostgresTransaction,
 } from "@/lib/postgres-storage";
 import {
   createStoredPORegistryRecord,
+  mapDatabaseJobArchive,
   mapDatabasePORecord,
   serializePORegistryRecordForDatabase,
 } from "@/lib/shared-storage-payloads";
@@ -111,6 +118,60 @@ function getExistingPORecordsCacheKey(registryKeys: string[]) {
   return JSON.stringify(
     Array.from(new Set(registryKeys.map((registryKey) => registryKey.trim()).filter(Boolean))).sort(),
   );
+}
+
+function buildPlaceholders(values: unknown[]) {
+  return values.length ? values.map(() => "?").join(", ") : "NULL";
+}
+
+async function queryMySQLRows<T extends Record<string, unknown> = Record<string, unknown>>(
+  client: MySQLClient,
+  sql: string,
+  params: unknown[] = [],
+) {
+  const [rows] = await client.query(sql, params);
+  return rows as MySQLRows & T[];
+}
+
+async function queryMySQLResult(client: MySQLClient, sql: string, params: unknown[] = []) {
+  const [result] = await client.query(sql, params);
+  return result as MySQLResult;
+}
+
+function toMySQLDate(value: string | null | undefined) {
+  return value ? new Date(value) : null;
+}
+
+async function getCompletedPoNosFromMySQL(client: MySQLClient) {
+  const historyRows = await queryMySQLRows<{ purchase_order_number: string }>(
+    client,
+    "SELECT DISTINCT purchase_order_number FROM purchase_order_history",
+  );
+  const jobRows = await queryMySQLRows<{ job_items_json: unknown }>(
+    client,
+    "SELECT job_items_json FROM delivery_job_history",
+  );
+  const completedPoNos = new Set(historyRows.map((row) => String(row.purchase_order_number)));
+
+  for (const row of jobRows) {
+    const items = typeof row.job_items_json === "string" ? JSON.parse(row.job_items_json) : row.job_items_json;
+    if (!Array.isArray(items)) {
+      continue;
+    }
+
+    for (const item of items) {
+      const poSapNo = typeof item?.poSapNo === "string" ? item.poSapNo : "";
+      if (poSapNo) {
+        completedPoNos.add(poSapNo);
+      }
+    }
+  }
+
+  return completedPoNos;
+}
+
+function poRecordIsVisible(record: PORegistryRecord, completedPoNos: Set<string>) {
+  return !record.assignedJobId && record.lifecycle === "active" && !completedPoNos.has(record.poSapNo);
 }
 
 export function invalidatePORecordsPageCache() {
@@ -633,6 +694,300 @@ async function saveNewPORecordsToDatabase(records: NewPORegistryRecord[]) {
   });
 }
 
+async function getPORegistryCountFromMySQL() {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const completedPoNos = await getCompletedPoNosFromMySQL(client);
+    const rows = await queryMySQLRows(client, `
+      SELECT *
+      FROM purchase_order_queue
+      WHERE assigned_delivery_job_id IS NULL
+        AND record_state = 'active'
+    `);
+
+    return rows.map(mapDatabasePORecord).filter((record) => poRecordIsVisible(record, completedPoNos)).length;
+  });
+}
+
+async function getPORecordsPageFromMySQL({
+  page,
+  pageSize,
+  query = "",
+}: {
+  page: number;
+  pageSize: number;
+  query?: string;
+}) {
+  triggerExpiredSharedDataCleanup();
+
+  return withMySQLClient(async (client) => {
+    const completedPoNos = await getCompletedPoNosFromMySQL(client);
+    const rows = await queryMySQLRows(client, `
+      SELECT *
+      FROM purchase_order_queue
+      WHERE assigned_delivery_job_id IS NULL
+        AND record_state = 'active'
+    `);
+    const records = sortPORecords(
+      rows
+        .map(mapDatabasePORecord)
+        .filter((record) => poRecordIsVisible(record, completedPoNos) && recordMatchesQuery(record, query)),
+    );
+    const safePage = Math.max(1, page);
+    const skipCount = (safePage - 1) * pageSize;
+
+    return {
+      records: records.slice(skipCount, skipCount + pageSize),
+      totalCount: records.length,
+      totalPoCount: new Set(records.map((record) => record.poSapNo)).size,
+    };
+  });
+}
+
+async function getExistingPORecordsFromMySQL(registryKeys: string[]) {
+  triggerExpiredSharedDataCleanup();
+
+  if (!registryKeys.length) {
+    return [];
+  }
+
+  const poSapNos = getPoSapNosFromRegistryKeys(registryKeys);
+
+  return withMySQLClient(async (client) => {
+    const keyPlaceholders = buildPlaceholders(registryKeys);
+    const poPlaceholders = buildPlaceholders(poSapNos);
+    const [queueRows, historyRows, jobRows] = await Promise.all([
+      queryMySQLRows(client, `
+        SELECT *
+        FROM purchase_order_queue
+        WHERE line_registry_key IN (${keyPlaceholders})
+          OR purchase_order_number IN (${poPlaceholders})
+      `, [...registryKeys, ...poSapNos]),
+      queryMySQLRows(client, `
+        SELECT *, delete_after_at AS cleanup_after_at
+        FROM purchase_order_history
+        WHERE line_registry_key IN (${keyPlaceholders})
+          OR purchase_order_number IN (${poPlaceholders})
+      `, [...registryKeys, ...poSapNos]),
+      queryMySQLRows(client, "SELECT * FROM delivery_job_history"),
+    ]);
+    const wantedKeys = new Set(registryKeys);
+    const wantedPoNos = new Set(poSapNos);
+    const records = [
+      ...queueRows.map(mapDatabasePORecord).filter((record) => {
+        if (!wantedKeys.has(record.registryKey) && !wantedPoNos.has(record.poSapNo)) {
+          return false;
+        }
+
+        return (
+          (!record.assignedJobId && record.lifecycle === "active") ||
+          record.lifecycle === "completed"
+        );
+      }),
+      ...historyRows.map(mapDatabasePORecord),
+    ];
+
+    for (const row of jobRows) {
+      const job = mapDatabaseJobArchive(row);
+      for (const item of job.items) {
+        if (!wantedPoNos.has(item.poSapNo) && !wantedKeys.has(item.registryKey)) {
+          continue;
+        }
+
+        records.push({
+          registryKey: item.registryKey,
+          poSapNo: item.poSapNo,
+          poSapItem: item.poSapItem,
+          firstImportedAt: job.createdAt,
+          latestImportedAt: job.updatedAt,
+          sourceFileName: "",
+          sourceSheetName: "",
+          rowNumber: 0,
+          status: "",
+          vendor: item.vendor ?? "",
+          poWebNo: item.poWebNo ?? "",
+          plantCode: item.plantCode ?? "",
+          unitName: item.unitName ?? "",
+          materialCode: item.materialCode ?? "",
+          materialName: item.materialName ?? "",
+          orderQty: item.sourceOrderQty ?? "",
+          receivedQty: "",
+          totalAmount: item.sourceTotalAmount ?? "",
+          importCount: 1,
+          lifecycle: "completed",
+          assignedJobId: job.id,
+          archivedAt: job.archivedAt,
+          completedAt: job.completedAt,
+          purgeAfterAt: job.deleteAfterAt,
+        });
+      }
+    }
+
+    return records;
+  });
+}
+
+async function getPORecordsByKeysFromMySQL(registryKeys: string[]) {
+  triggerExpiredSharedDataCleanup();
+
+  if (!registryKeys.length) {
+    return [];
+  }
+
+  return withMySQLClient(async (client) => {
+    const completedPoNos = await getCompletedPoNosFromMySQL(client);
+    const rows = await queryMySQLRows(
+      client,
+      `SELECT * FROM purchase_order_queue WHERE line_registry_key IN (${buildPlaceholders(registryKeys)})`,
+      registryKeys,
+    );
+
+    return sortPORecords(rows.map(mapDatabasePORecord).filter((record) => !completedPoNos.has(record.poSapNo)));
+  });
+}
+
+async function getPORecordsByPoSapNosFromMySQL(poSapNos: string[]) {
+  triggerExpiredSharedDataCleanup();
+
+  const normalizedPoSapNos = Array.from(new Set(poSapNos.map((poSapNo) => poSapNo.trim()).filter(Boolean)));
+
+  if (!normalizedPoSapNos.length) {
+    return [];
+  }
+
+  return withMySQLClient(async (client) => {
+    const completedPoNos = await getCompletedPoNosFromMySQL(client);
+    const rows = await queryMySQLRows(
+      client,
+      `
+        SELECT *
+        FROM purchase_order_queue
+        WHERE purchase_order_number IN (${buildPlaceholders(normalizedPoSapNos)})
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+        ORDER BY purchase_order_number ASC, purchase_order_item_number ASC, first_imported_at DESC
+      `,
+      normalizedPoSapNos,
+    );
+
+    return sortPORecords(rows.map(mapDatabasePORecord).filter((record) => !completedPoNos.has(record.poSapNo)));
+  });
+}
+
+async function saveNewPORecordsToMySQL(records: NewPORegistryRecord[]) {
+  if (!records.length) {
+    return 0;
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+  await cleanupExpiredSharedData();
+
+  const importedAt = new Date().toISOString();
+  const payload = records
+    .map((record) => createStoredPORegistryRecord(record, importedAt))
+    .map(serializePORegistryRecordForDatabase);
+
+  return withMySQLTransaction(async (client) => {
+    const [queueRows, historyRows, jobRows] = await Promise.all([
+      queryMySQLRows<{ purchase_order_number: string }>(client, "SELECT purchase_order_number FROM purchase_order_queue"),
+      queryMySQLRows<{ purchase_order_number: string }>(client, "SELECT purchase_order_number FROM purchase_order_history"),
+      queryMySQLRows<{ job_items_json: unknown }>(client, "SELECT job_items_json FROM delivery_job_history"),
+    ]);
+    const existingPoNos = new Set([
+      ...queueRows.map((row) => String(row.purchase_order_number)),
+      ...historyRows.map((row) => String(row.purchase_order_number)),
+    ]);
+
+    for (const row of jobRows) {
+      const items = typeof row.job_items_json === "string" ? JSON.parse(row.job_items_json) : row.job_items_json;
+      if (!Array.isArray(items)) {
+        continue;
+      }
+
+      for (const item of items) {
+        if (typeof item?.poSapNo === "string") {
+          existingPoNos.add(item.poSapNo);
+        }
+      }
+    }
+
+    const newRows = payload.filter((record) => !existingPoNos.has(record.purchase_order_number));
+
+    if (!newRows.length) {
+      return 0;
+    }
+
+    let savedCount = 0;
+    for (const record of newRows) {
+      const result = await queryMySQLResult(
+        client,
+        `
+          INSERT IGNORE INTO purchase_order_queue (
+            line_registry_key,
+            purchase_order_number,
+            purchase_order_item_number,
+            first_imported_at,
+            last_imported_at,
+            import_file_name,
+            import_sheet_name,
+            import_row_number,
+            document_status,
+            vendor_name,
+            web_order_number,
+            plant_code,
+            business_unit_name,
+            material_code,
+            material_name,
+            ordered_quantity_text,
+            received_quantity_text,
+            total_amount_text,
+            import_count,
+            record_state,
+            assigned_delivery_job_id,
+            assigned_to_job_at,
+            archived_at,
+            completed_at,
+            cleanup_after_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          record.line_registry_key,
+          record.purchase_order_number,
+          record.purchase_order_item_number,
+          toMySQLDate(record.first_imported_at),
+          toMySQLDate(record.last_imported_at),
+          record.import_file_name,
+          record.import_sheet_name,
+          record.import_row_number,
+          record.document_status,
+          record.vendor_name,
+          record.web_order_number,
+          record.plant_code,
+          record.business_unit_name,
+          record.material_code,
+          record.material_name,
+          record.ordered_quantity_text,
+          record.received_quantity_text,
+          record.total_amount_text,
+          record.import_count,
+          record.record_state,
+          record.assigned_delivery_job_id,
+          toMySQLDate(record.assigned_to_job_at),
+          toMySQLDate(record.archived_at),
+          toMySQLDate(record.completed_at),
+          toMySQLDate(record.cleanup_after_at),
+        ],
+      );
+      savedCount += result.affectedRows;
+    }
+
+    return savedCount;
+  });
+}
+
 async function clearPORegistryInDatabase() {
   assertWritableStorage();
   invalidatePORecordsPageCache();
@@ -642,6 +997,19 @@ async function clearPORegistryInDatabase() {
       DELETE FROM purchase_order_queue
       WHERE assigned_delivery_job_id IS NULL
       AND record_state = 'active'
+    `);
+  });
+}
+
+async function clearPORegistryInMySQL() {
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  await withMySQLTransaction(async (client) => {
+    await client.query(`
+      DELETE FROM purchase_order_queue
+      WHERE assigned_delivery_job_id IS NULL
+        AND record_state = 'active'
     `);
   });
 }
@@ -669,6 +1037,30 @@ async function deletePORecordsInDatabase(registryKeys: string[]) {
   });
 }
 
+async function deletePORecordsInMySQL(registryKeys: string[]) {
+  if (!registryKeys.length) {
+    return 0;
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  return withMySQLTransaction(async (client) => {
+    const result = await queryMySQLResult(
+      client,
+      `
+        DELETE FROM purchase_order_queue
+        WHERE line_registry_key IN (${buildPlaceholders(registryKeys)})
+          AND assigned_delivery_job_id IS NULL
+          AND record_state = 'active'
+      `,
+      registryKeys,
+    );
+
+    return result.affectedRows;
+  });
+}
+
 async function markPORecordsAssignedInDatabase(registryKeys: string[], jobId: string) {
   if (!registryKeys.length) {
     return;
@@ -688,6 +1080,29 @@ async function markPORecordsAssignedInDatabase(registryKeys: string[], jobId: st
         WHERE line_registry_key = ANY($1::text[])
       `,
       [registryKeys, jobId],
+    );
+  });
+}
+
+async function markPORecordsAssignedInMySQL(registryKeys: string[], jobId: string) {
+  if (!registryKeys.length) {
+    return;
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  await withMySQLTransaction(async (client) => {
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'assigned',
+          assigned_delivery_job_id = ?,
+          assigned_to_job_at = UTC_TIMESTAMP(3)
+        WHERE line_registry_key IN (${buildPlaceholders(registryKeys)})
+      `,
+      [jobId, ...registryKeys],
     );
   });
 }
@@ -717,6 +1132,31 @@ async function releasePORecordsFromJobInDatabase(registryKeys: string[], jobId: 
   });
 }
 
+async function releasePORecordsFromJobInMySQL(registryKeys: string[], jobId: string) {
+  if (!registryKeys.length || !jobId.trim()) {
+    return;
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  await withMySQLTransaction(async (client) => {
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'active',
+          assigned_delivery_job_id = NULL,
+          assigned_to_job_at = NULL
+        WHERE line_registry_key IN (${buildPlaceholders(registryKeys)})
+          AND assigned_delivery_job_id = ?
+          AND record_state = 'assigned'
+      `,
+      [...registryKeys, jobId],
+    );
+  });
+}
+
 async function markPORecordsCompletedInDatabase(registryKeys: string[]) {
   if (!registryKeys.length) {
     return;
@@ -741,7 +1181,35 @@ async function markPORecordsCompletedInDatabase(registryKeys: string[]) {
   });
 }
 
+async function markPORecordsCompletedInMySQL(registryKeys: string[]) {
+  if (!registryKeys.length) {
+    return;
+  }
+
+  assertWritableStorage();
+  invalidatePORecordsPageCache();
+
+  await withMySQLTransaction(async (client) => {
+    await client.query(
+      `
+        UPDATE purchase_order_queue
+        SET
+          record_state = 'completed',
+          archived_at = UTC_TIMESTAMP(3),
+          completed_at = UTC_TIMESTAMP(3),
+          cleanup_after_at = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 100 DAY)
+        WHERE line_registry_key IN (${buildPlaceholders(registryKeys)})
+      `,
+      registryKeys,
+    );
+  });
+}
+
 export async function getPORegistryCount() {
+  if (hasMySQLDatabase()) {
+    return getPORegistryCountFromMySQL();
+  }
+
   if (hasSharedDatabase()) {
     return getPORegistryCountFromDatabase();
   }
@@ -764,6 +1232,10 @@ export async function getPORecordsPage({
   pageSize: number;
   query?: string;
 }) {
+  if (hasMySQLDatabase()) {
+    return getPORecordsPageFromMySQL({ page, pageSize, query });
+  }
+
   if (hasSharedDatabase()) {
     return getPORecordsPageFromDatabase({ page, pageSize, query });
   }
@@ -789,6 +1261,10 @@ export async function getPORecordsPage({
 }
 
 export async function getExistingPORecords(registryKeys: string[]) {
+  if (hasMySQLDatabase()) {
+    return getExistingPORecordsFromMySQL(registryKeys);
+  }
+
   if (hasSharedDatabase()) {
     return getCachedExistingPORecordsFromDatabase(registryKeys);
   }
@@ -809,6 +1285,10 @@ export async function getExistingPORecords(registryKeys: string[]) {
 }
 
 export async function getPORecordsByKeys(registryKeys: string[]) {
+  if (hasMySQLDatabase()) {
+    return getPORecordsByKeysFromMySQL(registryKeys);
+  }
+
   if (hasSharedDatabase()) {
     return getPORecordsByKeysFromDatabase(registryKeys);
   }
@@ -824,6 +1304,10 @@ export async function getPORecordsByKeys(registryKeys: string[]) {
 }
 
 export async function getPORecordsByPoSapNos(poSapNos: string[]) {
+  if (hasMySQLDatabase()) {
+    return getPORecordsByPoSapNosFromMySQL(poSapNos);
+  }
+
   if (hasSharedDatabase()) {
     return getPORecordsByPoSapNosFromDatabase(poSapNos);
   }
@@ -850,6 +1334,10 @@ export async function getPORecordsByPoSapNos(poSapNos: string[]) {
 }
 
 export async function saveNewPORecords(records: NewPORegistryRecord[]) {
+  if (hasMySQLDatabase()) {
+    return saveNewPORecordsToMySQL(records);
+  }
+
   if (hasSharedDatabase()) {
     return saveNewPORecordsToDatabase(records);
   }
@@ -885,6 +1373,10 @@ export async function saveNewPORecords(records: NewPORegistryRecord[]) {
 }
 
 export async function clearPORegistry() {
+  if (hasMySQLDatabase()) {
+    return clearPORegistryInMySQL();
+  }
+
   if (hasSharedDatabase()) {
     return clearPORegistryInDatabase();
   }
@@ -899,6 +1391,10 @@ export async function clearPORegistry() {
 }
 
 export async function deletePORecords(registryKeys: string[]) {
+  if (hasMySQLDatabase()) {
+    return deletePORecordsInMySQL(registryKeys);
+  }
+
   if (hasSharedDatabase()) {
     return deletePORecordsInDatabase(registryKeys);
   }
@@ -921,6 +1417,10 @@ export async function deletePORecords(registryKeys: string[]) {
 }
 
 export async function markPORecordsAssigned(registryKeys: string[], jobId: string) {
+  if (hasMySQLDatabase()) {
+    return markPORecordsAssignedInMySQL(registryKeys, jobId);
+  }
+
   if (hasSharedDatabase()) {
     return markPORecordsAssignedInDatabase(registryKeys, jobId);
   }
@@ -946,6 +1446,10 @@ export async function markPORecordsAssigned(registryKeys: string[], jobId: strin
 }
 
 export async function releasePORecordsFromJob(registryKeys: string[], jobId: string) {
+  if (hasMySQLDatabase()) {
+    return releasePORecordsFromJobInMySQL(registryKeys, jobId);
+  }
+
   if (hasSharedDatabase()) {
     return releasePORecordsFromJobInDatabase(registryKeys, jobId);
   }
@@ -974,6 +1478,10 @@ export async function releasePORecordsFromJob(registryKeys: string[], jobId: str
 }
 
 export async function markPORecordsCompleted(registryKeys: string[]) {
+  if (hasMySQLDatabase()) {
+    return markPORecordsCompletedInMySQL(registryKeys);
+  }
+
   if (hasSharedDatabase()) {
     return markPORecordsCompletedInDatabase(registryKeys);
   }

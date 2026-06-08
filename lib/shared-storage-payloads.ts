@@ -121,6 +121,23 @@ function toOptionalIsoString(value: unknown) {
   return String(value);
 }
 
+function toJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function createStoredPORegistryRecord(record: NewPORegistryRecord, importedAt: string): PORegistryRecord {
   return {
     ...record,
@@ -260,15 +277,13 @@ export function mapDatabaseJobArchive(row: DatabaseRow): JobArchiveRecord {
     allowOriginRecheckAfterLocked: Boolean(row.allow_origin_recheck_after_locked),
     allowDestinationBeforeFullyLoaded: Boolean(row.allow_destination_before_fully_loaded),
     note: String(row.job_note ?? ""),
-    poRegistryKeys: Array.isArray(row.selected_line_registry_keys)
-      ? row.selected_line_registry_keys.map((item) => String(item))
-      : [],
-    items: Array.isArray(row.job_items_json) ? (row.job_items_json as JobRecord["items"]) : [],
-    destinations: Array.isArray(row.delivery_destinations_json)
-      ? (row.delivery_destinations_json as Partial<JobRecord["destinations"][number]>[]).map(normalizeJobDestination)
-      : [],
-    alerts: Array.isArray(row.job_alerts_json) ? (row.job_alerts_json as JobRecord["alerts"]) : [],
-    scanLogs: Array.isArray(row.scan_events_json) ? (row.scan_events_json as JobRecord["scanLogs"]) : [],
+    poRegistryKeys: toJsonArray<string>(row.selected_line_registry_keys).map((item) => String(item)),
+    items: toJsonArray<JobRecord["items"][number]>(row.job_items_json),
+    destinations: toJsonArray<Partial<JobRecord["destinations"][number]>>(row.delivery_destinations_json).map(
+      normalizeJobDestination,
+    ),
+    alerts: toJsonArray<JobRecord["alerts"][number]>(row.job_alerts_json),
+    scanLogs: toJsonArray<JobRecord["scanLogs"][number]>(row.scan_events_json),
     completedAt: toOptionalIsoString(row.completed_at),
     archivedAt: toOptionalIsoString(row.archived_at) ?? new Date(0).toISOString(),
     deleteAfterAt: toOptionalIsoString(row.delete_after_at) ?? new Date(0).toISOString(),
@@ -324,15 +339,13 @@ export function mapDatabaseJob(row: DatabaseRow): JobRecord {
     allowOriginRecheckAfterLocked: Boolean(row.allow_origin_recheck_after_locked),
     allowDestinationBeforeFullyLoaded: Boolean(row.allow_destination_before_fully_loaded),
     note: String(row.job_note ?? ""),
-    poRegistryKeys: Array.isArray(row.selected_line_registry_keys)
-      ? row.selected_line_registry_keys.map((item) => String(item))
-      : [],
-    items: Array.isArray(row.job_items_json) ? (row.job_items_json as JobRecord["items"]) : [],
-    destinations: Array.isArray(row.delivery_destinations_json)
-      ? (row.delivery_destinations_json as Partial<JobRecord["destinations"][number]>[]).map(normalizeJobDestination)
-      : [],
-    alerts: Array.isArray(row.job_alerts_json) ? (row.job_alerts_json as JobRecord["alerts"]) : [],
-    scanLogs: Array.isArray(row.scan_events_json) ? (row.scan_events_json as JobRecord["scanLogs"]) : [],
+    poRegistryKeys: toJsonArray<string>(row.selected_line_registry_keys).map((item) => String(item)),
+    items: toJsonArray<JobRecord["items"][number]>(row.job_items_json),
+    destinations: toJsonArray<Partial<JobRecord["destinations"][number]>>(row.delivery_destinations_json).map(
+      normalizeJobDestination,
+    ),
+    alerts: toJsonArray<JobRecord["alerts"][number]>(row.job_alerts_json),
+    scanLogs: toJsonArray<JobRecord["scanLogs"][number]>(row.scan_events_json),
     completedAt: toOptionalIsoString(row.completed_at),
     purgeAfterAt: toOptionalIsoString(row.cleanup_after_at),
   };

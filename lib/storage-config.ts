@@ -1,7 +1,7 @@
-import { hasSharedDatabase } from "@/lib/postgres-storage";
+import { getSharedDatabaseProvider, hasSharedDatabase } from "@/lib/postgres-storage";
 
 export type StorageStatus = {
-  mode: "local-file" | "postgres";
+  mode: "local-file" | "postgres" | "mysql";
   shared: boolean;
   hosted: boolean;
   writable: boolean;
@@ -11,15 +11,18 @@ export type StorageStatus = {
 export function getStorageStatus(): StorageStatus {
   const hosted = isHostedRuntime();
   const sharedDatabase = hasSharedDatabase();
+  const provider = getSharedDatabaseProvider();
 
   if (sharedDatabase) {
     return {
-      mode: "postgres",
+      mode: provider === "mysql" ? "mysql" : "postgres",
       shared: true,
       hosted,
       writable: true,
       message:
-        "ระบบกำลังใช้ฐานข้อมูลกลางผ่าน DATABASE_URL ข้อมูลจะเห็นร่วมกันทุกเครื่องและพร้อมสำหรับการใช้งานจริงหลายผู้ใช้",
+        provider === "mysql"
+          ? "ระบบกำลังใช้ฐานข้อมูลกลาง MySQL ข้อมูลจะเห็นร่วมกันทุกเครื่องและพร้อมสำหรับการใช้งานจริงหลายผู้ใช้"
+          : "ระบบกำลังใช้ฐานข้อมูลกลางผ่าน DATABASE_URL ข้อมูลจะเห็นร่วมกันทุกเครื่องและพร้อมสำหรับการใช้งานจริงหลายผู้ใช้",
     };
   }
 

@@ -5,7 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { apiPath } from "@/lib/app-paths";
 
 type StorageStatus = {
-  mode: "local-file" | "postgres";
+  mode: "local-file" | "postgres" | "mysql";
   shared: boolean;
   hosted: boolean;
   writable: boolean;

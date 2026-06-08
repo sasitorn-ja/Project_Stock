@@ -1,10 +1,18 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
+import mysql from "mysql2/promise";
+import type { Pool as MySqlPool, PoolConnection, RowDataPacket, ResultSetHeader } from "mysql2/promise";
 
 const DATABASE_URL = process.env.DATABASE_URL?.trim() ?? "";
 const hasDatabaseUrl = DATABASE_URL.length > 0;
+const MYSQL_URL = process.env.MYSQL_URL?.trim() ?? "";
+const MYSQL_HOST = process.env.MYSQL_HOST?.trim() ?? "";
+const MYSQL_DATABASE = process.env.MYSQL_DATABASE?.trim() ?? "";
+const hasMysqlDatabaseUrl = MYSQL_URL.length > 0 || (MYSQL_HOST.length > 0 && MYSQL_DATABASE.length > 0);
 
 let pool: Pool | null = null;
+let mysqlPool: MySqlPool | null = null;
 let schemaInitializationPromise: Promise<void> | null = null;
+let mysqlSchemaInitializationPromise: Promise<void> | null = null;
 const schemaInitializationLockKey = 24_051_806;
 let lastCleanupAt = Date.now();
 let cleanupPromise: Promise<void> | null = null;
@@ -40,6 +48,36 @@ function getPool() {
   }
 
   return pool;
+}
+
+function getMysqlPool() {
+  if (!hasMysqlDatabaseUrl) {
+    throw new Error("MYSQL_URL หรือ MYSQL_HOST/MYSQL_DATABASE ยังไม่ได้ตั้งค่า");
+  }
+
+  if (!mysqlPool) {
+    mysqlPool = MYSQL_URL
+      ? mysql.createPool({
+          uri: MYSQL_URL,
+          connectionLimit: 10,
+          charset: "utf8mb4",
+          timezone: "Z",
+          supportBigNumbers: true,
+        })
+      : mysql.createPool({
+          host: MYSQL_HOST,
+          port: Number(process.env.MYSQL_PORT || "3306"),
+          user: process.env.MYSQL_USER,
+          password: process.env.MYSQL_PASSWORD,
+          database: MYSQL_DATABASE,
+          connectionLimit: 10,
+          charset: "utf8mb4",
+          timezone: "Z",
+          supportBigNumbers: true,
+        });
+  }
+
+  return mysqlPool;
 }
 
 async function createSchema(client: PoolClient) {
@@ -217,11 +255,167 @@ async function createSchema(client: PoolClient) {
 }
 
 export function hasSharedDatabase() {
-  return hasDatabaseUrl;
+  return hasMysqlDatabaseUrl || hasDatabaseUrl;
+}
+
+export function hasMySQLDatabase() {
+  return hasMysqlDatabaseUrl;
+}
+
+export function getSharedDatabaseProvider() {
+  if (hasMysqlDatabaseUrl) {
+    return "mysql";
+  }
+
+  if (hasDatabaseUrl) {
+    return "postgres";
+  }
+
+  return "local-file";
+}
+
+async function createMySQLSchema(connection: PoolConnection) {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS delivery_job_sequence (
+      id BIGINT NOT NULL AUTO_INCREMENT,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS purchase_order_queue (
+      line_registry_key VARCHAR(255) NOT NULL,
+      purchase_order_number VARCHAR(128) NOT NULL,
+      purchase_order_item_number VARCHAR(128) NOT NULL,
+      first_imported_at DATETIME(3) NOT NULL,
+      last_imported_at DATETIME(3) NOT NULL,
+      import_file_name TEXT NOT NULL,
+      import_sheet_name TEXT NOT NULL,
+      import_row_number INT NOT NULL DEFAULT 0,
+      document_status TEXT NOT NULL,
+      vendor_name TEXT NOT NULL,
+      web_order_number TEXT NOT NULL,
+      plant_code TEXT NOT NULL,
+      business_unit_name TEXT NOT NULL,
+      material_code VARCHAR(255) NOT NULL,
+      material_name TEXT NOT NULL,
+      ordered_quantity_text TEXT NOT NULL,
+      received_quantity_text TEXT NOT NULL,
+      total_amount_text TEXT NOT NULL,
+      import_count INT NOT NULL DEFAULT 1,
+      record_state VARCHAR(32) NOT NULL DEFAULT 'active',
+      assigned_delivery_job_id VARCHAR(80),
+      assigned_to_job_at DATETIME(3),
+      archived_at DATETIME(3),
+      completed_at DATETIME(3),
+      cleanup_after_at DATETIME(3),
+      PRIMARY KEY (line_registry_key),
+      INDEX purchase_order_queue_active_idx (record_state, assigned_delivery_job_id, first_imported_at),
+      INDEX purchase_order_queue_lookup_idx (purchase_order_number, purchase_order_item_number),
+      INDEX purchase_order_queue_material_idx (material_code),
+      INDEX purchase_order_queue_cleanup_idx (cleanup_after_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS delivery_jobs (
+      delivery_job_id VARCHAR(80) NOT NULL,
+      job_room_name TEXT NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      updated_at DATETIME(3) NOT NULL,
+      job_status VARCHAR(32) NOT NULL,
+      driver_name TEXT NOT NULL,
+      vehicle_plate TEXT NOT NULL,
+      origin_location_name TEXT NOT NULL,
+      origin_check_in_coordinates TEXT NOT NULL,
+      origin_checked_in_at DATETIME(3),
+      origin_locked_at DATETIME(3),
+      allow_origin_recheck_after_locked BOOLEAN NOT NULL DEFAULT FALSE,
+      allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE,
+      job_note TEXT NOT NULL,
+      selected_line_registry_keys JSON NOT NULL,
+      job_items_json JSON NOT NULL,
+      delivery_destinations_json JSON NOT NULL,
+      job_alerts_json JSON NOT NULL,
+      scan_events_json JSON NOT NULL,
+      completed_at DATETIME(3),
+      cleanup_after_at DATETIME(3),
+      PRIMARY KEY (delivery_job_id),
+      INDEX delivery_jobs_status_created_idx (job_status, created_at),
+      INDEX delivery_jobs_cleanup_idx (cleanup_after_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS delivery_job_history (
+      delivery_job_id VARCHAR(80) NOT NULL,
+      job_room_name TEXT NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      updated_at DATETIME(3) NOT NULL,
+      job_status VARCHAR(32) NOT NULL,
+      driver_name TEXT NOT NULL,
+      vehicle_plate TEXT NOT NULL,
+      origin_location_name TEXT NOT NULL,
+      origin_check_in_coordinates TEXT NOT NULL,
+      origin_checked_in_at DATETIME(3),
+      origin_locked_at DATETIME(3),
+      allow_origin_recheck_after_locked BOOLEAN NOT NULL DEFAULT FALSE,
+      allow_destination_before_fully_loaded BOOLEAN NOT NULL DEFAULT FALSE,
+      job_note TEXT NOT NULL,
+      selected_line_registry_keys JSON NOT NULL,
+      job_items_json JSON NOT NULL,
+      delivery_destinations_json JSON NOT NULL,
+      job_alerts_json JSON NOT NULL,
+      scan_events_json JSON NOT NULL,
+      completed_at DATETIME(3),
+      archived_at DATETIME(3) NOT NULL,
+      delete_after_at DATETIME(3) NOT NULL,
+      PRIMARY KEY (delivery_job_id),
+      INDEX delivery_job_history_archived_idx (archived_at),
+      INDEX delivery_job_history_delete_idx (delete_after_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS purchase_order_history (
+      archived_from_delivery_job_id VARCHAR(80) NOT NULL,
+      line_registry_key VARCHAR(255) NOT NULL,
+      purchase_order_number VARCHAR(128) NOT NULL,
+      purchase_order_item_number VARCHAR(128) NOT NULL,
+      first_imported_at DATETIME(3) NOT NULL,
+      last_imported_at DATETIME(3) NOT NULL,
+      import_file_name TEXT NOT NULL,
+      import_sheet_name TEXT NOT NULL,
+      import_row_number INT NOT NULL DEFAULT 0,
+      document_status TEXT NOT NULL,
+      vendor_name TEXT NOT NULL,
+      web_order_number TEXT NOT NULL,
+      plant_code TEXT NOT NULL,
+      business_unit_name TEXT NOT NULL,
+      material_code VARCHAR(255) NOT NULL,
+      material_name TEXT NOT NULL,
+      ordered_quantity_text TEXT NOT NULL,
+      received_quantity_text TEXT NOT NULL,
+      total_amount_text TEXT NOT NULL,
+      import_count INT NOT NULL DEFAULT 1,
+      record_state VARCHAR(32) NOT NULL DEFAULT 'completed',
+      assigned_delivery_job_id VARCHAR(80),
+      assigned_to_job_at DATETIME(3),
+      archived_at DATETIME(3) NOT NULL,
+      completed_at DATETIME(3),
+      delete_after_at DATETIME(3) NOT NULL,
+      PRIMARY KEY (archived_from_delivery_job_id, line_registry_key),
+      INDEX purchase_order_history_job_idx (archived_from_delivery_job_id, archived_at),
+      INDEX purchase_order_history_delete_idx (delete_after_at),
+      INDEX purchase_order_history_registry_key_idx (line_registry_key),
+      INDEX purchase_order_history_po_number_idx (purchase_order_number)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
 }
 
 export async function ensurePostgresSchema() {
-  if (!hasSharedDatabase()) {
+  if (!hasDatabaseUrl || hasMysqlDatabaseUrl) {
     return;
   }
 
@@ -245,6 +439,29 @@ export async function ensurePostgresSchema() {
   await schemaInitializationPromise;
 }
 
+export async function ensureMySQLSchema() {
+  if (!hasMysqlDatabaseUrl) {
+    return;
+  }
+
+  if (!mysqlSchemaInitializationPromise) {
+    mysqlSchemaInitializationPromise = (async () => {
+      const connection = await getMysqlPool().getConnection();
+
+      try {
+        await createMySQLSchema(connection);
+      } finally {
+        connection.release();
+      }
+    })().catch((error) => {
+      mysqlSchemaInitializationPromise = null;
+      throw error;
+    });
+  }
+
+  await mysqlSchemaInitializationPromise;
+}
+
 export async function withPostgresClient<T>(callback: (client: PoolClient) => Promise<T>) {
   await ensurePostgresSchema();
   const client = await getPool().connect();
@@ -254,6 +471,36 @@ export async function withPostgresClient<T>(callback: (client: PoolClient) => Pr
   } finally {
     client.release();
   }
+}
+
+export type MySQLClient = PoolConnection;
+export type MySQLRows<T extends RowDataPacket = RowDataPacket> = T[];
+export type MySQLResult = ResultSetHeader;
+
+export async function withMySQLClient<T>(callback: (client: MySQLClient) => Promise<T>) {
+  await ensureMySQLSchema();
+  const connection = await getMysqlPool().getConnection();
+
+  try {
+    return await callback(connection);
+  } finally {
+    connection.release();
+  }
+}
+
+export async function withMySQLTransaction<T>(callback: (client: MySQLClient) => Promise<T>) {
+  return withMySQLClient(async (client) => {
+    await client.beginTransaction();
+
+    try {
+      const result = await callback(client);
+      await client.commit();
+      return result;
+    } catch (error) {
+      await client.rollback();
+      throw error;
+    }
+  });
 }
 
 export async function withPostgresTransaction<T>(callback: (client: PoolClient) => Promise<T>) {
@@ -282,6 +529,31 @@ export async function cleanupExpiredSharedData() {
   }
 
   if (now - lastCleanupAt < cleanupIntervalMs) {
+    return;
+  }
+
+  if (hasMysqlDatabaseUrl) {
+    cleanupPromise = withMySQLTransaction(async (client) => {
+      await client.query(`
+        DELETE FROM delivery_jobs
+        WHERE cleanup_after_at IS NOT NULL
+          AND cleanup_after_at <= UTC_TIMESTAMP(3)
+      `);
+
+      await client.query(`
+        DELETE FROM purchase_order_queue
+        WHERE cleanup_after_at IS NOT NULL
+          AND cleanup_after_at <= UTC_TIMESTAMP(3)
+      `);
+    })
+      .then(() => {
+        lastCleanupAt = Date.now();
+      })
+      .finally(() => {
+        cleanupPromise = null;
+      });
+
+    await cleanupPromise;
     return;
   }
 
