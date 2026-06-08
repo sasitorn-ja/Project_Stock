@@ -1458,7 +1458,10 @@ export function DriverScanner({
                     {items.map((item) => (
                       <div key={item.registryKey} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
                         <div className="flex items-start justify-between gap-3">
-                          <span className="min-w-0 break-words">{item.materialCode || item.registryKey}</span>
+                          <span className="min-w-0 break-words font-semibold text-slate-950">
+                            PO {item.poSapNo || item.registryKey}
+                            {item.poSapItem ? ` / Item ${item.poSapItem}` : ""}
+                          </span>
                           <span className="shrink-0 font-semibold">{item.deliveredQty}/{item.loadedQty}/{item.orderQty}</span>
                         </div>
                         <p className="mt-1 break-words text-xs text-slate-500">

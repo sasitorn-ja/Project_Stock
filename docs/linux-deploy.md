@@ -30,6 +30,14 @@ docker compose logs -f syncdrop
 
 Docker Compose จะสร้าง volume ชื่อ `syncdrop_data` เพื่อให้ local file storage เขียน `/app/data` ได้และไม่หายหลัง recreate container ถึง production ควรตั้ง `DATABASE_URL` เสมอ แต่ volume นี้ช่วยให้ระบบไม่ล้มถ้าอยู่ในโหมด fallback
 
+หลังจาก push โค้ดขึ้น GitHub แล้ว สามารถ deploy เว็บจริงจากเครื่อง dev ได้เร็วขึ้นด้วยคำสั่งเดียว:
+
+```bash
+./scripts/deploy-production.sh
+```
+
+สคริปต์จะ SSH ไปที่ `root@192.168.1.141`, ดึง branch `main` ลง `/opt/syncdrop`, rebuild container และแสดง log ท้ายสุดของ `syncdrop`
+
 ## 3. Nginx
 
 ใช้ `docs/nginx-syncdrop.conf` เป็นตัวอย่าง แล้ว reload nginx

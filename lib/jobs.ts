@@ -256,8 +256,10 @@ export function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-export function getJobItemLabel(item: Pick<JobItemRecord, "materialCode" | "materialName" | "registryKey">) {
-  return item.materialCode || item.materialName || item.registryKey;
+export function getJobItemLabel(item: Pick<JobItemRecord, "poSapNo" | "poSapItem" | "materialName" | "registryKey">) {
+  const poLabel = item.poSapNo ? `PO ${item.poSapNo}${item.poSapItem ? ` / Item ${item.poSapItem}` : ""}` : "";
+
+  return poLabel || item.materialName || item.registryKey;
 }
 
 function parseSortableNumber(value: string) {
