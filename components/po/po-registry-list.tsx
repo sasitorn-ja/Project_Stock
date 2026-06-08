@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 import { withBasePath } from "@/lib/app-paths";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { clearPORegistry, getPORecordsByPoSapNos, getPORecordsPage, type PORegistryRecord } from "@/lib/po-import-db";
+import {
+  clearPORegistry,
+  deletePORecords,
+  getPORecordsByPoSapNos,
+  getPORecordsPage,
+  type PORegistryRecord,
+} from "@/lib/po-import-db";
 
 const selectedPOStorageKey = "project-stock.selected-po-registry-keys";
 
@@ -244,6 +250,39 @@ export function PORegistryList() {
     }
   }
 
+  async function deleteSelectedRecords() {
+    if (!selectedKeys.length) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ลบ PO ที่เลือก ${selectedPoCount.toLocaleString("th-TH")} รายการออกจากคิวรอจัดส่งหรือไม่`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError("");
+      setSuccessMessage("");
+      const deletedCount = await deletePORecords(selectedKeys);
+      setSelectedKeys([]);
+      setPage(1);
+      setSuccessMessage(
+        deletedCount > 0
+          ? `ลบ PO ที่เลือกแล้ว ${deletedCount.toLocaleString("th-TH")} รายการ`
+          : "ไม่มี PO ที่ลบได้ รายการอาจถูกนำไปสร้าง Job แล้ว",
+      );
+      setReloadToken((current) => current + 1);
+    } catch {
+      setError("ลบ PO ที่เลือกไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -298,6 +337,17 @@ export function PORegistryList() {
                 className="whitespace-nowrap"
               >
                 ยกเลิกการเลือก
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void deleteSelectedRecords()}
+                disabled={isLoading}
+                className="whitespace-nowrap border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                ลบรายการที่เลือก
               </Button>
               <Button
                 type="button"
