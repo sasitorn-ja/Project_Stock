@@ -1,8 +1,9 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRightLeft, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, RotateCcw, Save, Truck, X } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, RotateCcw, Save, Truck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,6 +94,7 @@ export function JobCreator() {
   const [roomName, setRoomName] = useState("");
   const [driver, setDriver] = useState("");
   const [driverSuggestions, setDriverSuggestions] = useState<{ name: string; count: number }[]>([]);
+  const [isDriverMenuOpen, setIsDriverMenuOpen] = useState(false);
   const [vehicle, setVehicle] = useState("");
   const [origin, setOrigin] = useState("CPAC บางซ่อน");
   const [note, setNote] = useState("");
@@ -259,6 +261,15 @@ export function JobCreator() {
   const currentDestinationsPage = Math.min(destinationsPage, destinationsTotalPages);
   const destinationsStart = (currentDestinationsPage - 1) * DESTINATIONS_PER_PAGE;
   const pagedDestinations = groupedDestinations.slice(destinationsStart, destinationsStart + DESTINATIONS_PER_PAGE);
+  const filteredDriverSuggestions = useMemo(() => {
+    const normalizedDriver = driver.trim().toLowerCase();
+
+    if (!normalizedDriver) {
+      return driverSuggestions;
+    }
+
+    return driverSuggestions.filter((suggestion) => suggestion.name.toLowerCase().includes(normalizedDriver));
+  }, [driver, driverSuggestions]);
 
   function getPoScanQuantity(record: PORegistryRecord) {
     const firstRegistryKey = firstRegistryKeyByPoSapNo[record.poSapNo] ?? record.registryKey;
@@ -588,27 +599,78 @@ export function JobCreator() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="driver">คนขับ</Label>
-              <Input
-                id="driver"
-                list="driver-suggestions"
-                value={driver}
-                aria-invalid={Boolean(fieldErrors.driver)}
-                onChange={(event) => {
-                  clearFieldError("driver");
-                  setDriver(event.target.value);
-                }}
-                placeholder="ชื่อคนขับ"
-                className={getInputClassName("driver")}
-              />
-              <datalist id="driver-suggestions">
-                {driverSuggestions.map((suggestion) => (
-                  <option
-                    key={suggestion.name}
-                    value={suggestion.name}
-                    label={`${suggestion.count.toLocaleString("th-TH")} ครั้ง`}
+              <DropdownMenu.Root open={isDriverMenuOpen} onOpenChange={setIsDriverMenuOpen}>
+                <div className="relative">
+                  <Input
+                    id="driver"
+                    value={driver}
+                    aria-invalid={Boolean(fieldErrors.driver)}
+                    onFocus={() => {
+                      if (driverSuggestions.length) {
+                        setIsDriverMenuOpen(true);
+                      }
+                    }}
+                    onChange={(event) => {
+                      clearFieldError("driver");
+                      setDriver(event.target.value);
+                      if (driverSuggestions.length) {
+                        setIsDriverMenuOpen(true);
+                      }
+                    }}
+                    placeholder="ชื่อคนขับ"
+                    className={cn(getInputClassName("driver"), "pr-10")}
                   />
-                ))}
-              </datalist>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      type="button"
+                      aria-label="เลือกคนขับ"
+                      disabled={!driverSuggestions.length}
+                      className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 outline-none transition hover:bg-slate-100 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronDown className="size-4" />
+                    </button>
+                  </DropdownMenu.Trigger>
+                </div>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    align="start"
+                    sideOffset={8}
+                    className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] min-w-72 overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+                  >
+                    {filteredDriverSuggestions.length ? (
+                      filteredDriverSuggestions.map((suggestion) => {
+                        const isSelected = suggestion.name === driver.trim();
+
+                        return (
+                          <DropdownMenu.Item
+                            key={suggestion.name}
+                            onSelect={() => {
+                              clearFieldError("driver");
+                              setDriver(suggestion.name);
+                            }}
+                            className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
+                          >
+                            <span className="flex size-4 shrink-0 items-center justify-center">
+                              {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-semibold">{suggestion.name}</span>
+                              <span className="mt-0.5 block text-xs text-slate-500">
+                                ใช้แล้ว {suggestion.count.toLocaleString("th-TH")} ครั้ง
+                              </span>
+                            </span>
+                            <Badge variant="secondary" className="shrink-0">
+                              {suggestion.count.toLocaleString("th-TH")}
+                            </Badge>
+                          </DropdownMenu.Item>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2.5 text-sm text-slate-500">ไม่พบชื่อที่ใช้เกิน 2 ครั้ง</div>
+                    )}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
               {renderFieldError("driver")}
             </div>
             <div className="space-y-1.5">
