@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
-import { createJob } from "@/lib/job-db";
+import { createJob, getDriverSuggestions } from "@/lib/job-db";
 import { getDestinationNameForPORecord } from "@/lib/jobs";
 import { getExistingPORecords, type PORegistryRecord } from "@/lib/po-import-db";
 import { cn } from "@/lib/utils";
@@ -92,6 +92,7 @@ export function JobCreator() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [roomName, setRoomName] = useState("");
   const [driver, setDriver] = useState("");
+  const [driverSuggestions, setDriverSuggestions] = useState<{ name: string; count: number }[]>([]);
   const [vehicle, setVehicle] = useState("");
   const [origin, setOrigin] = useState("CPAC บางซ่อน");
   const [note, setNote] = useState("");
@@ -174,6 +175,18 @@ export function JobCreator() {
     }
 
     loadSelectedRecords();
+  }, []);
+
+  useEffect(() => {
+    async function loadDriverSuggestions() {
+      try {
+        setDriverSuggestions(await getDriverSuggestions());
+      } catch {
+        setDriverSuggestions([]);
+      }
+    }
+
+    loadDriverSuggestions();
   }, []);
 
   const groupedDestinations = useMemo(() => {
@@ -577,6 +590,7 @@ export function JobCreator() {
               <Label htmlFor="driver">คนขับ</Label>
               <Input
                 id="driver"
+                list="driver-suggestions"
                 value={driver}
                 aria-invalid={Boolean(fieldErrors.driver)}
                 onChange={(event) => {
@@ -586,6 +600,15 @@ export function JobCreator() {
                 placeholder="ชื่อคนขับ"
                 className={getInputClassName("driver")}
               />
+              <datalist id="driver-suggestions">
+                {driverSuggestions.map((suggestion) => (
+                  <option
+                    key={suggestion.name}
+                    value={suggestion.name}
+                    label={`${suggestion.count.toLocaleString("th-TH")} ครั้ง`}
+                  />
+                ))}
+              </datalist>
               {renderFieldError("driver")}
             </div>
             <div className="space-y-1.5">

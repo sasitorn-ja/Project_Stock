@@ -59,6 +59,16 @@ export async function createJob(input: {
   return data.job;
 }
 
+export async function getDriverSuggestions() {
+  const data = await readResponse<{ drivers: { name: string; count: number }[] }>(
+    await fetch(apiPath("/api/jobs/driver-suggestions"), {
+      cache: "no-store",
+    }),
+  );
+
+  return data.drivers;
+}
+
 export async function updateJobItemScanQuantity(input: {
   jobId: string;
   registryKey: string;

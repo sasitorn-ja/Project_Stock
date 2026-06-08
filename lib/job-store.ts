@@ -57,6 +57,11 @@ type JobArchiveStore = {
   jobs: JobArchiveRecord[];
 };
 
+export type DriverSuggestion = {
+  name: string;
+  count: number;
+};
+
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "jobs.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "job-archives.json");
@@ -1146,6 +1151,32 @@ async function listJobArchivesFromMySQL(filters: {
   });
 }
 
+async function listFrequentDriversFromMySQL() {
+  return withMySQLClient(async (client) => {
+    const rows = await queryMySQLRows<{ driver_name: string; usage_count: number }>(client, `
+      SELECT driver_name, COUNT(*) AS usage_count
+      FROM (
+        SELECT TRIM(driver_name) AS driver_name
+        FROM delivery_jobs
+        WHERE TRIM(driver_name) <> ''
+        UNION ALL
+        SELECT TRIM(driver_name) AS driver_name
+        FROM delivery_job_history
+        WHERE TRIM(driver_name) <> ''
+      ) driver_usage
+      GROUP BY driver_name
+      HAVING COUNT(*) > 2
+      ORDER BY usage_count DESC, driver_name ASC
+      LIMIT 20
+    `);
+
+    return rows.map((row) => ({
+      name: String(row.driver_name),
+      count: Number(row.usage_count),
+    }));
+  });
+}
+
 async function getJobFromMySQL(jobId: string) {
   triggerExpiredSharedDataCleanup();
 
@@ -1911,6 +1942,32 @@ async function listJobArchivesFromDatabase(filters: {
       .map((row) => mapDatabaseJobArchive(row))
       .filter((job) => jobMatchesHistoryFilters(job, filters))
       .map((job) => summarizeJobArchive(job));
+  });
+}
+
+async function listFrequentDriversFromDatabase() {
+  return withPostgresClient(async (client) => {
+    const result = await client.query<{ driver_name: string; usage_count: string }>(`
+      SELECT driver_name, COUNT(*)::text AS usage_count
+      FROM (
+        SELECT TRIM(driver_name) AS driver_name
+        FROM delivery_jobs
+        WHERE TRIM(driver_name) <> ''
+        UNION ALL
+        SELECT TRIM(driver_name) AS driver_name
+        FROM delivery_job_history
+        WHERE TRIM(driver_name) <> ''
+      ) driver_usage
+      GROUP BY driver_name
+      HAVING COUNT(*) > 2
+      ORDER BY COUNT(*) DESC, driver_name ASC
+      LIMIT 20
+    `);
+
+    return result.rows.map((row) => ({
+      name: row.driver_name,
+      count: Number(row.usage_count),
+    }));
   });
 }
 
@@ -2975,6 +3032,36 @@ export async function getJobArchive(jobId: string) {
   const job = archiveStore.jobs.find((currentJob) => currentJob.id === jobId);
 
   return job ? summarizeJobArchive(job) : null;
+}
+
+export async function listFrequentDrivers(): Promise<DriverSuggestion[]> {
+  if (hasMySQLDatabase()) {
+    return listFrequentDriversFromMySQL();
+  }
+
+  if (hasSharedDatabase()) {
+    return listFrequentDriversFromDatabase();
+  }
+
+  const store = await readStore();
+  const archiveStore = await readArchiveStore();
+  const driverCounts = new Map<string, number>();
+
+  [...store.jobs, ...archiveStore.jobs].forEach((job) => {
+    const name = job.driver.trim();
+
+    if (!name) {
+      return;
+    }
+
+    driverCounts.set(name, (driverCounts.get(name) ?? 0) + 1);
+  });
+
+  return Array.from(driverCounts.entries())
+    .filter(([, count]) => count > 2)
+    .map(([name, count]) => ({ name, count }))
+    .sort((first, second) => second.count - first.count || first.name.localeCompare(second.name, "th"))
+    .slice(0, 20);
 }
 
 export async function createJob(input: {
