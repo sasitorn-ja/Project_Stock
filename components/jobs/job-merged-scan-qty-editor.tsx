@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { updateJobItemScanQuantity } from "@/lib/job-db";
 
@@ -119,12 +120,23 @@ export function JobMergedScanQtyEditor({
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-end gap-1.5">
-          <QuantityStepper
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={nextValue}
-            min={sumMinimum}
-            onChange={setNextValue}
-            className="w-32 shrink-0"
-            inputClassName="h-8 text-sm"
+            onChange={(event) => {
+              const digits = event.target.value.replace(/\D/g, "");
+              setNextValue(Math.max(sumMinimum, Number(digits) || 0));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && hasChanged) {
+                void handleSave();
+              }
+            }}
+            aria-label="จำนวนที่ต้องสแกน"
+            title="กรอกจำนวนที่ต้องสแกน"
+            className="h-8 w-24 shrink-0 text-center text-base font-bold tabular-nums"
           />
           <Button
             type="button"
