@@ -315,7 +315,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                 : "ยังไม่มีรายการในปลายทางนี้"}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
               {poGroups.map((group) => (
                 <POCard
                   key={group.poSapNo}
@@ -344,7 +344,7 @@ function POCard({
   jobId: string;
   editableScanQty: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const progress =
     completeGroup.required > 0 ? Math.min(100, Math.round((completeGroup.loaded / completeGroup.required) * 100)) : 0;
   const allLoaded = completeGroup.required > 0 && completeGroup.loaded >= completeGroup.required;
@@ -353,16 +353,16 @@ function POCard({
 
   return (
     <div className="min-w-0 overflow-hidden rounded-md border bg-white">
-      <div className="flex min-w-0 flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3 px-3 py-2">
         <button
           type="button"
-          onClick={() => setCollapsed((value) => !value)}
-          aria-expanded={!collapsed}
+          onClick={() => setIsExpanded((value) => !value)}
+          aria-expanded={isExpanded}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-100"
         >
-          <Plus className={cn("h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform", !collapsed && "rotate-45")} />
+          <Plus className={cn("h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform", isExpanded && "rotate-45")} />
           <span className="min-w-0 truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">· {group.items.length} รายการ</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">· {group.items.length} รายการ</span>
           {allDelivered ? (
             <Badge variant="success" className="ml-1 shrink-0">
               <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -370,24 +370,13 @@ function POCard({
             </Badge>
           ) : null}
         </button>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="text-[11px] text-muted-foreground">
-            ขึ้นรถ {completeGroup.loaded.toLocaleString("th-TH")} / {completeGroup.required.toLocaleString("th-TH")}
-          </span>
-          {editableScanQty ? (
-            <div className="w-full sm:w-44">
-              <JobMergedScanQtyEditor jobId={jobId} underlying={underlying} compact />
-            </div>
-          ) : (
-            <div className="rounded-md bg-slate-50 px-3 py-1.5 text-center text-xs">
-              ต้องสแกน <span className="font-semibold text-slate-900">{completeGroup.required.toLocaleString("th-TH")}</span>
-            </div>
-          )}
-        </div>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          ขึ้นรถ {completeGroup.loaded.toLocaleString("th-TH")} / {completeGroup.required.toLocaleString("th-TH")}
+        </span>
       </div>
 
-      <div className="px-3">
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="px-3 pb-2">
+        <div className="h-1 overflow-hidden rounded-full bg-slate-100">
           <div
             className={cn(
               "h-full rounded-full transition-all",
@@ -398,12 +387,26 @@ function POCard({
         </div>
       </div>
 
-      {!collapsed ? (
-        <div className="divide-y border-t mt-2">
-          {group.items.map((item) => (
-            <ItemRow key={item.key} item={item} />
-          ))}
-        </div>
+      {isExpanded ? (
+        <>
+          <div className="flex justify-end border-t bg-slate-50/60 px-3 py-2">
+            {editableScanQty ? (
+              <div className="w-full sm:w-44">
+                <JobMergedScanQtyEditor jobId={jobId} underlying={underlying} compact />
+              </div>
+            ) : (
+              <div className="rounded-md bg-slate-50 px-3 py-1.5 text-center text-xs">
+                ต้องสแกน{" "}
+                <span className="font-semibold text-slate-900">{completeGroup.required.toLocaleString("th-TH")}</span>
+              </div>
+            )}
+          </div>
+          <div className="max-h-80 divide-y overflow-y-auto border-t [scrollbar-width:thin]">
+            {group.items.map((item) => (
+              <ItemRow key={item.key} item={item} />
+            ))}
+          </div>
+        </>
       ) : null}
     </div>
   );
