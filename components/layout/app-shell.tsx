@@ -24,8 +24,8 @@ export function AppShell({ children, session }: { children: React.ReactNode; ses
 
   if (pathname.startsWith("/driver-room") || (pathname === "/driver" && Boolean(searchParams.get("jobId")?.trim()))) {
     return (
-      <div className="min-h-screen bg-[#f5f6f8] text-slate-900">
-        <main className="mx-auto min-h-screen w-full max-w-3xl px-3 py-3 sm:px-4 sm:py-4">{children}</main>
+      <div className="min-h-screen bg-slate-950 text-slate-900">
+        <main className="min-h-screen w-full">{children}</main>
       </div>
     );
   }

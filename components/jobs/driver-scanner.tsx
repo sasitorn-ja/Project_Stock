@@ -897,6 +897,235 @@ export function DriverScanner({
     }
   }
 
+  if (isDedicatedDriverMode) {
+    const currentDestinationItems =
+      mode === "deliver" && currentDestination ? job?.items.filter((item) => item.destinationId === currentDestination.id) ?? [] : [];
+    const activeRequiredTotal =
+      mode === "deliver" ? currentDestinationItems.reduce((sum, item) => sum + item.orderQty, 0) : requiredTotal;
+    const activeTotal =
+      mode === "deliver" ? currentDestinationItems.reduce((sum, item) => sum + item.deliveredQty, 0) : loadedTotal;
+    const remainingTotal = Math.max(activeRequiredTotal - activeTotal, 0);
+    const activeLabel = mode === "deliver" ? "ส่งของ" : "ขึ้นรถ";
+    const activeLocation = mode === "deliver" ? currentDestination?.name || "เลือกปลายทาง" : job?.origin || "ต้นทาง";
+
+    return (
+      <div className="min-h-[100dvh] bg-[#f5f6f8]">
+        {driverNotice ? (
+          <div className="fixed inset-0 z-[100] flex items-end bg-slate-950/70 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="w-full overflow-hidden rounded-lg bg-white shadow-2xl sm:max-w-md">
+              <div
+                className={
+                  driverNotice.tone === "alert"
+                    ? "bg-red-600 px-4 py-4 text-white"
+                    : driverNotice.tone === "success"
+                      ? "bg-emerald-600 px-4 py-4 text-white"
+                      : "bg-sky-600 px-4 py-4 text-white"
+                }
+              >
+                <div className="flex items-center gap-3">
+                  {driverNotice.tone === "alert" ? <AlertTriangle className="size-7 shrink-0" /> : <CheckCircle2 className="size-7 shrink-0" />}
+                  <h2 className="text-xl font-bold">{driverNotice.title}</h2>
+                </div>
+              </div>
+              <div className="space-y-4 p-4">
+                <p className="whitespace-pre-line break-words text-base leading-7 text-slate-900">{driverNotice.message}</p>
+                <Button type="button" className="h-14 w-full text-lg" onClick={closeDriverNotice}>
+                  รับทราบ
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-slate-950">{roomTitle}</p>
+              <p className="truncate text-xs text-slate-500">
+                รถ {job?.vehicle || "-"} · {job?.driver || "-"}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[10px] font-medium uppercase text-slate-500">คงเหลือ</p>
+              <p className="text-xl font-bold tabular-nums text-slate-950">{remainingTotal.toLocaleString("th-TH")}</p>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-3xl p-3">
+          {isLoading ? (
+            <div className="grid min-h-[70dvh] place-items-center text-sm font-medium text-slate-500">กำลังเปิดห้องงาน</div>
+          ) : null}
+
+          {isDedicatedJobUnavailable ? (
+            <div className="grid min-h-[75dvh] place-items-center text-center">
+              <div>
+                <CheckCircle2 className="mx-auto size-16 text-emerald-600" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-950">งานนี้ปิดแล้ว</h2>
+                <p className="mt-2 text-slate-600">ส่งของครบแล้ว ปิดหน้านี้ได้เลย</p>
+              </div>
+            </div>
+          ) : null}
+
+          {isJobCompleted && job ? (
+            <div className="grid min-h-[75dvh] place-items-center text-center">
+              <div className="w-full max-w-sm">
+                <CheckCircle2 className="mx-auto size-20 text-emerald-600" />
+                <h2 className="mt-4 text-3xl font-bold text-slate-950">จบงานแล้ว</h2>
+                <p className="mt-2 text-slate-600">ส่งครบทุกปลายทางเรียบร้อย</p>
+                <div className="mt-6 rounded-lg bg-white p-4 text-lg font-bold shadow-sm">
+                  ส่งแล้ว {deliveredTotal.toLocaleString("th-TH")} รายการ
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!isJobCompleted && isOriginGpsRequired && job ? (
+            <div className="grid min-h-[calc(100dvh-84px)] place-items-center">
+              <div className="w-full max-w-sm text-center">
+                <div className="mx-auto grid size-20 place-items-center rounded-full bg-sky-100 text-sky-700">
+                  <MapPin className="size-10" />
+                </div>
+                <p className="mt-5 text-sm font-medium text-slate-500">เริ่มงานที่</p>
+                <h2 className="mt-1 break-words text-2xl font-bold text-slate-950">{job.origin || "ต้นทาง"}</h2>
+                <Button type="button" className="mt-7 h-16 w-full gap-2 text-lg" onClick={captureOriginGps} disabled={isFetchingOriginGps}>
+                  <MapPin className="size-6" />
+                  {isFetchingOriginGps ? "กำลังเช็กตำแหน่ง" : "เช็กอินและเริ่มงาน"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {!isJobCompleted && !isOriginGpsRequired && shouldShowDestinationOnly && isDestinationGpsRequired ? (
+            <div className="grid min-h-[calc(100dvh-84px)] place-items-center">
+              <div className="w-full max-w-md">
+                <p className="text-center text-sm font-medium text-slate-500">เลือกจุดส่งของ</p>
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger
+                    className="mt-3 flex min-h-16 w-full items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-4 text-left text-base font-bold shadow-sm"
+                    disabled={isSwitchingDestination}
+                  >
+                    <span className="min-w-0 break-words">{isSwitchingDestination ? "กำลังเปลี่ยนปลายทาง" : currentDestination?.name || "เลือกปลายทาง"}</span>
+                    <ChevronDown className="size-5 shrink-0" />
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content className="z-50 max-h-[60dvh] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-lg border bg-white p-1 shadow-xl">
+                      {openDestinations.map((destination) => (
+                        <DropdownMenu.Item
+                          key={destination.id}
+                          onSelect={() => void handleDestinationSelect(destination.id)}
+                          className="cursor-pointer rounded-md px-3 py-3 text-sm font-semibold outline-none focus:bg-slate-100"
+                        >
+                          {destination.name}
+                        </DropdownMenu.Item>
+                      ))}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+                <Button
+                  type="button"
+                  className="mt-4 h-16 w-full gap-2 text-lg"
+                  onClick={captureDestinationGps}
+                  disabled={!currentDestination || isFetchingDestinationGps}
+                >
+                  <MapPin className="size-6" />
+                  {isFetchingDestinationGps ? "กำลังเช็กตำแหน่ง" : "เช็กอินจุดส่งนี้"}
+                </Button>
+                <p className="mt-4 text-center text-xs leading-5 text-slate-500">เลือกผิดสามารถเปลี่ยนจุดส่งก่อนเริ่มสแกนได้</p>
+              </div>
+            </div>
+          ) : null}
+
+          {shouldShowScanPanel ? (
+            <div className="space-y-3">
+              <section className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg bg-white px-3 py-3 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-500">{activeLabel} · {activeTotal.toLocaleString("th-TH")}/{activeRequiredTotal.toLocaleString("th-TH")}</p>
+                  <p className="truncate text-base font-bold text-slate-950">{activeLocation}</p>
+                </div>
+                <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full bg-emerald-500" style={{ width: `${activeRequiredTotal ? Math.min((activeTotal / activeRequiredTotal) * 100, 100) : 0}%` }} />
+                </div>
+              </section>
+
+              <div
+                className={
+                  isCameraScanning
+                    ? "fixed inset-0 z-50 bg-black"
+                    : "relative h-[calc(100dvh-190px)] min-h-[440px] overflow-hidden rounded-lg bg-slate-950"
+                }
+              >
+                <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+
+                <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                  <div className="relative h-[42%] w-[88%] max-w-xl rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]">
+                    {isCameraScanning ? <div className="absolute left-0 right-0 h-0.5 bg-emerald-400" style={{ animation: "scanLine 2s linear infinite", top: "50%" }} /> : null}
+                  </div>
+                </div>
+
+                {isCameraScanning ? (
+                  <>
+                    <div className="absolute left-0 right-0 top-0 z-10 flex items-start justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent px-4 pb-12 pt-4 text-white">
+                      <div className="min-w-0">
+                        <p className="text-xs text-white/70">{activeLabel}</p>
+                        <p className="truncate text-base font-bold">{activeLocation}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs text-white/70">คงเหลือ</p>
+                        <p className="text-2xl font-bold tabular-nums">{remainingTotal.toLocaleString("th-TH")}</p>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 z-[5]" onPointerDown={handleTapToFocus} role="button" aria-label="แตะเพื่อโฟกัสกล้อง" tabIndex={-1}>
+                      {tapIndicator ? (
+                        <div className="pointer-events-none absolute size-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300" style={{ left: tapIndicator.x, top: tapIndicator.y }} />
+                      ) : null}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 bg-gradient-to-t from-black/90 to-transparent px-4 pb-6 pt-16">
+                      {torchSupported ? (
+                        <button type="button" onClick={() => void toggleTorch()} className="grid size-14 place-items-center rounded-full bg-white/15 text-white backdrop-blur" aria-label={torchOn ? "ปิดไฟฉาย" : "เปิดไฟฉาย"}>
+                          {torchOn ? <Flashlight className="size-6" /> : <FlashlightOff className="size-6" />}
+                        </button>
+                      ) : null}
+                      <button type="button" onClick={stopCamera} className="grid size-16 place-items-center rounded-full border-4 border-white bg-red-600 text-white" aria-label="หยุดสแกน">
+                        <Square className="size-6 fill-current" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => void startCamera()} className="absolute inset-0 z-10 grid place-items-center px-4 text-center text-white">
+                    <span>
+                      <span className="mx-auto grid size-20 place-items-center rounded-full bg-white text-slate-950 shadow-xl">
+                        <Camera className="size-9" />
+                      </span>
+                      <span className="mt-4 block text-xl font-bold">เปิดกล้องสแกน</span>
+                      <span className="mt-1 block text-sm text-white/70">สแกนต่อเนื่อง ไม่ต้องเปิดดูรายการ PO</span>
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <details className="rounded-lg bg-white shadow-sm">
+                <summary className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-slate-600">กรอกรหัสแทนกล้อง</summary>
+                <div className="flex gap-2 border-t p-3">
+                  <Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="PO SAP No." />
+                  <Button type="button" onClick={handleScanSubmit} disabled={isSubmitting || !code.trim()}>บันทึก</Button>
+                </div>
+              </details>
+            </div>
+          ) : null}
+        </main>
+
+        <style>{`
+          @keyframes scanLine {
+            0% { top: 8%; }
+            50% { top: 92%; }
+            100% { top: 8%; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3">
       {driverNotice ? (
