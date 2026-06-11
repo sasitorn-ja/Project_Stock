@@ -86,6 +86,7 @@ function PaginationBar({
 export function JobCreator() {
   const router = useRouter();
   const errorBannerRef = useRef<HTMLDivElement>(null);
+  const driverFieldRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<PORegistryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -95,6 +96,7 @@ export function JobCreator() {
   const [driver, setDriver] = useState("");
   const [driverSuggestions, setDriverSuggestions] = useState<{ name: string; count: number }[]>([]);
   const [isDriverMenuOpen, setIsDriverMenuOpen] = useState(false);
+  const [driverMenuWidth, setDriverMenuWidth] = useState<number>();
   const [vehicle, setVehicle] = useState("");
   const [origin, setOrigin] = useState("CPAC บางซ่อน");
   const [note, setNote] = useState("");
@@ -177,6 +179,22 @@ export function JobCreator() {
     }
 
     loadSelectedRecords();
+  }, []);
+
+  useEffect(() => {
+    const driverField = driverFieldRef.current;
+
+    if (!driverField) {
+      return;
+    }
+
+    const updateWidth = () => setDriverMenuWidth(driverField.getBoundingClientRect().width);
+    updateWidth();
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(driverField);
+
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -600,7 +618,7 @@ export function JobCreator() {
             <div className="space-y-1.5">
               <Label htmlFor="driver">คนขับ</Label>
               <DropdownMenu.Root open={isDriverMenuOpen} onOpenChange={setIsDriverMenuOpen}>
-                <div className="relative">
+                <div ref={driverFieldRef} className="relative">
                   <Input
                     id="driver"
                     value={driver}
@@ -633,9 +651,10 @@ export function JobCreator() {
                 </div>
                 <DropdownMenu.Portal>
                   <DropdownMenu.Content
-                    align="start"
+                    align="end"
                     sideOffset={8}
-                    className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] min-w-72 overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+                    style={{ width: driverMenuWidth }}
+                    className="z-50 max-h-72 min-w-0 overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
                   >
                     {filteredDriverSuggestions.length ? (
                       filteredDriverSuggestions.map((suggestion) => {

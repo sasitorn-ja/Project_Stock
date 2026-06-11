@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import QRCode from "react-qr-code";
-import { Check, ChevronDown, Copy, ExternalLink, LockKeyhole, QrCode, ShieldCheck, ShieldOff, Trash2, UnlockKeyhole, X } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, FileText, LockKeyhole, QrCode, ShieldCheck, ShieldOff, Trash2, UnlockKeyhole, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { buildDriverRoomPath, buildDriverRoomUrl } from "@/lib/driver-room";
 import { deleteJob, updateJobDestinationOverride, updateJobOriginOverride } from "@/lib/job-db";
+import { openTransportInvoice } from "@/components/jobs/transport-invoice-button";
 
 const menuItemClass =
   "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40";
@@ -182,6 +183,20 @@ export function JobMonitorActions({
     }
   }
 
+  async function handleTransportInvoice() {
+    const targetWindow = window.open("", "_blank");
+    setIsBusy(true);
+
+    try {
+      await openTransportInvoice(jobId, targetWindow);
+    } catch (error) {
+      targetWindow?.close();
+      window.alert(error instanceof Error ? error.message : "สร้างใบกำกับขนส่งไม่สำเร็จ");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   return (
     <>
       <DropdownMenu.Root>
@@ -238,6 +253,10 @@ export function JobMonitorActions({
                 <UnlockKeyhole className="h-4 w-4 shrink-0 text-slate-500" />
               )}
               {originOverrideEnabled ? "ปิดต้นทางพิเศษ" : "เปิดต้นทางพิเศษ"}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item className={menuItemClass} onSelect={() => void handleTransportInvoice()}>
+              <FileText className="h-4 w-4 shrink-0 text-slate-500" />
+              ใบกำกับขนส่ง
             </DropdownMenu.Item>
             <DropdownMenu.Separator className="my-1 h-px bg-[#f0f2f5]" />
             <DropdownMenu.Item

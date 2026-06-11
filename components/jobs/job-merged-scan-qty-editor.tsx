@@ -20,9 +20,11 @@ type UnderlyingItem = {
 export function JobMergedScanQtyEditor({
   jobId,
   underlying,
+  compact = false,
 }: {
   jobId: string;
   underlying: UnderlyingItem[];
+  compact?: boolean;
 }) {
   const router = useRouter();
 
@@ -149,7 +151,7 @@ export function JobMergedScanQtyEditor({
       {sumMinimum > 0 ? (
         <p className="text-xs text-muted-foreground">ลดต่ำกว่า {sumMinimum} ไม่ได้ เพราะสแกนไปบางส่วนแล้ว</p>
       ) : null}
-      <p className="text-[10px] text-muted-foreground">รวม {underlying.length} รายการย่อย</p>
+      {!compact ? <p className="text-[10px] text-muted-foreground">รวม {underlying.length} รายการย่อย</p> : null}
       {message ? <p className="whitespace-pre-line text-xs text-red-600">{message}</p> : null}
     </div>
   );

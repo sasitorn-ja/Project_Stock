@@ -59,9 +59,9 @@ export function Sidebar({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 h-screen border-r border-[#d8dde6] bg-white text-slate-900 shadow-none transition-transform duration-200 ease-out",
-          "w-72 max-w-[86vw]",
+          "w-64 max-w-[86vw]",
           isMobileOpen ? "translate-x-0" : "-translate-x-full",
-          isOpen ? "lg:translate-x-0 lg:w-64" : "lg:-translate-x-full lg:w-64",
+          isOpen ? "lg:translate-x-0 lg:w-56" : "lg:-translate-x-full lg:w-56",
         )}
       >
         <div className="flex h-full flex-col">

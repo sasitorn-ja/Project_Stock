@@ -83,6 +83,7 @@ function getMysqlPool() {
 async function createSchema(client: PoolClient) {
   await client.query(`
     CREATE SEQUENCE IF NOT EXISTS delivery_job_sequence;
+    CREATE SEQUENCE IF NOT EXISTS transport_document_sequence START WITH 1;
 
     CREATE TABLE IF NOT EXISTS purchase_order_queue (
       line_registry_key TEXT PRIMARY KEY,
@@ -277,6 +278,14 @@ export function getSharedDatabaseProvider() {
 async function createMySQLSchema(connection: PoolConnection) {
   await connection.query(`
     CREATE TABLE IF NOT EXISTS delivery_job_sequence (
+      id BIGINT NOT NULL AUTO_INCREMENT,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS transport_document_sequence (
       id BIGINT NOT NULL AUTO_INCREMENT,
       created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id)

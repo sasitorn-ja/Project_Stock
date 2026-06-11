@@ -10,6 +10,7 @@ import { JobDestinationOverrideButton } from "@/components/jobs/job-destination-
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { JobMonitorActions } from "@/components/jobs/job-monitor-actions";
 import { JobOriginOverrideButton } from "@/components/jobs/job-origin-override-button";
+import { TransportInvoiceButton } from "@/components/jobs/transport-invoice-button";
 import { type JobSummaryRecord } from "@/lib/jobs";
 
 // Toolbar รวม "ห้องคนขับ" + "เพิ่ม PO ระหว่างงาน" + ตั้งค่าพิเศษ + ลบ Job
@@ -88,6 +89,7 @@ export function JobActionToolbar({ job }: { job: JobSummaryRecord }) {
               enabled={Boolean(job.allowOriginRecheckAfterLocked)}
               isOriginLocked={job.isOriginLocked}
             />
+            <TransportInvoiceButton jobId={job.id} />
           </ToolbarGroup>
 
           <div className="ml-auto">

@@ -40,7 +40,7 @@ export function AppShell({ children, session }: { children: React.ReactNode; ses
       <div
         className={cn(
           "min-h-screen transition-[padding-left] duration-200 ease-out",
-          isSidebarOpen ? "lg:pl-64" : "lg:pl-0",
+          isSidebarOpen ? "lg:pl-56" : "lg:pl-0",
         )}
       >
         <Header

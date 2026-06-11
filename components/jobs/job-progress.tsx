@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, MapPin, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { JobItemScanQtyEditor } from "@/components/jobs/job-item-scan-qty-editor";
 import { JobMergedScanQtyEditor } from "@/components/jobs/job-merged-scan-qty-editor";
 import { cn } from "@/lib/utils";
 import { type getJob, type getJobArchive } from "@/lib/job-store";
@@ -164,6 +163,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   );
 
   const poGroups = useMemo(() => groupByPO(filteredItems), [filteredItems]);
+  const completePOGroups = useMemo(() => new Map(groupByPO(mergedItems).map((group) => [group.poSapNo, group])), [mergedItems]);
 
   const statusCounts = useMemo(() => {
     return STATUS_FILTERS.reduce(
@@ -320,6 +320,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                 <POCard
                   key={group.poSapNo}
                   group={group}
+                  completeGroup={completePOGroups.get(group.poSapNo) ?? group}
                   jobId={job.id}
                   editableScanQty={editableScanQty}
                 />
@@ -334,33 +335,32 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
 
 function POCard({
   group,
+  completeGroup,
   jobId,
   editableScanQty,
 }: {
   group: POGroup;
+  completeGroup: POGroup;
   jobId: string;
   editableScanQty: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const progress = group.required > 0 ? Math.min(100, Math.round((group.loaded / group.required) * 100)) : 0;
-  const allLoaded = group.required > 0 && group.loaded >= group.required;
-  const allDelivered = group.required > 0 && group.delivered >= group.required;
+  const progress =
+    completeGroup.required > 0 ? Math.min(100, Math.round((completeGroup.loaded / completeGroup.required) * 100)) : 0;
+  const allLoaded = completeGroup.required > 0 && completeGroup.loaded >= completeGroup.required;
+  const allDelivered = completeGroup.required > 0 && completeGroup.delivered >= completeGroup.required;
+  const underlying = completeGroup.items.flatMap((item) => item.underlying);
 
   return (
     <div className="min-w-0 overflow-hidden rounded-md border bg-white">
-      <button
-        type="button"
-        onClick={() => setCollapsed((value) => !value)}
-        aria-expanded={!collapsed}
-        className="flex w-full min-w-0 flex-col gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-      >
-        <div className="flex min-w-0 max-w-full items-center gap-2">
-          <Plus
-            className={cn(
-              "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
-              !collapsed && "rotate-45",
-            )}
-          />
+      <div className="flex min-w-0 flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-100"
+        >
+          <Plus className={cn("h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform", !collapsed && "rotate-45")} />
           <span className="min-w-0 truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
           <span className="shrink-0 text-xs text-muted-foreground">· {group.items.length} รายการ</span>
           {allDelivered ? (
@@ -369,11 +369,22 @@ function POCard({
               ส่งครบ
             </Badge>
           ) : null}
+        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-[11px] text-muted-foreground">
+            ขึ้นรถ {completeGroup.loaded.toLocaleString("th-TH")} / {completeGroup.required.toLocaleString("th-TH")}
+          </span>
+          {editableScanQty ? (
+            <div className="w-full sm:w-44">
+              <JobMergedScanQtyEditor jobId={jobId} underlying={underlying} compact />
+            </div>
+          ) : (
+            <div className="rounded-md bg-slate-50 px-3 py-1.5 text-center text-xs">
+              ต้องสแกน <span className="font-semibold text-slate-900">{completeGroup.required.toLocaleString("th-TH")}</span>
+            </div>
+          )}
         </div>
-        <span className="w-full shrink-0 text-[11px] text-muted-foreground sm:w-auto sm:text-right">
-          ขึ้นรถ {group.loaded.toLocaleString("th-TH")} / {group.required.toLocaleString("th-TH")}
-        </span>
-      </button>
+      </div>
 
       <div className="px-3">
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -390,7 +401,7 @@ function POCard({
       {!collapsed ? (
         <div className="divide-y border-t mt-2">
           {group.items.map((item) => (
-            <ItemRow key={item.key} item={item} jobId={jobId} editableScanQty={editableScanQty} />
+            <ItemRow key={item.key} item={item} />
           ))}
         </div>
       ) : null}
@@ -400,12 +411,8 @@ function POCard({
 
 function ItemRow({
   item,
-  jobId,
-  editableScanQty,
 }: {
   item: MergedItem;
-  jobId: string;
-  editableScanQty: boolean;
 }) {
   const status = getItemStatus(item);
   const isMerged = item.registryKeys.length > 1;
@@ -432,25 +439,6 @@ function ItemRow({
           </span>
           <span>สั่ง {item.sourceOrderQty || String(item.orderQty || "-")}</span>
         </div>
-      </div>
-      <div className="w-full shrink-0 sm:w-44">
-        {editableScanQty ? (
-          isMerged ? (
-            <JobMergedScanQtyEditor jobId={jobId} underlying={item.underlying} />
-          ) : (
-            <JobItemScanQtyEditor
-              jobId={jobId}
-              registryKey={item.registryKeys[0]}
-              value={item.orderQty}
-              minimum={Math.max(item.loadedQty, item.deliveredQty, 0)}
-            />
-          )
-        ) : (
-          <div className="rounded-md bg-slate-50 px-3 py-2 text-center text-sm">
-            <p className="text-[10px] text-muted-foreground">ต้องสแกน</p>
-            <p className="font-semibold text-slate-900">{item.orderQty}</p>
-          </div>
-        )}
       </div>
     </div>
   );

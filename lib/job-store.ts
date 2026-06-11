@@ -65,8 +65,11 @@ export type DriverSuggestion = {
 const dataDirectoryPath = path.join(process.cwd(), "data");
 const dataFilePath = path.join(dataDirectoryPath, "jobs.json");
 const archiveDataFilePath = path.join(dataDirectoryPath, "job-archives.json");
+const transportDocumentSequenceFilePath = path.join(dataDirectoryPath, "transport-document-sequence.json");
 const retentionWindowMs = 100 * 24 * 60 * 60 * 1000;
 const permanentArchiveDeleteAfterAt = "9999-12-31T23:59:59.999Z";
+let localTransportDocumentSequenceQueue = Promise.resolve();
+let localTransportDocumentAllocationQueue = Promise.resolve();
 
 function buildPlaceholders(values: unknown[]) {
   return values.length ? values.map(() => "?").join(", ") : "NULL";
@@ -198,6 +201,52 @@ async function writeArchiveStore(store: JobArchiveStore) {
 
   await writeFile(temporaryFilePath, contents, "utf8");
   await rename(temporaryFilePath, archiveDataFilePath);
+}
+
+function formatTransportDocumentNo(sequence: number | string) {
+  return `69000-${Number(sequence) || 1}`;
+}
+
+async function getNextLocalTransportDocumentNo() {
+  let releaseQueue: () => void = () => {};
+  const previousQueue = localTransportDocumentSequenceQueue;
+  localTransportDocumentSequenceQueue = new Promise<void>((resolve) => {
+    releaseQueue = resolve;
+  });
+  await previousQueue;
+
+  try {
+    await mkdir(dataDirectoryPath, { recursive: true });
+    let current = 0;
+
+    try {
+      const contents = await readFile(transportDocumentSequenceFilePath, "utf8");
+      current = Number((JSON.parse(contents) as { value?: number }).value) || 0;
+    } catch {
+      current = 0;
+    }
+
+    const next = current + 1;
+    await writeFile(transportDocumentSequenceFilePath, JSON.stringify({ value: next }, null, 2), "utf8");
+    return formatTransportDocumentNo(next);
+  } finally {
+    releaseQueue();
+  }
+}
+
+async function withLocalTransportDocumentAllocation<T>(callback: () => Promise<T>) {
+  let releaseQueue: () => void = () => {};
+  const previousQueue = localTransportDocumentAllocationQueue;
+  localTransportDocumentAllocationQueue = new Promise<void>((resolve) => {
+    releaseQueue = resolve;
+  });
+  await previousQueue;
+
+  try {
+    return await callback();
+  } finally {
+    releaseQueue();
+  }
 }
 
 function updateJobStatus(job: JobRecord) {
@@ -2970,6 +3019,88 @@ export async function getJob(jobId: string) {
   const job = store.jobs.find((currentJob) => currentJob.id === jobId && currentJob.status !== "completed");
 
   return job ? summarizeJob(job) : null;
+}
+
+export async function ensureJobTransportDocumentNumbers(jobId: string) {
+  if (hasMySQLDatabase()) {
+    return withMySQLTransaction(async (client) => {
+      const rows = await queryMySQLRows(client, "SELECT * FROM delivery_jobs WHERE delivery_job_id = ? AND completed_at IS NULL FOR UPDATE", [
+        jobId,
+      ]);
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+      }
+
+      const job = mapDatabaseJob(row);
+
+      for (const destination of job.destinations) {
+        if (!destination.transportDocumentNo) {
+          const result = await queryMySQLResult(client, "INSERT INTO transport_document_sequence () VALUES ()");
+          destination.transportDocumentNo = formatTransportDocumentNo(result.insertId);
+        }
+      }
+
+      await client.query(
+        "UPDATE delivery_jobs SET delivery_destinations_json = CAST(? AS JSON) WHERE delivery_job_id = ?",
+        [JSON.stringify(job.destinations), job.id],
+      );
+
+      return summarizeJob(job);
+    });
+  }
+
+  if (hasSharedDatabase()) {
+    return withPostgresTransaction(async (client) => {
+      const result = await client.query(
+        "SELECT * FROM delivery_jobs WHERE delivery_job_id = $1 AND completed_at IS NULL FOR UPDATE",
+        [jobId],
+      );
+      const row = result.rows[0];
+
+      if (!row) {
+        throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+      }
+
+      const job = mapDatabaseJob(row);
+
+      for (const destination of job.destinations) {
+        if (!destination.transportDocumentNo) {
+          const sequenceResult = await client.query<{ value: string }>(
+            "SELECT nextval('transport_document_sequence')::text AS value",
+          );
+          destination.transportDocumentNo = formatTransportDocumentNo(sequenceResult.rows[0]?.value ?? "1");
+        }
+      }
+
+      await client.query("UPDATE delivery_jobs SET delivery_destinations_json = $1::jsonb WHERE delivery_job_id = $2", [
+        JSON.stringify(job.destinations),
+        job.id,
+      ]);
+
+      return summarizeJob(job);
+    });
+  }
+
+  assertWritableStorage();
+  return withLocalTransportDocumentAllocation(async () => {
+    const store = await readStore();
+    const job = store.jobs.find((currentJob) => currentJob.id === jobId && currentJob.status !== "completed");
+
+    if (!job) {
+      throw new Error("ไม่พบ Job ที่ยังเปิดอยู่");
+    }
+
+    for (const destination of job.destinations) {
+      if (!destination.transportDocumentNo) {
+        destination.transportDocumentNo = await getNextLocalTransportDocumentNo();
+      }
+    }
+
+    await writeStore(store);
+    return summarizeJob(job);
+  });
 }
 
 export async function deleteJob(jobId: string) {

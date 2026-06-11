@@ -31,6 +31,7 @@ export type JobDestinationRecord = {
   radiusMeters: number;
   deliveryGps: string;
   deliveryCheckedInAt?: string;
+  transportDocumentNo?: string;
 };
 
 export type JobDestinationOverrideInput = {
@@ -235,6 +236,7 @@ export function normalizeJobDestination(destination: Partial<JobDestinationRecor
     radiusMeters: Number(destination.radiusMeters ?? 150),
     deliveryGps: String(destination.deliveryGps ?? ""),
     deliveryCheckedInAt: destination.deliveryCheckedInAt ? String(destination.deliveryCheckedInAt) : undefined,
+    transportDocumentNo: destination.transportDocumentNo ? String(destination.transportDocumentNo) : undefined,
   };
 }
 
