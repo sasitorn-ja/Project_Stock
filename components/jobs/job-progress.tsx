@@ -39,15 +39,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 ];
 const PO_GROUPS_PER_PAGE = 20;
 
-function itemMatchesStatus(item: MergedItem, status: StatusFilter) {
-  const order = Math.max(0, item.orderQty);
-  if (status === "all") return true;
-  if (status === "waitLoad") return order > 0 && item.loadedQty < order;
-  if (status === "loaded") return order > 0 && item.loadedQty >= order && item.deliveredQty < order;
-  if (status === "delivered") return order > 0 && item.deliveredQty >= order;
-  return true;
-}
-
 function itemMatchesSearch(item: MergedItem, query: string) {
   if (!query) return true;
   const needle = query.trim().toLowerCase();
@@ -145,6 +136,14 @@ function groupByPO(items: MergedItem[]): POGroup[] {
   return Array.from(map.values()).sort((a, b) => a.poSapNo.localeCompare(b.poSapNo));
 }
 
+function poGroupMatchesStatus(group: POGroup, status: StatusFilter) {
+  if (status === "all") return true;
+  if (status === "waitLoad") return group.required > 0 && group.loaded < group.required;
+  if (status === "loaded") return group.required > 0 && group.loaded >= group.required && group.delivered < group.required;
+  if (status === "delivered") return group.required > 0 && group.delivered >= group.required;
+  return true;
+}
+
 export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; editableScanQty?: boolean }) {
   const destinations = job.destinations;
   const [activeId, setActiveId] = useState<string>(() => destinations[0]?.id ?? "");
@@ -159,17 +158,19 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
     return mergeDuplicateItems(active.items);
   }, [active]);
 
-  const filteredItems = useMemo(
-    () => mergedItems.filter((item) => itemMatchesSearch(item, query) && itemMatchesStatus(item, statusFilter)),
-    [mergedItems, query, statusFilter],
+  const allPOGroups = useMemo(() => groupByPO(mergedItems), [mergedItems]);
+  const poGroups = useMemo(
+    () =>
+      allPOGroups.filter(
+        (group) => group.items.some((item) => itemMatchesSearch(item, query)) && poGroupMatchesStatus(group, statusFilter),
+      ),
+    [allPOGroups, query, statusFilter],
   );
-
-  const poGroups = useMemo(() => groupByPO(filteredItems), [filteredItems]);
   const poPageCount = Math.max(1, Math.ceil(poGroups.length / PO_GROUPS_PER_PAGE));
   const safePoPage = Math.min(poPage, poPageCount);
   const poPageStart = (safePoPage - 1) * PO_GROUPS_PER_PAGE;
   const visiblePOGroups = poGroups.slice(poPageStart, poPageStart + PO_GROUPS_PER_PAGE);
-  const completePOGroups = useMemo(() => new Map(groupByPO(mergedItems).map((group) => [group.poSapNo, group])), [mergedItems]);
+  const completePOGroups = useMemo(() => new Map(allPOGroups.map((group) => [group.poSapNo, group])), [allPOGroups]);
 
   useEffect(() => {
     setPoPage(1);
@@ -178,12 +179,16 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   const statusCounts = useMemo(() => {
     return STATUS_FILTERS.reduce(
       (acc, filter) => {
-        acc[filter.value] = mergedItems.filter((item) => itemMatchesStatus(item, filter.value)).length;
+        acc[filter.value] = allPOGroups.filter((group) => poGroupMatchesStatus(group, filter.value)).length;
         return acc;
       },
       { all: 0, waitLoad: 0, loaded: 0, delivered: 0 } as Record<StatusFilter, number>,
     );
-  }, [mergedItems]);
+  }, [allPOGroups]);
+  const totalPOCount = useMemo(
+    () => new Set(destinations.flatMap((destination) => destination.items.map((item) => item.poSapNo))).size,
+    [destinations],
+  );
 
   if (!destinations.length) {
     return (
@@ -202,7 +207,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
         <h3 className="text-sm font-semibold text-slate-900">แผนส่ง / PO</h3>
         <p className="text-xs text-muted-foreground">
           {destinations.length.toLocaleString("th-TH")} ปลายทาง ·{" "}
-          {destinations.reduce((sum, destination) => sum + destination.items.length, 0).toLocaleString("th-TH")} รายการ
+          {totalPOCount.toLocaleString("th-TH")} PO
         </p>
       </div>
 
@@ -232,7 +237,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                   isActive ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-600",
                 )}
               >
-                {destination.items.length.toLocaleString("th-TH")}
+                {new Set(destination.items.map((item) => item.poSapNo)).size.toLocaleString("th-TH")}
               </span>
             </button>
           );
@@ -328,7 +333,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
             <div className="overflow-hidden rounded-md border">
               <div className="hidden grid-cols-[minmax(0,1fr)_88px_128px_216px] items-center gap-3 border-b bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 lg:grid">
                 <span>PO / รายละเอียด</span>
-                <span className="text-center">รายการ</span>
+                <span className="text-center">Item</span>
                 <span className="text-center">สถานะ</span>
                 <span className="text-right">จำนวนที่ต้องสแกน</span>
               </div>

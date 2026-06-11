@@ -220,7 +220,9 @@ export function JobCreator() {
       const address = draft?.address || name;
       const current = groups.get(id) ?? { id, name, address, totalQty: 0, poCount: 0, records: [] };
       current.totalQty += Number(record.orderQty.replace(/,/g, "")) || 0;
-      current.poCount += 1;
+      if (!current.records.some((currentRecord) => currentRecord.poSapNo === record.poSapNo)) {
+        current.poCount += 1;
+      }
       current.records.push(record);
       groups.set(id, current);
     });
@@ -262,6 +264,7 @@ export function JobCreator() {
   }, [activeDestinationId, groupedDestinations]);
 
   const recordsTotalPages = Math.max(1, Math.ceil(records.length / RECORDS_PER_PAGE));
+  const selectedPoCount = new Set(records.map((record) => record.poSapNo)).size;
   const currentRecordsPage = Math.min(recordsPage, recordsTotalPages);
   const recordsStart = (currentRecordsPage - 1) * RECORDS_PER_PAGE;
   const pagedRecords = records.slice(recordsStart, recordsStart + RECORDS_PER_PAGE);
@@ -738,12 +741,13 @@ export function JobCreator() {
                 <div className="min-w-0">
                   <CardTitle className="flex items-center gap-2">
                     <ClipboardCheck className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
-                    รายการที่เลือกจาก PO รอจัดส่ง
+                    PO ที่เลือกจากคิวรอจัดส่ง
                   </CardTitle>
                   <CardDescription className="mt-1">ปรับจำนวนที่ต้องสแกนได้ก่อนยืนยันสร้างงาน</CardDescription>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{records.length.toLocaleString("th-TH")} รายการ</Badge>
+                  <Badge variant="secondary">{selectedPoCount.toLocaleString("th-TH")} PO</Badge>
+                  <Badge variant="outline">{records.length.toLocaleString("th-TH")} Item</Badge>
                   <Badge variant="secondary">{groupedDestinations.length.toLocaleString("th-TH")} ปลายทาง</Badge>
                 </div>
               </div>
@@ -854,7 +858,7 @@ export function JobCreator() {
                   totalPages={recordsTotalPages}
                   totalItems={records.length}
                   pageSize={RECORDS_PER_PAGE}
-                  unitLabel="รายการ"
+                  unitLabel="Item"
                   onPrev={() => setRecordsPage(Math.max(1, currentRecordsPage - 1))}
                   onNext={() => setRecordsPage(Math.min(recordsTotalPages, currentRecordsPage + 1))}
                   className="border-t"
@@ -893,7 +897,7 @@ export function JobCreator() {
                           {destinationDrafts[destination.id]?.name || destination.name}
                         </p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {destination.poCount.toLocaleString("th-TH")} รายการ · จำนวนสั่งซื้อ {destination.totalQty.toLocaleString("th-TH")}
+                          {destination.poCount.toLocaleString("th-TH")} PO · จำนวนสั่งซื้อ {destination.totalQty.toLocaleString("th-TH")}
                         </p>
                       </div>
                     </div>
@@ -922,7 +926,7 @@ export function JobCreator() {
                         <span className="truncate">คลิกเพื่อย้าย PO อื่นมาปลายทางนี้</span>
                       </span>
                       <Badge variant={destination.poCount ? "success" : "secondary"} className="shrink-0">
-                        {destination.poCount.toLocaleString("th-TH")} รายการ
+                        {destination.poCount.toLocaleString("th-TH")} PO
                       </Badge>
                     </Button>
                   </div>
