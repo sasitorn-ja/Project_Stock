@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, type PDFFont, type PDFPage, rgb } from "pdf-lib";
+import { PDFDocument, type PDFFont, type PDFImage, type PDFPage, rgb } from "pdf-lib";
 import type { JobSummaryRecord } from "@/lib/jobs";
 
 const rowsPerPage = 30;
@@ -137,9 +137,28 @@ function drawSignatureArea(page: PDFPage, font: PDFFont) {
   drawCenteredText(page, "ระยะเวลาการจัดเก็บ 12 เดือน", 288, 15, font, 8.5);
 }
 
+function drawSystemCredit(page: PDFPage, font: PDFFont, logo: PDFImage) {
+  const text = "พิมพ์จากระบบ SyncDrop";
+  const fontSize = 7.5;
+  const logoWidth = 14;
+  const logoHeight = 12;
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  const right = 563;
+  const textX = right - textWidth;
+
+  page.drawImage(logo, {
+    x: textX - logoWidth - 4,
+    y: 7,
+    width: logoWidth,
+    height: logoHeight,
+  });
+  drawText(page, text, textX, 9, font, fontSize);
+}
+
 function drawPage(
   page: PDFPage,
   font: PDFFont,
+  logo: PDFImage,
   job: JobSummaryRecord,
   destination: JobSummaryRecord["destinations"][number],
   rows: TransportRow[],
@@ -190,6 +209,7 @@ function drawPage(
   }
 
   drawSignatureArea(page, font);
+  drawSystemCredit(page, font, logo);
 }
 
 export async function buildTransportInvoicePdf(job: JobSummaryRecord) {
@@ -197,11 +217,13 @@ export async function buildTransportInvoicePdf(job: JobSummaryRecord) {
   document.registerFontkit(fontkit);
   const fontBytes = await readFile(path.join(process.cwd(), "public", "fonts", "THSarabunPSK-Regular.ttf"));
   const font = await document.embedFont(fontBytes, { subset: true });
+  const logoBytes = await readFile(path.join(process.cwd(), "public", "logo.png"));
+  const logo = await document.embedPng(logoBytes);
 
   job.destinations.forEach((destination) => {
     splitPages(buildRows(destination), rowsPerPage).forEach((rows, pageIndex) => {
       const page = document.addPage([pageWidth, pageHeight]);
-      drawPage(page, font, job, destination, rows, pageIndex * rowsPerPage);
+      drawPage(page, font, logo, job, destination, rows, pageIndex * rowsPerPage);
     });
   });
 
