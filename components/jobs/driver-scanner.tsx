@@ -14,9 +14,11 @@ import {
   Flashlight,
   FlashlightOff,
   Info,
+  List,
   MapPin,
   QrCode,
   ScanLine,
+  Search,
   Square,
   Truck,
   X,
@@ -238,6 +240,8 @@ export function DriverScanner({
   const [isFetchingDestinationGps, setIsFetchingDestinationGps] = useState(false);
   const [isSwitchingDestination, setIsSwitchingDestination] = useState(false);
   const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
+  const [isDriverItemListOpen, setIsDriverItemListOpen] = useState(false);
+  const [driverItemSearch, setDriverItemSearch] = useState("");
   const autoStartAttemptRef = useRef("");
 
   useEffect(() => {
@@ -344,6 +348,38 @@ export function DriverScanner({
         ? "สแกนส่งของ"
         : "กดเช็กอินปลายทาง";
   const isDedicatedJobUnavailable = Boolean(initialJobId) && !isLoading && !job;
+  const driverVisibleItems = useMemo(() => {
+    if (!job) {
+      return [];
+    }
+
+    const normalizedSearch = driverItemSearch.trim().toLowerCase();
+
+    return job.items
+      .filter((item) => mode !== "deliver" || item.destinationId === currentDestination?.id)
+      .map((item) => {
+        const completedQty = mode === "deliver" ? item.deliveredQty : item.loadedQty;
+        return {
+          ...item,
+          completedQty,
+          remainingQty: Math.max(item.orderQty - completedQty, 0),
+        };
+      })
+      .filter((item) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        return [item.poSapNo, item.poSapItem, item.materialCode, item.materialName]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+      })
+      .sort((a, b) => {
+        if (a.remainingQty > 0 && b.remainingQty === 0) return -1;
+        if (a.remainingQty === 0 && b.remainingQty > 0) return 1;
+        return String(a.poSapNo || a.registryKey).localeCompare(String(b.poSapNo || b.registryKey));
+      });
+  }, [currentDestination?.id, driverItemSearch, job, mode]);
 
   useEffect(() => {
     if (isJobCompleted) {
@@ -910,6 +946,74 @@ export function DriverScanner({
 
     return (
       <div className="min-h-[100dvh] bg-[#f5f6f8]">
+        {isDriverItemListOpen ? (
+          <div className="fixed inset-0 z-[80] flex flex-col bg-[#f5f6f8]">
+            <header className="border-b border-slate-200 bg-white px-3 py-3">
+              <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">รายการที่ต้องสแกน</h2>
+                  <p className="text-xs text-slate-500">{mode === "deliver" ? currentDestination?.name || "ปลายทาง" : "สินค้าขึ้นรถ"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDriverItemListOpen(false)}
+                  className="grid size-11 place-items-center rounded-full border border-slate-300 bg-white text-slate-700"
+                  aria-label="ปิดรายการสินค้า"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+            </header>
+            <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 p-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={driverItemSearch}
+                  onChange={(event) => setDriverItemSearch(event.target.value)}
+                  className="h-12 bg-white pl-10 text-base"
+                  placeholder="ค้นหา PO หรือชื่อสินค้า"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                <span>{driverVisibleItems.length.toLocaleString("th-TH")} รายการ</span>
+                <span>รายการคงเหลืออยู่ด้านบน</span>
+              </div>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
+                {driverVisibleItems.length ? (
+                  driverVisibleItems.map((item) => (
+                    <div
+                      key={item.registryKey}
+                      className={item.remainingQty > 0 ? "rounded-lg border border-slate-200 bg-white p-3" : "rounded-lg border border-emerald-200 bg-emerald-50 p-3"}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-base font-bold text-slate-950">
+                            PO {item.poSapNo || item.registryKey}
+                            {item.poSapItem ? ` · Item ${item.poSapItem}` : ""}
+                          </p>
+                          <p className="mt-1 break-words text-sm text-slate-600">{item.materialName || item.materialCode || "-"}</p>
+                        </div>
+                        <div className={item.remainingQty > 0 ? "shrink-0 rounded-md bg-amber-100 px-3 py-2 text-center text-amber-950" : "shrink-0 rounded-md bg-emerald-600 px-3 py-2 text-center text-white"}>
+                          <p className="text-[10px] font-medium">{item.remainingQty > 0 ? "เหลือ" : "ครบแล้ว"}</p>
+                          <p className="text-xl font-bold tabular-nums">{item.remainingQty.toLocaleString("th-TH")}</p>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        สแกนแล้ว {item.completedQty.toLocaleString("th-TH")} / {item.orderQty.toLocaleString("th-TH")}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-sm text-slate-500">
+                    ไม่พบรายการที่ค้นหา
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {driverNotice ? (
           <div className="fixed inset-0 z-[100] flex items-end bg-slate-950/70 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
             <div className="w-full overflow-hidden rounded-lg bg-white shadow-2xl sm:max-w-md">
@@ -1047,6 +1151,11 @@ export function DriverScanner({
                   <div className="h-full bg-emerald-500" style={{ width: `${activeRequiredTotal ? Math.min((activeTotal / activeRequiredTotal) * 100, 100) : 0}%` }} />
                 </div>
               </section>
+
+              <Button type="button" variant="outline" className="h-12 w-full gap-2 bg-white text-base" onClick={() => setIsDriverItemListOpen(true)}>
+                <List className="size-5" />
+                ดูรายการ PO และสินค้าที่ต้องสแกน
+              </Button>
 
               <div
                 className={
