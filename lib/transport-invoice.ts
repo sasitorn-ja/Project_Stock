@@ -135,6 +135,7 @@ function drawPage(
   job: JobSummaryRecord,
   destination: JobSummaryRecord["destinations"][number],
   rows: TransportRow[],
+  rowNumberOffset: number,
 ) {
   drawCenteredText(page, "บริษัท ปูนซิเมนต์ไทย (ท่าหลวง) จำกัด", pageWidth / 2, 805, font, 17);
   drawCenteredText(page, "ใบกำกับขนส่ง", pageWidth / 2, 784, font, 14);
@@ -164,7 +165,7 @@ function drawPage(
     const rowBottom = rowTop - rowHeight;
     const row = rows[index];
     drawLine(page, tableLeft, rowBottom, tableRight, rowBottom, 0.7);
-    drawCenteredText(page, String(index + 1), (columns[0] + columns[1]) / 2, rowBottom + 4.2, font, 8.5);
+    drawCenteredText(page, String(rowNumberOffset + index + 1), (columns[0] + columns[1]) / 2, rowBottom + 4.2, font, 8.5);
 
     if (row) {
       drawCenteredText(page, "PO", (columns[1] + columns[2]) / 2, rowBottom + 4.2, font, 8.5);
@@ -190,9 +191,9 @@ export async function buildTransportInvoicePdf(job: JobSummaryRecord) {
   const font = await document.embedFont(fontBytes, { subset: true });
 
   job.destinations.forEach((destination) => {
-    splitPages(buildRows(destination), rowsPerPage).forEach((rows) => {
+    splitPages(buildRows(destination), rowsPerPage).forEach((rows, pageIndex) => {
       const page = document.addPage([pageWidth, pageHeight]);
-      drawPage(page, font, job, destination, rows);
+      drawPage(page, font, job, destination, rows, pageIndex * rowsPerPage);
     });
   });
 

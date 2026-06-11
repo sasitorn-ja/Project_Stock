@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, MapPin, Plus, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, ChevronLeft, ChevronRight, MapPin, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { JobMergedScanQtyEditor } from "@/components/jobs/job-merged-scan-qty-editor";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "loaded", label: "ขึ้นรถแล้ว" },
   { value: "delivered", label: "ส่งแล้ว" },
 ];
+const PO_GROUPS_PER_PAGE = 20;
 
 function itemMatchesStatus(item: MergedItem, status: StatusFilter) {
   const order = Math.max(0, item.orderQty);
@@ -149,6 +150,7 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   const [activeId, setActiveId] = useState<string>(() => destinations[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [poPage, setPoPage] = useState(1);
 
   const active = destinations.find((destination) => destination.id === activeId) ?? destinations[0] ?? null;
 
@@ -163,7 +165,15 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
   );
 
   const poGroups = useMemo(() => groupByPO(filteredItems), [filteredItems]);
+  const poPageCount = Math.max(1, Math.ceil(poGroups.length / PO_GROUPS_PER_PAGE));
+  const safePoPage = Math.min(poPage, poPageCount);
+  const poPageStart = (safePoPage - 1) * PO_GROUPS_PER_PAGE;
+  const visiblePOGroups = poGroups.slice(poPageStart, poPageStart + PO_GROUPS_PER_PAGE);
   const completePOGroups = useMemo(() => new Map(groupByPO(mergedItems).map((group) => [group.poSapNo, group])), [mergedItems]);
+
+  useEffect(() => {
+    setPoPage(1);
+  }, [activeId, query, statusFilter]);
 
   const statusCounts = useMemo(() => {
     return STATUS_FILTERS.reduce(
@@ -315,8 +325,14 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                 : "ยังไม่มีรายการในปลายทางนี้"}
             </div>
           ) : (
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
-              {poGroups.map((group) => (
+            <div className="overflow-hidden rounded-md border">
+              <div className="hidden grid-cols-[minmax(0,1fr)_88px_128px_216px] items-center gap-3 border-b bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 lg:grid">
+                <span>PO / รายละเอียด</span>
+                <span className="text-center">รายการ</span>
+                <span className="text-center">สถานะ</span>
+                <span className="text-right">จำนวนที่ต้องสแกน</span>
+              </div>
+              {visiblePOGroups.map((group) => (
                 <POCard
                   key={group.poSapNo}
                   group={group}
@@ -325,6 +341,37 @@ export function JobProgress({ job, editableScanQty = false }: { job: JobDetail; 
                   editableScanQty={editableScanQty}
                 />
               ))}
+              {poGroups.length > PO_GROUPS_PER_PAGE ? (
+                <div className="flex flex-col gap-2 border-t bg-slate-50 px-3 py-2.5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    แสดง PO {poPageStart + 1}-{Math.min(poPageStart + PO_GROUPS_PER_PAGE, poGroups.length)} จาก{" "}
+                    {poGroups.length.toLocaleString("th-TH")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPoPage(Math.max(1, safePoPage - 1))}
+                      disabled={safePoPage === 1}
+                      aria-label="หน้าก่อนหน้า"
+                      className="flex h-8 w-8 items-center justify-center rounded-md border bg-white text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="min-w-20 text-center">
+                      หน้า {safePoPage} / {poPageCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPoPage(Math.min(poPageCount, safePoPage + 1))}
+                      disabled={safePoPage === poPageCount}
+                      aria-label="หน้าถัดไป"
+                      className="flex h-8 w-8 items-center justify-center rounded-md border bg-white text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -352,17 +399,24 @@ function POCard({
   const underlying = completeGroup.items.flatMap((item) => item.underlying);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border bg-white">
-      <div className="flex min-w-0 items-center gap-3 px-3 py-2">
+    <div className="min-w-0 overflow-hidden border-b bg-white last:border-b-0">
+      <div className="grid min-w-0 gap-3 px-3 py-2.5 lg:grid-cols-[minmax(0,1fr)_88px_128px_216px] lg:items-center">
         <button
           type="button"
           onClick={() => setIsExpanded((value) => !value)}
           aria-expanded={isExpanded}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-100"
+          className="flex min-w-0 items-center gap-2 rounded-md text-left outline-none transition-colors hover:text-cyan-800 focus-visible:ring-2 focus-visible:ring-cyan-100"
         >
-          <Plus className={cn("h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform", isExpanded && "rotate-45")} />
-          <span className="min-w-0 truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">· {group.items.length} รายการ</span>
+          <ChevronRight
+            className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isExpanded && "rotate-90")}
+          />
+          <span className="min-w-0">
+            <span className="block truncate font-mono text-sm font-semibold text-slate-900">PO {group.poSapNo}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {group.items[0]?.materialName || "-"}
+              {group.items.length > 1 ? ` และอีก ${group.items.length - 1} รายการ` : ""}
+            </span>
+          </span>
           {allDelivered ? (
             <Badge variant="success" className="ml-1 shrink-0">
               <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -370,43 +424,45 @@ function POCard({
             </Badge>
           ) : null}
         </button>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          ขึ้นรถ {completeGroup.loaded.toLocaleString("th-TH")} / {completeGroup.required.toLocaleString("th-TH")}
-        </span>
-      </div>
-
-      <div className="px-3 pb-2">
-        <div className="h-1 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all",
-              allDelivered ? "bg-emerald-500" : allLoaded ? "bg-cyan-500" : "bg-amber-500",
-            )}
-            style={{ width: `${progress}%` }}
-          />
+        <div className="hidden text-center text-xs text-slate-600 lg:block">
+          {group.items.length.toLocaleString("th-TH")}
+        </div>
+        <div className="flex items-center justify-between gap-3 lg:block lg:text-center">
+          <span className="text-[11px] text-muted-foreground lg:hidden">
+            {group.items.length.toLocaleString("th-TH")} รายการ
+          </span>
+          <div>
+            <p className="text-xs font-medium text-slate-700">
+              {completeGroup.loaded.toLocaleString("th-TH")} / {completeGroup.required.toLocaleString("th-TH")}
+            </p>
+            <div className="mt-1 h-1 w-24 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  allDelivered ? "bg-emerald-500" : allLoaded ? "bg-cyan-500" : "bg-amber-500",
+                )}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="min-w-0">
+          {editableScanQty ? (
+            <JobMergedScanQtyEditor jobId={jobId} underlying={underlying} compact inline />
+          ) : (
+            <p className="text-right text-xs text-muted-foreground">
+              ต้องสแกน <span className="font-semibold text-slate-900">{completeGroup.required.toLocaleString("th-TH")}</span>
+            </p>
+          )}
         </div>
       </div>
 
       {isExpanded ? (
-        <>
-          <div className="flex justify-end border-t bg-slate-50/60 px-3 py-2">
-            {editableScanQty ? (
-              <div className="w-full sm:w-44">
-                <JobMergedScanQtyEditor jobId={jobId} underlying={underlying} compact />
-              </div>
-            ) : (
-              <div className="rounded-md bg-slate-50 px-3 py-1.5 text-center text-xs">
-                ต้องสแกน{" "}
-                <span className="font-semibold text-slate-900">{completeGroup.required.toLocaleString("th-TH")}</span>
-              </div>
-            )}
-          </div>
-          <div className="max-h-80 divide-y overflow-y-auto border-t [scrollbar-width:thin]">
-            {group.items.map((item) => (
-              <ItemRow key={item.key} item={item} />
-            ))}
-          </div>
-        </>
+        <div className="max-h-80 divide-y overflow-y-auto border-t bg-slate-50/40 [scrollbar-width:thin]">
+          {group.items.map((item) => (
+            <ItemRow key={item.key} item={item} />
+          ))}
+        </div>
       ) : null}
     </div>
   );

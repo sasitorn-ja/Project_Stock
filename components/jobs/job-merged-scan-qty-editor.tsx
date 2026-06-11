@@ -21,10 +21,12 @@ export function JobMergedScanQtyEditor({
   jobId,
   underlying,
   compact = false,
+  inline = false,
 }: {
   jobId: string;
   underlying: UnderlyingItem[];
   compact?: boolean;
+  inline?: boolean;
 }) {
   const router = useRouter();
 
@@ -111,6 +113,51 @@ export function JobMergedScanQtyEditor({
   async function skipThisRound() {
     setNextValue(0);
     await saveQuantity(0);
+  }
+
+  if (inline) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-end gap-1.5">
+          <QuantityStepper
+            value={nextValue}
+            min={sumMinimum}
+            onChange={setNextValue}
+            className="w-32 shrink-0"
+            inputClassName="h-8 text-sm"
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant={hasChanged ? "default" : "outline"}
+            className="h-8 w-8 shrink-0"
+            onClick={handleSave}
+            disabled={isSaving || !hasChanged}
+            title="บันทึกจำนวนที่ต้องสแกน"
+          >
+            <Save className="h-4 w-4" />
+          </Button>
+          {canSkipThisRound ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-700"
+              onClick={skipThisRound}
+              disabled={isSaving}
+              title="ไม่ส่ง PO นี้ในรอบนี้"
+              aria-label="ไม่ส่ง PO นี้ในรอบนี้"
+            >
+              <Ban className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+        {sumMinimum > 0 ? (
+          <p className="text-right text-[10px] text-muted-foreground">ต่ำสุด {sumMinimum.toLocaleString("th-TH")}</p>
+        ) : null}
+        {message ? <p className="whitespace-pre-line text-right text-xs text-red-600">{message}</p> : null}
+      </div>
+    );
   }
 
   return (
