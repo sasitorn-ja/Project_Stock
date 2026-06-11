@@ -93,6 +93,14 @@ function drawCenteredText(page: PDFPage, text: string, centerX: number, y: numbe
   });
 }
 
+function drawCenteredBoldText(page: PDFPage, text: string, centerX: number, y: number, font: PDFFont, size = 9) {
+  const x = centerX - font.widthOfTextAtSize(text, size) / 2;
+
+  [0, 0.3, 0.6].forEach((offset) => {
+    page.drawText(text, { x: x + offset, y, font, size, color: black });
+  });
+}
+
 function drawLine(page: PDFPage, x1: number, y1: number, x2: number, y2: number, thickness = 0.7) {
   page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness, color: black });
 }
@@ -137,8 +145,8 @@ function drawPage(
   rows: TransportRow[],
   rowNumberOffset: number,
 ) {
-  drawCenteredText(page, "บริษัท ปูนซิเมนต์ไทย (ท่าหลวง) จำกัด", pageWidth / 2, 805, font, 17);
-  drawCenteredText(page, "ใบกำกับขนส่ง", pageWidth / 2, 784, font, 14);
+  drawCenteredBoldText(page, "บริษัท ปูนซิเมนต์ไทย (ท่าหลวง) จำกัด", pageWidth / 2, 805, font, 17);
+  drawCenteredBoldText(page, "ใบกำกับขนส่ง", pageWidth / 2, 784, font, 14);
   drawText(page, `จาก ${job.origin || "-"}`, 36, 761, font, 11, 300);
   drawText(page, `ถึง ${destination.name || "-"}`, 36, 739, font, 11, 360);
   drawText(page, `หมายเลข ${destination.transportDocumentNo || "-"}`, 455, 761, font, 11, 110);
