@@ -20,7 +20,7 @@ async function main() {
   const NextResponse = {
     next: () => ({ status: 200, next: true }),
     json: (body, init = {}) => ({ status: init.status || 200, body }),
-    redirect: () => ({ status: 307 }),
+    redirect: url => ({ status: 307, location: String(url) }),
     rewrite: url => ({ status: 200, rewrite: url.pathname }),
   };
   let session = null;
@@ -81,6 +81,17 @@ async function main() {
   process.env.Stock_API_TOKEN = "test-only-credential";
   process.env.NODE_ENV = "production";
   assert.equal(remoteConfig.isRemoteDevMode(), false, "Remote mode must not bypass production SSO");
+  assert.equal((await middleware(req("/login", "GET", null))).status, 200, "Production login stays public for signed-out users");
+  for (const method of ["GET", "HEAD"]) {
+    assert.equal((await middleware(req("/VDO_BG_login.mp4", method, null))).next, true, "Login background video is public before sign-in");
+  }
+  assert.equal((await middleware(req("/api/private.mp4", "GET", null))).status, 401, "Other MP4 paths do not bypass authentication");
+  session = { user: { id: "sso-user" } };
+  const productionLogin = await middleware(req("/login", "GET", null));
+  assert.equal(productionLogin.status, 307, "Production still redirects signed-in users away from login");
+  assert.equal(new URL(productionLogin.location).pathname, "/syncdrop/po");
+  assert.equal((await middleware(req("/api/auth/logout", "GET", null))).next, true, "Production logout still reaches the SSO handler");
+  session = null;
   process.env.NODE_ENV = "development";
   assert.equal((await middleware(localRequest("/api/jobs"))).rewrite, "/syncdrop/api/remote/jobs");
   assert.equal((await middleware(localRequest("/api/po-registry"))).rewrite, "/syncdrop/api/remote/po-registry");
@@ -89,7 +100,15 @@ async function main() {
   assert.equal((await middleware(localRequest("/api/jobs", { method: "POST", headers: { Origin: "https://foreign.test" } }))).status, 403);
   assert.equal((await middleware(localRequest("/api/jobs", { headers: { Host: "foreign.test" } }))).status, 403);
   assert.equal((await middleware(req("/api/jobs"))).status, 403, "Non-loopback requests rejected");
-  assert.equal((await middleware(localRequest("/login"))).status, 307);
+  assert.equal((await middleware(localRequest("/login"))).next, true, "Local login preview is available");
+  const localLogout = await middleware(localRequest("/api/auth/logout"));
+  assert.equal(localLogout.status, 307);
+  assert.equal(new URL(localLogout.location).pathname, "/syncdrop/login", "Local logout opens login preview");
+  const localLogin = await middleware(localRequest("/api/auth/rmc-sso/login"));
+  assert.equal(localLogin.status, 307);
+  assert.equal(new URL(localLogin.location).pathname, "/syncdrop/po", "Local sign-in returns to the workspace without SSO");
+  assert.equal((await middleware(localRequest("/login", { headers: { Host: "foreign.test" } }))).status, 403);
+  assert.equal((await middleware(localRequest("/api/auth/logout", { headers: { Origin: "https://foreign.test" } }))).status, 403);
   process.env.Stock_API_BASE_URL = "http://insecure.test/api";
   assert.equal((await middleware(localRequest("/api/jobs"))).status, 503);
   process.env.Stock_API_BASE_URL = "https://api.example.test/syncdrop/api";

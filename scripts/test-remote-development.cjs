@@ -66,12 +66,15 @@ async function main() {
       assert.ok(!JSON.stringify([...r.headers]).includes(token), "Token leaked into response headers");
       return { r, body };
     }
-    for (const url of ["/login", "/api/auth/rmc-sso/login"]) {
-      const { r } = await request(url, 307);
-      assert.equal(new URL(r.headers.get("location"), base).pathname, "/po");
-    }
+    const loginPreview = await request("/login");
+    assert.ok(loginPreview.body.toString().includes("Sign in with RMC SSO"));
+    const localLogout = await request("/api/auth/logout", 307);
+    assert.equal(new URL(localLogout.r.headers.get("location"), base).pathname, "/login");
+    const localSignIn = await request("/api/auth/rmc-sso/login", 307);
+    assert.equal(new URL(localSignIn.r.headers.get("location"), base).pathname, "/po");
     const po = await request("/po");
     assert.ok(po.body.toString().includes("Remote API (local)"));
+    assert.ok(po.body.toString().includes('aria-label="ออกจากระบบ"'));
     await request("/jobs");
     await request("/reports");
     assert.ok(calls.some(c => c.url === "/api/jobs"));

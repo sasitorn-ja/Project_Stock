@@ -89,20 +89,18 @@ export function Header({
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-gradient-to-br from-sky-50 to-blue-100 text-primary"><UserRound className="size-4" /></span>
               <div className="hidden min-w-0 sm:block"><p className="max-w-44 truncate text-xs font-semibold text-slate-700">{displayName}</p><p className="mt-0.5 text-[10px] text-slate-400">{session.mode === "remote-development" ? "Local workspace" : "RMC workspace"}</p></div>
             </div>
-            {session.mode !== "remote-development" && (
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
-                aria-label="ออกจากระบบ"
-              >
-                <a href={withBasePath("/api/auth/logout")}>
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">ออกจากระบบ</span>
-                </a>
-              </Button>
-            )}
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
+              aria-label="ออกจากระบบ"
+            >
+              <a href={withBasePath("/api/auth/logout")}>
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
+              </a>
+            </Button>
           </div>
         ) : (
           <div />

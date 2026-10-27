@@ -9,6 +9,7 @@ function isAssetPath(pathname: string) {
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
     pathname === "/logo.png" ||
+    pathname === "/VDO_BG_login.mp4" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|map|txt|xml)$/i.test(pathname)
   );
 }
@@ -72,7 +73,14 @@ export default async function middleware(request: Request & { nextUrl: URL; cook
     } catch {
       return NextResponse.json({ error: "Invalid remote API configuration; start with npm run dev:remote" }, { status: 503 });
     }
-    if (pathname === "/login" || pathname.startsWith("/api/auth/")) {
+    // Local development can preview the login UI without ending a real SSO session.
+    if (pathname === "/login") {
+      return NextResponse.next();
+    }
+    if (pathname === "/api/auth/logout") {
+      return NextResponse.redirect(new URL(withBasePath("/login"), nextUrl));
+    }
+    if (pathname.startsWith("/api/auth/")) {
       return NextResponse.redirect(new URL(withBasePath("/po"), nextUrl));
     }
     if (isRemoteApiPath(pathname)) {
