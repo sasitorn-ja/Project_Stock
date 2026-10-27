@@ -7,7 +7,7 @@ services:
     container_name: syncdrop
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ${SYNCDROP_ENV_FILE:-.env.production}
     environment:
       NODE_ENV: production
       PORT: 3000

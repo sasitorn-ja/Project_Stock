@@ -1,0 +1,50 @@
+name: Deploy Release
+
+on:
+  push:
+    branches: [Release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: syncdrop-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/Release'
+    name: Deploy SyncDrop production
+    runs-on: [self-hosted, linux, x64, syncdrop-prod-141]
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      SYNCDROP_ENV_FILE: /opt/syncdrop/.env.production
+      NEXT_PUBLIC_BASE_PATH: /syncdrop
+      DOCKER_BUILDKIT: "1"
+      COMPOSE_DOCKER_CLI_BUILD: "1"
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - name: Verify production runner
+        run: |
+          set -euo pipefail
+          ip -o -4 addr show | awk '{ print $4 }' | cut -d/ -f1 | grep -Fxq '192.168.1.141'
+          test -r "$SYNCDROP_ENV_FILE"
+          docker compose version
+          docker info >/dev/null
+
+      - name: Checkout Release revision
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build, deploy, and verify
+        run: bash scripts/deploy-on-server.sh
+
+      - name: Deployment summary
+        run: |
+          printf 'Deployed `%s` from `Release` to https://store.cipcloud.net/syncdrop/\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
