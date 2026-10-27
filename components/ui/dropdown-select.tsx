@@ -45,7 +45,7 @@ export function DropdownSelect({
         <DropdownMenu.Trigger
           aria-label={ariaLabel}
           className={cn(
-            "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-[#cfd6df] bg-white px-2.5 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10",
+            "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:border-sky-300 hover:bg-sky-50/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/15",
             className,
           )}
         >
@@ -56,7 +56,7 @@ export function DropdownSelect({
           <DropdownMenu.Content
             align="start"
             sideOffset={8}
-            className="z-50 w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+            className="z-50 w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl border border-border bg-white p-1.5 text-sm text-slate-900 shadow-xl shadow-slate-900/10 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
           >
             {options.map((option) => {
               const isSelected = option.value === selectedOption?.value;

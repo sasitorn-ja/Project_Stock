@@ -3,13 +3,14 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileWarning, HelpCircle, Lightbulb, MapPinned, Plus, RotateCcw, Save, Truck, X } from "lucide-react";
+import { AlertCircle, ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, HelpCircle, Lightbulb, MapPinned, Plus, RotateCcw, Save, Truck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
+import { SyncDropMascot } from "@/components/brand/syncdrop-mascot";
 import { createJob, getDriverSuggestions } from "@/lib/job-db";
 import { getDestinationNameForPORecord } from "@/lib/jobs";
 import { getExistingPORecords, type PORegistryRecord } from "@/lib/po-import-db";
@@ -969,11 +970,10 @@ export function JobCreator() {
         </div>
       ) : (
         <Card>
-          <CardContent className="space-y-3 px-5 py-6 sm:px-6">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <FileWarning className="h-5 w-5" />
-              <p>ยังไม่มีรายการ PO ที่ถูกเลือกจากหน้าคิวรอจัดส่ง</p>
-            </div>
+          <CardContent className="flex flex-col items-center gap-4 px-5 py-6 text-center sm:flex-row sm:gap-6 sm:px-6 sm:text-left">
+            <SyncDropMascot className="w-24" sizes="96px" />
+            <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">ยังไม่มีรายการ PO ที่ถูกเลือกจากหน้าคิวรอจัดส่ง</p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" variant="outline" onClick={chooseMorePO}>
                 เพิ่ม PO
@@ -982,6 +982,7 @@ export function JobCreator() {
                 <RotateCcw className="mr-2 h-4 w-4" />
                 เลือกใหม่
               </Button>
+            </div>
             </div>
           </CardContent>
         </Card>

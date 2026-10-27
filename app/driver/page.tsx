@@ -1,4 +1,5 @@
 import { DriverScanner } from "@/components/jobs/driver-scanner";
+import { PageHeading } from "@/components/layout/page-heading";
 
 export default async function DriverPage({
   searchParams,
@@ -9,14 +10,9 @@ export default async function DriverPage({
   const isDedicatedDriverMode = Boolean(jobId);
 
   return (
-    <div className={isDedicatedDriverMode ? "" : "mx-auto max-w-6xl space-y-3"}>
+    <div className={isDedicatedDriverMode ? "" : "mx-auto max-w-6xl space-y-5"}>
       {!isDedicatedDriverMode ? (
-        <div className="rounded-md border bg-white px-4 py-3 dark:bg-slate-950">
-          <h2 className="text-lg font-bold tracking-normal">ห้องคนขับ</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            เลือก Job จริง บันทึกขึ้นรถ และยืนยันส่งของตามปลายทางเดียวกับข้อมูลในระบบ
-          </p>
-        </div>
+        <PageHeading title="ห้องคนขับ" description="เลือกงาน บันทึกขึ้นรถ และยืนยันส่งของให้ครบทุกปลายทาง" />
       ) : null}
       <DriverScanner initialJobId={jobId} />
     </div>

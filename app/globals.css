@@ -3,119 +3,145 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 220 13% 97%;
-    --foreground: 221 39% 11%;
+  :root, .dark {
+    color-scheme: light;
+    --background: 214 45% 97%;
+    --foreground: 216 43% 15%;
     --card: 0 0% 100%;
-    --card-foreground: 221 39% 11%;
+    --card-foreground: 216 43% 15%;
     --popover: 0 0% 100%;
-    --popover-foreground: 221 39% 11%;
-    --primary: 0 0% 9%;
+    --popover-foreground: 216 43% 15%;
+    --primary: 211 86% 43%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 221 39% 11%;
-    --muted: 216 14% 94%;
-    --muted-foreground: 215 14% 34%;
-    --accent: 220 14% 96%;
-    --accent-foreground: 221 39% 11%;
-    --destructive: 0 74% 42%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 218 18% 87%;
-    --input: 213 24% 89%;
-    --ring: 0 0% 9% / 0.18;
+    --secondary: 210 65% 95%;
+    --secondary-foreground: 212 75% 32%;
+    --muted: 213 32% 95%;
+    --muted-foreground: 215 17% 43%;
+    --accent: 205 85% 95%;
+    --accent-foreground: 211 86% 35%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 89%;
+    --input: 213 30% 85%;
+    --ring: 211 86% 48%;
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 221 39% 11%;
-    --sidebar-primary: 0 0% 9%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-accent-foreground: 221 39% 11%;
-    --sidebar-border: 216 18% 87%;
-    --sidebar-ring: 0 0% 9% / 0.18;
-    --radius: 0.625rem;
+    --sidebar-accent: 204 94% 94%;
+    --sidebar-accent-foreground: 224 76% 48%;
+    --sidebar-border: 214 32% 89%;
+    --sidebar-ring: 221 83% 53%;
+    --radius: 0.875rem;
   }
-
-  .dark {
-    --background: 220 13% 97%;
-    --foreground: 221 39% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 221 39% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 221 39% 11%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 221 39% 11%;
-    --muted: 216 14% 94%;
-    --muted-foreground: 215 14% 34%;
-    --accent: 220 14% 96%;
-    --accent-foreground: 221 39% 11%;
-    --destructive: 0 74% 42%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 218 18% 87%;
-    --input: 213 24% 89%;
-    --ring: 0 0% 9% / 0.18;
-  }
-
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
-    background: #f5f6f8;
-    color: #111827;
     font-family: Sarabun, Arial, Helvetica, sans-serif;
     font-size: 14px;
     font-feature-settings: "tnum";
     text-rendering: optimizeLegibility;
-    /* safe-area สำหรับ notch / home indicator */
     padding-bottom: env(safe-area-inset-bottom);
   }
+  ::selection { background: #bae6fd; color: #0c3057; }
+  input, select, textarea { color-scheme: light; }
+  input[type="checkbox"] { accent-color: hsl(var(--primary)); }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), select, textarea { background-color: white; color: hsl(var(--foreground)); }
+  table th { font-size: 11px; font-weight: 600; letter-spacing: 0.025em; }
+  table td { font-size: 13px; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+}
 
-  /* compact card headers */
-  .compact-page h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+@layer components {
+  .workspace-backdrop {
+    --sidebar-width: 14rem;
+    --sidebar-motion-duration: 280ms;
+    --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    background: linear-gradient(135deg, #eef5fc 0%, #f5f8fc 48%, #edf5fa 100%);
   }
-
-  /* table rows */
-  table th {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #94a3b8;
+  .workspace-backdrop::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image: var(--warehouse-image); background-size: cover; background-position: center; opacity: 0.055;
   }
-
-  table td {
-    font-size: 13px;
+  .workspace-content { animation: workspace-enter 350ms ease-out; }
+  .mascot-float { animation: mascot-float 4.8s ease-in-out infinite; }
+  .sidebar-panel {
+    width: var(--sidebar-width);
+    max-width: 86vw;
+    visibility: hidden;
+    transform: translateX(-100%);
+    /* Keep the panel visible until its slide-out finishes. */
+    transition:
+      transform var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+      visibility 0s linear var(--sidebar-motion-duration);
   }
-
-  .dark body {
-    background: #f5f6f8;
-    color: #111827;
+  .sidebar-backdrop {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+      visibility 0s linear var(--sidebar-motion-duration);
   }
-
-  input,
-  select,
-  textarea {
-    background-color: #ffffff;
-    color: #111827;
-    /* ป้องกัน iOS auto-zoom เมื่อ focus input */
-    font-size: 16px;
+  .sidebar-backdrop[data-open="true"] {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
   }
-
-  input:hover,
-  select:hover,
-  textarea:hover {
-    background-color: #ffffff;
+  .page-heading { box-shadow: 0 10px 30px -16px #123a64a0; }
+  .hero-actions :is(a, button) { border-color: rgb(255 255 255 / 30%); background: rgb(255 255 255 / 12%); color: white; backdrop-filter: blur(12px); }
+  .hero-actions :is(a, button):hover { background: rgb(255 255 255 / 23%); color: white; }
+  .hero-actions > .hero-primary { border-color: #fff; background: #fff; color: #104c88; }
+  .hero-actions > .hero-primary:hover { background: #e0f2fe; color: #104c88; }
+  .surface-panel { @apply rounded-2xl border bg-white; box-shadow: 0 5px 24px -16px #23436645; }
+  .data-table tbody tr { transition: background-color 150ms ease; }
+  .data-table tbody tr:hover { background-color: #f0f7ff; }
+  .data-table tbody tr:has(input:checked) { background-color: #eaf4ff; }
+  .data-table thead { background: #f4f8fd; }
+  .empty-state { @apply flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-sky-200 bg-sky-50/40 px-5 py-8 text-center; }
+  .upload-zone { @apply rounded-xl border-2 border-dashed border-sky-200 bg-sky-50/50; transition: background-color 200ms, border-color 200ms; }
+  .upload-zone:hover, .upload-zone:focus-within { @apply border-sky-400 bg-sky-100/60; }
+}
+@media (max-width: 1023px) {
+  .sidebar-panel[data-mobile-open="true"] {
+    visibility: visible;
+    transform: translateX(0);
+    transition-delay: 0s;
   }
-
-  input:focus,
-  select:focus,
-  textarea:focus {
-    background-color: #ffffff;
-    color: #111827;
+}
+@media (min-width: 1024px) {
+  .sidebar-panel { max-width: none; }
+  .sidebar-panel[data-desktop-open="true"] {
+    visibility: visible;
+    transform: translateX(0);
+    transition-delay: 0s;
   }
+  .workspace-frame {
+    padding-left: 0;
+    transition: padding-left var(--sidebar-motion-duration) var(--sidebar-motion-ease);
+  }
+  .workspace-frame[data-sidebar-open="true"] { padding-left: var(--sidebar-width); }
+}
+@keyframes workspace-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes mascot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@media (max-width: 767px) {
+  /* Keep iOS from zooming when focusing form fields. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+  .hero-actions { width: 100%; }
+  .hero-actions > a, .hero-actions > button { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media print {
+  .workspace-backdrop::before { display: none; }
+  .page-heading { box-shadow: none; print-color-adjust: exact; }
 }

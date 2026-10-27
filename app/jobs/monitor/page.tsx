@@ -4,6 +4,7 @@ import { AlertTriangle, History, MapPin, Radio, Route, Truck } from "lucide-reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeading } from "@/components/layout/page-heading";
 import { JobActionToolbar } from "@/components/jobs/job-action-toolbar";
 import { JobAlertList } from "@/components/jobs/job-alert-list";
 import { JobAutoRefresh } from "@/components/jobs/job-auto-refresh";
@@ -38,8 +39,7 @@ export default async function JobMonitorPage({
     <div className="space-y-3">
       <JobAutoRefresh />
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="text-lg font-bold tracking-normal text-slate-900">ติดตามงาน</h2>
+      <PageHeading compact title="ติดตามงาน" description="ตรวจสอบสถานะการรับ–ส่งสินค้าและความคืบหน้าของงาน" actions={
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
           {!isArchivedJob ? (
             <div className="w-full sm:w-72">
@@ -57,7 +57,7 @@ export default async function JobMonitorPage({
             </Link>
           </Button>
         </div>
-      </div>
+      } />
 
       {isArchivedJob && selectedJobId && job ? (
         <Card>
@@ -74,7 +74,7 @@ export default async function JobMonitorPage({
 
       {job ? (
         <>
-          <section className="grid grid-cols-2 gap-2 rounded-md border bg-white p-2 text-sm sm:grid-cols-3 xl:grid-cols-5">
+          <section className="surface-panel grid grid-cols-2 gap-2 p-3 text-sm sm:grid-cols-3 xl:grid-cols-5">
             {[
               ["ห้องงาน", job.roomName?.trim() || job.id, Truck],
               ["สถานะ", getJobStatusLabel(job.status), Radio],
@@ -87,7 +87,7 @@ export default async function JobMonitorPage({
                   <p className="text-[11px] font-semibold text-slate-400">{String(label)}</p>
                   <p className="truncate text-[13px] font-bold text-slate-900">{String(value)}</p>
                 </div>
-                <Icon className="h-4 w-4 shrink-0 text-[#0d7a5f]" />
+                <Icon className="h-4 w-4 shrink-0 text-primary" />
               </div>
             ))}
           </section>

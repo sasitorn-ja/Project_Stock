@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   FileText,
   Flashlight,
   FlashlightOff,
@@ -21,6 +22,7 @@ import {
   Search,
   Square,
   Truck,
+  UserRound,
   X,
   ZoomIn,
 } from "lucide-react";
@@ -198,6 +200,16 @@ async function requestScannerCameraStream() {
       audio: false,
     });
   }
+}
+
+function ScanQuantityBadges({ required, loaded, delivered }: { required: number; loaded: number; delivered: number }) {
+  return (
+    <span className="flex max-w-full shrink-0 flex-wrap items-center gap-1.5 text-[11px] font-normal leading-5">
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-slate-600">ต้องสแกน <strong className="font-semibold tabular-nums text-slate-800">{required.toLocaleString("th-TH")}</strong></span>
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2 py-0.5 text-blue-700">ขึ้นรถแล้ว <strong className="font-semibold tabular-nums">{loaded.toLocaleString("th-TH")}</strong></span>
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-100 bg-sky-50 px-2 py-0.5 text-sky-700">ส่งแล้ว <strong className="font-semibold tabular-nums">{delivered.toLocaleString("th-TH")}</strong></span>
+    </span>
+  );
 }
 
 export function DriverScanner({
@@ -1321,26 +1333,40 @@ export function DriverScanner({
           </div>
         </div>
       ) : null}
-      <section className="order-2 rounded-md border border-[#d8dde6] bg-white px-3 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <p className="text-xs font-semibold text-slate-500">ห้องคนขับ</p>
+      <section className="surface-panel order-2 overflow-hidden" aria-labelledby="driver-room-summary-title">
+        <div className="space-y-4 border-b border-slate-100 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 sm:pt-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 id="driver-room-summary-title" className="break-words text-lg font-semibold leading-snug text-slate-900">{roomTitle}</h2>
+                {job ? (
+                  <Badge variant={isJobCompleted || shouldShowDestinationOnly ? "success" : "secondary"} className="shrink-0">
+                    {isJobCompleted ? "จบงาน" : shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-1 break-all text-xs leading-relaxed text-slate-500">
+                {job?.id || "เลือกห้องงานเพื่อเริ่มงาน"}
+              </p>
+            </div>
               {!isDedicatedDriverMode ? (
-                <div className="sm:w-72">
+                <div className="w-full space-y-1.5 sm:w-64 sm:shrink-0">
+                  <Label htmlFor="driver-room-selector" className="text-[11px] font-medium text-slate-500">เลือกห้องงาน</Label>
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger
-                      className="flex h-9 w-full items-center justify-between gap-3 rounded-lg border border-[#cfd6df] bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:bg-slate-50 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-900/10 data-[state=open]:border-slate-400 data-[state=open]:ring-2 data-[state=open]:ring-slate-900/10"
+                      id="driver-room-selector"
+                      aria-label="เลือกห้องงาน"
+                      className="group flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-input bg-white px-3 text-left text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:border-sky-300 hover:bg-sky-50/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary/15"
                       disabled={isLoading || !jobs.length}
                     >
                       <span className="min-w-0 truncate">{isLoading ? "กำลังโหลดห้องงาน" : selectedJobLabel}</span>
-                      <ChevronDown className="size-4 shrink-0 text-slate-500 transition-transform data-[state=open]:rotate-180" />
+                      <ChevronDown className="size-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content
                         align="start"
                         sideOffset={8}
-                        className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-[#d8dde6] bg-white p-2 text-sm text-slate-900 shadow-lg shadow-slate-900/10"
+                        className="z-50 max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border border-border bg-white p-1.5 text-sm text-slate-900 shadow-xl shadow-slate-900/10"
                       >
                         {jobs.length ? (
                           jobs.map((currentJob) => {
@@ -1350,10 +1376,10 @@ export function DriverScanner({
                               <DropdownMenu.Item
                                 key={currentJob.id}
                                 onSelect={() => selectJobFromList(currentJob.id)}
-                                className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 data-[highlighted]:bg-slate-50"
+                                className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors focus:bg-sky-50 data-[highlighted]:bg-sky-50 ${isSelected ? "bg-sky-50 text-blue-700" : "hover:bg-sky-50"}`}
                               >
                                 <span className="flex size-4 shrink-0 items-center justify-center">
-                                  {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                                  {isSelected ? <Check className="size-4 text-blue-600" /> : null}
                                 </span>
                                 <span className="min-w-0">
                                   <span className="block truncate font-semibold">{currentJob.roomName?.trim() || currentJob.id}</span>
@@ -1372,41 +1398,57 @@ export function DriverScanner({
                   </DropdownMenu.Root>
                 </div>
               ) : null}
-            </div>
-            <h2 className="mt-1 break-words text-lg font-bold tracking-normal text-slate-950 sm:text-xl">{roomTitle}</h2>
-            <p className="mt-1 break-words text-sm text-slate-500">
-              {job ? `${job.id} / รถ ${job.vehicle || "-"} / คนขับ ${job.driver || "-"}` : "เลือกห้องงานเพื่อเริ่มงาน"}
-            </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 lg:w-[520px]">
-            <Badge variant={isJobCompleted || shouldShowDestinationOnly ? "success" : "warning"} className="w-fit self-start lg:self-end">
-              {isJobCompleted ? "จบงาน" : shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}
-            </Badge>
-            <div className="rounded-md border-2 border-slate-900 bg-slate-950 px-3 py-2 text-white">
-              <p className="text-[11px] text-slate-300">ขั้นตอนต่อไป</p>
-              <p className="text-lg font-bold">{nextActionText}</p>
+          <dl className={`grid grid-cols-2 gap-3 ${!shouldShowDestinationOnly ? "sm:grid-cols-3" : ""}`}>
+            <div className="flex min-w-0 items-start gap-2.5">
+              <Truck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <dt className="text-[11px] text-slate-500">รถขนส่ง</dt>
+                <dd className="mt-0.5 break-words text-sm font-medium text-slate-800">{job?.vehicle || "-"}</dd>
+              </div>
             </div>
-            <div className={`grid grid-cols-2 gap-2 ${shouldShowDestinationOnly ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
-              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
-                <p className="text-[11px] text-slate-500">ต้องสแกน</p>
-                <p className="text-base font-semibold text-slate-950">{requiredTotal.toLocaleString("th-TH")}</p>
+            <div className="flex min-w-0 items-start gap-2.5">
+              <UserRound aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <dt className="text-[11px] text-slate-500">คนขับ</dt>
+                <dd className="mt-0.5 break-words text-sm font-medium text-slate-800">{job?.driver || "-"}</dd>
               </div>
-              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
-                <p className="text-[11px] text-slate-500">ขึ้นรถแล้ว</p>
-                <p className="text-base font-semibold text-slate-950">{loadedTotal.toLocaleString("th-TH")}</p>
-              </div>
-              <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
-                <p className="text-[11px] text-slate-500">ส่งแล้ว</p>
-                <p className="text-base font-semibold text-slate-950">{deliveredTotal.toLocaleString("th-TH")}</p>
-              </div>
-              {!shouldShowDestinationOnly ? (
-                <div className="rounded-md border border-[#d8dde6] bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] text-slate-500">ต้นทาง</p>
-                  <p className="text-sm font-semibold text-slate-950">{originStatusText}</p>
+            </div>
+            {!shouldShowDestinationOnly ? (
+              <div className="col-span-2 flex min-w-0 items-start gap-2.5 sm:col-span-1">
+                <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                <div className="min-w-0">
+                  <dt className="text-[11px] text-slate-500">สถานะต้นทาง</dt>
+                  <dd className="mt-0.5 break-words text-sm font-medium text-slate-800">{job ? originStatusText : "-"}</dd>
                 </div>
-              ) : null}
+              </div>
+            ) : null}
+          </dl>
+        </div>
+        <div className="grid gap-4 bg-slate-50/60 px-4 py-4 sm:px-5 lg:grid-cols-2 lg:items-center">
+          <div className="flex items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-primary">
+              {isJobCompleted ? <CheckCircle2 aria-hidden="true" className="size-[18px]" /> : isOriginGpsRequired ? <MapPin aria-hidden="true" className="size-[18px]" /> : <ScanLine aria-hidden="true" className="size-[18px]" />}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-sky-700">ขั้นตอนต่อไป</p>
+              <p className="mt-0.5 break-words text-sm font-semibold leading-relaxed text-slate-800">{job ? nextActionText : "เลือกห้องงานเพื่อเริ่มงาน"}</p>
             </div>
           </div>
+          <dl className="grid grid-cols-3 divide-x divide-slate-200">
+            <div className="min-w-0 px-3 first:pl-0 lg:first:pl-3">
+              <dt className="text-[11px] text-slate-500">ต้องสแกน</dt>
+              <dd className="mt-1 break-words text-xl font-semibold tabular-nums text-slate-800">{requiredTotal.toLocaleString("th-TH")}</dd>
+            </div>
+            <div className="min-w-0 px-3">
+              <dt className="text-[11px] text-slate-500">ขึ้นรถแล้ว</dt>
+              <dd className="mt-1 break-words text-xl font-semibold tabular-nums text-blue-700">{loadedTotal.toLocaleString("th-TH")}</dd>
+            </div>
+            <div className="min-w-0 px-3">
+              <dt className="text-[11px] text-slate-500">ส่งแล้ว</dt>
+              <dd className="mt-1 break-words text-xl font-semibold tabular-nums text-sky-700">{deliveredTotal.toLocaleString("th-TH")}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -1588,32 +1630,52 @@ export function DriverScanner({
 
       {shouldShowScanPanel ? (
       <Card className="order-6 overflow-hidden">
-        <CardHeader className="px-3 pb-2 pt-3">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ScanLine className="h-4 w-4" />
             {shouldShowDestinationOnly ? "สแกนส่งของ" : "สแกนขึ้นรถ"}
           </CardTitle>
           <CardDescription>{shouldShowDestinationOnly ? "สแกนเฉพาะของปลายทางที่เลือก" : "สแกนสินค้าเข้ารถให้ครบก่อนออกจากต้นทาง"}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 p-3 sm:p-5">
-          <div
-            className="relative block w-full overflow-hidden rounded-lg border bg-slate-950 text-left"
-            style={{ height: "clamp(420px, 72vh, 680px)" }}
-          >
-            <video ref={videoRef} className="h-full w-full bg-black object-cover" playsInline muted />
-
-            {/* Scan frame — decorative guide for user */}
-            <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative h-[78%] w-[92%] max-w-3xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.34)]">
-                {/* Animated scan line when camera is on */}
-                {isCameraScanning && (
-                  <div
-                    className="absolute left-0 right-0 h-0.5 bg-cyan-400 opacity-80"
-                    style={{ animation: "scanLine 2s linear infinite", top: "50%" }}
-                  />
-                )}
+        <CardContent className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(15rem,1fr)] lg:items-start">
+          <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {shouldShowDestinationOnly ? <MapPin aria-hidden="true" className="size-4 shrink-0 text-primary" /> : <Truck aria-hidden="true" className="size-4 shrink-0 text-primary" />}
+              <div className="min-w-0">
+                <p className="break-words text-xs font-medium text-slate-700">{shouldShowDestinationOnly ? currentDestination?.name || "เลือกปลายทาง" : "โหลดสินค้าที่ต้นทาง"}</p>
+                <p role="status" className="mt-0.5 text-[11px] text-slate-500">{isCameraScanning ? "กล้องกำลังสแกน" : "กล้องยังไม่เปิด"}</p>
               </div>
             </div>
+            {isCameraScanning ? (
+              <Button type="button" variant="outline" onClick={stopCamera} className="h-10 shrink-0 gap-2 border-red-200 text-red-700 hover:border-red-300 hover:bg-red-50 hover:text-red-800">
+                <Square aria-hidden="true" className="size-3.5" />
+                หยุดกล้อง
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => { void startCamera(); }} disabled={!job || isScanBlocked} className="h-10 shrink-0 gap-2">
+                <Camera aria-hidden="true" className="size-4" />
+                เปิดกล้อง
+              </Button>
+            )}
+          </div>
+          <div
+            className={`relative w-full overflow-hidden rounded-xl border text-left ${isCameraScanning ? "border-slate-800 bg-slate-950" : "border-sky-100 bg-sky-50/60"}`}
+            style={isCameraScanning ? { height: "clamp(280px, 45dvh, 420px)" } : undefined}
+          >
+            <video ref={videoRef} aria-hidden="true" className={`absolute inset-0 h-full w-full bg-black object-cover ${isCameraScanning ? "opacity-100" : "opacity-0"}`} playsInline muted />
+
+            {/* Scan frame — decorative guide for user */}
+            {isCameraScanning ? (
+            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="relative h-[62%] w-[86%] max-w-xl rounded-lg border-2 border-cyan-300 shadow-[0_0_0_999px_rgba(2,6,23,0.34)]">
+                <div
+                  className="absolute left-0 right-0 h-0.5 bg-cyan-400 opacity-80"
+                  style={{ animation: "scanLine 2s linear infinite", top: "50%" }}
+                />
+              </div>
+            </div>
+            ) : null}
 
             {/* Tap-to-focus overlay (only when scanning) */}
             {isCameraScanning && (
@@ -1685,15 +1747,13 @@ export function DriverScanner({
                   void startCamera();
                 }}
                 disabled={!job || isScanBlocked}
-                className="absolute inset-0 grid place-items-center px-4 text-center text-slate-200 disabled:cursor-not-allowed disabled:opacity-80"
+                className="relative flex min-h-52 w-full flex-col items-center justify-center px-5 py-6 text-center text-slate-700 transition-colors hover:bg-sky-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="แตะเพื่อเปิดกล้องสแกน"
               >
-                <div>
-                  <Camera className="mx-auto mb-2 h-10 w-10" />
-                  <p className="text-base font-semibold">แตะเพื่อสแกน</p>
-                  <p className="mt-1 text-sm">{cameraMessage}</p>
-                  <p className="mt-1 text-xs text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</p>
-                </div>
+                <span className="mb-3 flex size-12 items-center justify-center rounded-2xl border border-sky-100 bg-white text-primary shadow-sm"><Camera aria-hidden="true" className="size-6" strokeWidth={1.5} /></span>
+                <span className="text-sm font-semibold text-slate-800">แตะเพื่อเปิดกล้องสแกน</span>
+                <span className="mt-1 max-w-sm text-xs leading-relaxed text-slate-500">{cameraMessage}</span>
+                <span className="mt-3 max-w-sm text-[11px] leading-relaxed text-slate-400">รองรับ {SUPPORTED_SCAN_FORMAT_LABEL}</span>
               </button>
             )}
 
@@ -1713,47 +1773,30 @@ export function DriverScanner({
               100% { top: 10%; }
             }
           `}</style>
-
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div
-              className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${
-                shouldShowDestinationOnly
-                  ? "border-emerald-500 bg-emerald-500 text-white"
-                  : "border-amber-500 bg-amber-500 text-white"
-              }`}
-            >
-              {shouldShowDestinationOnly ? <QrCode className="h-5 w-5 shrink-0" /> : <Truck className="h-5 w-5 shrink-0" />}
-              <div className="text-left">
-                <div>{shouldShowDestinationOnly ? "ปลายทาง" : "ขึ้นรถ"}</div>
-                <div className="text-[10px] font-normal opacity-80">
-                  {shouldShowDestinationOnly ? currentDestination?.name || "เลือกปลายทาง" : "โหลดสินค้าที่ต้นทาง"}
-                </div>
-              </div>
-            </div>
-            <Button type="button" variant="outline" onClick={stopCamera} disabled={!isCameraScanning} className="gap-2">
-              <Square className="h-4 w-4" />
-              หยุด
-            </Button>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="scan-code">PO SAP No.</Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="min-w-0 space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div>
+              <Label htmlFor="scan-code" className="text-sm font-semibold text-slate-800">PO SAP No.</Label>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">กรอกรหัสด้วยตนเองเมื่อไม่สะดวกใช้กล้อง</p>
+            </div>
+            <div className="space-y-2.5">
               <Input
                 id="scan-code"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 disabled={!job || isScanBlocked}
                 placeholder="สแกนหรือกรอก PO SAP No."
+                className="h-10"
               />
-              <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="sm:w-32">
+              <Button type="button" onClick={handleScanSubmit} disabled={!job || isSubmitting || isScanBlocked} className="h-10 w-full">
                 {isSubmitting ? "กำลังบันทึก" : "บันทึก"}
               </Button>
             </div>
-          </div>
 
           {message ? (
             <div
+              role="status"
               className={
                 scanResult === "alert"
                   ? "whitespace-pre-line rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
@@ -1763,6 +1806,7 @@ export function DriverScanner({
               {message}
             </div>
           ) : null}
+          </div>
         </CardContent>
       </Card>
       ) : null}
@@ -1785,26 +1829,29 @@ export function DriverScanner({
               const delivered = items.reduce((sum, item) => sum + item.deliveredQty, 0);
 
               return (
-                <details key={destination.id} className="rounded-md border border-[#d8dde6] bg-white">
-                  <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm font-medium">
-                    <span className="min-w-0 break-words">{destination.name}</span>
-                    <span className="shrink-0 text-xs text-slate-500">
-                      {delivered}/{loaded}/{total}
+                <details key={destination.id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-sky-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-slate-400 transition-transform group-open:rotate-90" />
+                      <span className="min-w-0 break-words text-slate-800">{destination.name}</span>
                     </span>
+                    <ScanQuantityBadges required={total} loaded={loaded} delivered={delivered} />
                   </summary>
-                  <div className="space-y-2 border-t border-[#d8dde6] p-3">
+                  <div className="space-y-2 border-t border-slate-200 p-3">
                     {items.map((item) => (
-                      <div key={item.registryKey} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="min-w-0 break-words font-semibold text-slate-950">
-                            PO {item.poSapNo || item.registryKey}
-                            {item.poSapItem ? ` / Item ${item.poSapItem}` : ""}
-                          </span>
-                          <span className="shrink-0 font-semibold">{item.deliveredQty}/{item.loadedQty}/{item.orderQty}</span>
+                      <div key={item.registryKey} className="rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold text-slate-900">
+                              PO {item.poSapNo || item.registryKey}
+                              {item.poSapItem ? ` / Item ${item.poSapItem}` : ""}
+                            </p>
+                            <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
+                              {item.materialName || "-"} / จำนวนสั่งซื้อ {item.sourceOrderQty || String(item.orderQty || "-")}
+                            </p>
+                          </div>
+                          <ScanQuantityBadges required={item.orderQty} loaded={item.loadedQty} delivered={item.deliveredQty} />
                         </div>
-                        <p className="mt-1 break-words text-xs text-slate-500">
-                          {item.materialName || "-"} / จำนวนสั่งซื้อ {item.sourceOrderQty || String(item.orderQty || "-")}
-                        </p>
                       </div>
                     ))}
                   </div>

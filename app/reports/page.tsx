@@ -2,6 +2,7 @@ import { FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { Input } from "@/components/ui/input";
+import { PageHeading } from "@/components/layout/page-heading";
 import { JobReportTable, type JobReportListItem } from "@/components/reports/job-report-table";
 import { getJobStatusLabel } from "@/lib/job-labels";
 import { getJobReportJobs, type JobReportStatusFilter } from "@/lib/job-reports";
@@ -78,27 +79,25 @@ export default async function ReportsPage({
   const archivedCount = jobs.filter((job) => job.reportKind === "archived").length;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="text-lg font-bold tracking-normal">รายงานข้อมูลและประวัติงาน</h2>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+    <div className="space-y-5">
+      <PageHeading title="รายงานและประวัติงาน" description="ค้นหา ตรวจสอบ และส่งออกข้อมูลงานขนส่งในที่เดียว" />
+        <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="surface-panel flex flex-col gap-2 border-l-4 border-l-blue-500 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground">ผลลัพธ์</span>
-            <span className="font-semibold text-slate-950">{jobs.length.toLocaleString("th-TH")}</span>
+            <span className="text-2xl font-bold tracking-tight text-blue-700">{jobs.length.toLocaleString("th-TH")}</span>
           </div>
-          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+          <div className="surface-panel flex flex-col gap-2 border-l-4 border-l-sky-400 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground">เปิดอยู่</span>
-            <span className="font-semibold text-slate-950">{activeCount.toLocaleString("th-TH")}</span>
+            <span className="text-2xl font-bold tracking-tight text-sky-700">{activeCount.toLocaleString("th-TH")}</span>
           </div>
-          <div className="flex h-8 items-center gap-2 rounded-md border bg-white px-3">
+          <div className="surface-panel flex flex-col gap-2 border-l-4 border-l-emerald-400 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground">ปิดแล้ว</span>
-            <span className="font-semibold text-slate-950">{archivedCount.toLocaleString("th-TH")}</span>
+            <span className="text-2xl font-bold tracking-tight text-emerald-700">{archivedCount.toLocaleString("th-TH")}</span>
           </div>
         </div>
-      </div>
 
-      <div className="rounded-md border bg-white">
-        <form className="grid gap-2 border-b px-3 py-3 lg:grid-cols-[minmax(240px,1fr)_150px_150px_160px_auto]">
+      <div className="surface-panel data-table overflow-hidden">
+        <form className="grid gap-3 border-b bg-slate-50/60 px-4 py-4 sm:grid-cols-2 2xl:grid-cols-[minmax(240px,1fr)_150px_150px_160px_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -106,6 +105,7 @@ export default async function ReportsPage({
               name="query"
               defaultValue={query}
               placeholder="ค้นหารหัสงาน, ห้องงาน, คนขับ, รถ, PO"
+              aria-label="ค้นหารายงานงานขนส่ง"
               className="pl-9"
             />
           </div>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { withBasePath } from "@/lib/app-paths";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SyncDropMascot } from "@/components/brand/syncdrop-mascot";
 import {
   clearPORegistry,
   deletePORecords,
@@ -284,11 +285,11 @@ export function PORegistryList() {
   }
 
   return (
-    <Card>
+    <Card className="data-table">
       <CardHeader>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
-            <CardTitle>คิวจากไฟล์ GR</CardTitle>
+            <CardTitle className="flex items-center gap-2"><span className="flex size-8 items-center justify-center rounded-lg bg-sky-100 text-primary"><ClipboardList className="size-4" /></span>คิวจากไฟล์ GR</CardTitle>
             <CardDescription>ค้นหาและเลือกรายการที่ต้องนำไปสร้าง Job</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -319,6 +320,7 @@ export function PORegistryList() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="ค้นหา PO, Vendor, PO Web No., วัสดุ"
+              aria-label="ค้นหารายการ PO"
               className="pl-9"
             />
           </div>
@@ -392,8 +394,9 @@ export function PORegistryList() {
         ) : null}
 
         {isLoading && !records.length ? (
-          <div className="rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground dark:bg-slate-900">
-            กำลังโหลดข้อมูล PO
+          <div role="status" className="space-y-3 rounded-xl border bg-slate-50/60 p-5 text-sm text-muted-foreground">
+            <p>กำลังโหลดข้อมูล PO</p>
+            {[1, 2, 3].map((row) => <div key={row} className="h-8 rounded-lg bg-slate-200/70 motion-safe:animate-pulse" />)}
           </div>
         ) : error ? (
           <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
@@ -537,16 +540,16 @@ export function PORegistryList() {
             ) : null}
           </div>
         ) : (
-          <div className="rounded-md border bg-slate-50 p-6 dark:bg-slate-900">
+          <div className="empty-state">
             {normalizedQuery ? (
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  <ClipboardList className="h-5 w-5" />
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <div className="flex flex-col items-center gap-3">
+                  <span className="flex size-14 items-center justify-center rounded-2xl border border-sky-100 bg-white text-primary shadow-sm"><ClipboardList className="size-6" strokeWidth={1.5} /></span>
                   <p>
                     ไม่พบข้อมูล PO ที่ตรงกับคำค้นหา <span className="font-medium text-foreground">{normalizedQuery}</span>
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={clearSearch}>
                     ล้างคำค้นหา
                   </Button>
@@ -556,12 +559,12 @@ export function PORegistryList() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  <ClipboardList className="h-5 w-5" />
-                  <p>ยังไม่มีข้อมูลในทะเบียน PO ที่บันทึกแล้ว กรุณานำเข้าไฟล์ GR และยืนยันการบันทึกก่อน</p>
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <div className="flex flex-col items-center gap-3">
+                  <SyncDropMascot className="w-24" sizes="96px" />
+                  <div><p className="font-semibold text-slate-700">พร้อมสำหรับการขนส่งครั้งต่อไป</p><p className="mt-1 text-xs leading-relaxed">ยังไม่มีข้อมูล PO กรุณานำเข้าไฟล์ GR และยืนยันการบันทึกก่อน</p></div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-center gap-2">
                   <Button asChild type="button" size="sm">
                     <Link href="/po/import">นำเข้า PO</Link>
                   </Button>

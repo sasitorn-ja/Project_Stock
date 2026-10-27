@@ -306,22 +306,23 @@ export function POImporter() {
 
   return (
     <div className="space-y-6">
-      <Card className="mx-auto w-full max-w-4xl rounded-md">
+      <Card className="mx-auto w-full max-w-4xl">
         <CardHeader className="border-b-0 px-6 pb-3 pt-5">
           <CardTitle className="text-[15px] font-bold leading-5 text-slate-950">อัปโหลด PO จาก SAP</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 px-6 pb-5 pt-3">
         <div
-          className="flex min-h-36 items-center justify-center rounded-md border border-dashed border-[#cfd8e3] bg-[#fafafa] px-4 py-8"
+          className="upload-zone flex min-h-56 items-center justify-center px-4 py-8"
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleFileDrop}
         >
           <div className="flex flex-col items-center text-center">
-            <UploadCloud className="h-7 w-7 text-slate-300" />
-            <p className="mt-2 text-sm font-medium text-slate-400">ลากไฟล์มาวางที่นี่ หรือ</p>
+            <span className="mb-2 flex size-16 items-center justify-center rounded-2xl border border-sky-100 bg-white text-primary shadow-sm shadow-sky-900/5"><UploadCloud className="size-7" strokeWidth={1.5} /></span>
+            <p className="mt-2 text-sm font-medium text-slate-600">ลากไฟล์มาวางที่นี่ หรือ</p>
             <Button asChild variant="outline" className="mt-2 h-9 border-slate-300 px-4 text-[13px] font-semibold text-slate-900">
               <label htmlFor="po-excel-file">เลือกไฟล์ Excel / CSV</label>
             </Button>
+            <p className="mt-3 text-[11px] text-slate-400">รองรับไฟล์ .xlsx, .xls และ .csv</p>
             <input
               id="po-excel-file"
               type="file"

@@ -1,26 +1,21 @@
 import Link from "next/link";
 import { Upload } from "lucide-react";
+import { PageHeading } from "@/components/layout/page-heading";
 import { Button } from "@/components/ui/button";
 import { PORegistryList } from "@/components/po/po-registry-list";
 import { StorageWarning } from "@/components/system/storage-warning";
 
 export default function PurchaseOrdersPage() {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-        <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-normal text-slate-900">PO รอจัดส่ง</h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            เลือกรายการ PO ที่นำเข้าแล้วเพื่อสร้าง Job ขนส่ง
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
+    <div className="space-y-5">
+      <PageHeading title="PO รอจัดส่ง" description="จัดการรายการ PO และเตรียมพร้อมสำหรับการขนส่งครั้งต่อไป" actions={
+        <Button asChild variant="outline" size="sm" className="hero-primary w-full sm:w-auto">
           <Link href="/po/import">
             <Upload className="mr-2 h-3.5 w-3.5" />
             นำเข้า PO
           </Link>
         </Button>
-      </div>
+      } />
 
       <StorageWarning />
 

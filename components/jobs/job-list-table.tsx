@@ -8,6 +8,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Eye,
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SyncDropMascot } from "@/components/brand/syncdrop-mascot";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
 import { getJobStatusLabel } from "@/lib/job-labels";
@@ -190,15 +191,17 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
 
   if (!jobs.length) {
     return (
-      <div className="m-3 rounded-md border border-dashed bg-slate-50 px-4 py-5 text-center text-sm text-muted-foreground dark:bg-slate-900">
-        ยังไม่มีงานเปิดอยู่
+      <div className="empty-state m-5 text-sm text-muted-foreground">
+        <SyncDropMascot className="mb-3 w-24" sizes="96px" />
+        <p className="font-semibold text-slate-700">ยังไม่มีงานเปิดอยู่</p>
+        <p className="mt-1 text-xs">เริ่มต้นด้วยการเลือก PO เพื่อสร้างงานขนส่ง</p>
       </div>
     );
   }
 
   return (
     <div className="overflow-hidden rounded-md">
-      <div className="hidden max-h-[calc(100vh-230px)] overflow-auto md:block">
+      <div className="hidden max-h-[calc(100dvh-360px)] min-h-48 overflow-auto md:block">
         <table className="w-full min-w-[980px]">
           <thead className="sticky top-0 z-10 border-y border-[#f0f2f5] bg-[#fafbfc] text-left">
             <tr>
