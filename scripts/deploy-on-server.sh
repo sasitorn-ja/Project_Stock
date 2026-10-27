@@ -26,7 +26,7 @@ compose=(docker compose --env-file "$SYNCDROP_ENV_FILE" -p "$project_name" -f do
 "${compose[@]}" config --quiet
 # Finish the image build before replacing the running container.
 "${compose[@]}" build syncdrop
-"${compose[@]}" up -d --no-build --force-recreate syncdrop
+"${compose[@]}" up -d --no-deps --no-build --force-recreate syncdrop
 
 for attempt in {1..30}; do
   if docker exec -e "SYNCDROP_HEALTH_PATH=${NEXT_PUBLIC_BASE_PATH%/}/login" syncdrop node -e '

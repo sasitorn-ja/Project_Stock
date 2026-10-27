@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withBasePath, withoutBasePath } from "@/lib/app-paths";
 import { getSessionFromCookieValue, sessionCookieName } from "@/lib/rmc-session";
+import { checkRemoteApiAccess, isRemoteApiPath } from "@/lib/remote-api-auth";
 
 function isAssetPath(pathname: string) {
   return (
@@ -60,6 +61,26 @@ export default async function middleware(request: Request & { nextUrl: URL; cook
   const { nextUrl, method } = request;
   const pathname = withoutBasePath(nextUrl.pathname);
   const hasJobId = Boolean(nextUrl.searchParams.get("jobId")?.trim());
+
+  if (pathname === "/api/system/health" && (method === "GET" || method === "HEAD")) {
+    return NextResponse.next();
+  }
+
+  // Check explicit API credentials before public driver routes or SSO cookies.
+  // A rejected token must never fall through to another authentication method.
+  if (isRemoteApiPath(pathname) && request.headers.has("authorization")) {
+    const status = await checkRemoteApiAccess(request);
+    if (status !== 200) {
+      return NextResponse.json({ error: status === 401 ? "Unauthorized" : "Write access disabled" }, { status });
+    }
+    return NextResponse.next();
+  }
+
+  // This diagnostic always requires a token, even with an SSO session.
+  if (pathname === "/api/system/token-check") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const session = await getSessionFromCookieValue(request.cookies.get(sessionCookieName)?.value);
 
   if (isAssetPath(pathname)) {

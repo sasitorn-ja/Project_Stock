@@ -32,3 +32,7 @@ next-env.d.ts
 
 # local confidential handoff documents
 sync-drop-sso-handoff.md
+
+# Only placeholder remote env may be tracked
+.env.remote*
+!.env.remote.example

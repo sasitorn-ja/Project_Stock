@@ -9,3 +9,7 @@ npm-debug.log*
 Dockerfile
 docker-compose.yml
 docs
+
+# Confidential local handoff documents
+sync-drop-sso-handoff*.md
+.env.remote.local
