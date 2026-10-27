@@ -79,17 +79,19 @@ export function Header({
               <UserCircle className="h-4 w-4 shrink-0 text-slate-500" />
               <span className="max-w-48 truncate">{displayName}</span>
             </div>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
-            >
-              <a href={withBasePath("/api/auth/logout")}>
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">ออกจากระบบ</span>
-              </a>
-            </Button>
+            {session.mode !== "remote-development" && (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-[#d8dde6] text-slate-700 hover:bg-slate-100"
+              >
+                <a href={withBasePath("/api/auth/logout")}>
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">ออกจากระบบ</span>
+                </a>
+              </Button>
+            )}
           </div>
         ) : (
           <div />

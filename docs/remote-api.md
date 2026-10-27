@@ -1,10 +1,29 @@
 # Remote API
 
-Load `.env.remote.local` in the consuming server-side process. The file contains
+For a developer running this web app on their own machine:
+
+1. Pull the latest `Release` branch and run `npm ci`.
+2. Put the supplied `.env.remote.local` in the project root (do not commit it).
+3. Stop the old dev process and run `npm run dev` (or explicitly `npm run dev:remote`).
+4. Open `http://localhost:3000/`.
+
+`npm run dev` detects `.env.remote.local` and loads remote mode automatically.
+`npm run dev:remote` requires that file explicitly. Both check the token and bind
+the remote development server to `127.0.0.1`. Without `.env.remote.local`,
+`npm run dev` keeps the normal SSO flow. The remote settings take precedence over
+a legacy `.env.local` with client ID `sync-drop`.
+
+Remote development uses the token in the local Node process. Local browser API
+requests go through an endpoint allowlist on that process; server-rendered job
+pages also load through the remote API. The browser never receives the token.
+Remote mode is only active with `NODE_ENV=development`, accepts loopback and
+same-origin requests, and does not register or change any SSO clients. Stop the
+dev process to end local access. Production continues to use normal SSO.
+
+For other server-side API consumers, load `.env.remote.local`. The file contains
 `Stock_API_MODE=remote`, `Stock_API_BASE_URL=https://store.cipcloud.net/syncdrop/api`,
 and `Stock_API_TOKEN`. Send `Authorization: Bearer <Stock_API_TOKEN>` on requests.
 Append `/jobs`, `/po-registry`, or `/system/token-check` to the base URL.
-This environment file is for the API consumer; the existing browser UI uses SSO.
 Do not put the token in browser code, URLs, logs, or Git.
 
 Production reads `Stock_API_TOKEN` and `Stock_API_WRITE_ENABLED=true` at runtime

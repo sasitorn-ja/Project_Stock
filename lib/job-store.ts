@@ -16,6 +16,8 @@ import {
   type JobArchiveRecord,
   type JobDestinationOverrideInput,
   type JobRecord,
+  type JobSummaryRecord,
+  type JobArchiveSummaryRecord,
   type ScanMode,
 } from "@/lib/jobs";
 import {
@@ -48,6 +50,8 @@ import {
   serializePORegistryArchiveRecordForDatabase,
 } from "@/lib/shared-storage-payloads";
 import { assertWritableStorage, canUseLocalFileStorage } from "@/lib/storage-config";
+import { isRemoteDevMode } from "@/lib/remote-api-config";
+import { remoteApiJson, remoteApiRequest } from "@/lib/remote-api-client";
 
 type JobStore = {
   jobs: JobRecord[];
@@ -2991,6 +2995,7 @@ async function registerJobScanInDatabase(input: {
 }
 
 export async function listJobs() {
+  if (isRemoteDevMode()) return (await remoteApiJson<{ jobs: JobSummaryRecord[] }>("jobs")).jobs;
   if (hasMySQLDatabase()) {
     return listJobsFromMySQL();
   }
@@ -3007,6 +3012,12 @@ export async function listJobs() {
 }
 
 export async function getJob(jobId: string) {
+  if (isRemoteDevMode()) {
+    const response = await remoteApiRequest(`jobs/${encodeURIComponent(jobId)}`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Remote API returned HTTP ${response.status}`);
+    return ((await response.json()) as { job: JobSummaryRecord }).job;
+  }
   if (hasMySQLDatabase()) {
     return getJobFromMySQL(jobId);
   }
@@ -3134,6 +3145,11 @@ export async function listJobArchives(filters: {
   dateFrom?: string;
   dateTo?: string;
 } = {}) {
+  if (isRemoteDevMode()) {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) search.set(key, value);
+    return (await remoteApiJson<{ jobs: JobArchiveSummaryRecord[] }>(`jobs/history?${search}`)).jobs;
+  }
   if (hasMySQLDatabase()) {
     return listJobArchivesFromMySQL(filters);
   }
@@ -3151,6 +3167,12 @@ export async function listJobArchives(filters: {
 }
 
 export async function getJobArchive(jobId: string) {
+  if (isRemoteDevMode()) {
+    const response = await remoteApiRequest(`jobs/history/${encodeURIComponent(jobId)}`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Remote API returned HTTP ${response.status}`);
+    return ((await response.json()) as { job: JobArchiveSummaryRecord }).job;
+  }
   if (hasMySQLDatabase()) {
     return getJobArchiveFromMySQL(jobId);
   }

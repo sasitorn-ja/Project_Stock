@@ -1,4 +1,5 @@
 export type AppSession = {
+  mode?: "remote-development";
   user: {
     id: string;
     name?: string | null;

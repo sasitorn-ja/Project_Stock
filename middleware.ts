@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withBasePath, withoutBasePath } from "@/lib/app-paths";
 import { getSessionFromCookieValue, sessionCookieName } from "@/lib/rmc-session";
 import { checkRemoteApiAccess, isRemoteApiPath } from "@/lib/remote-api-auth";
+import { getRemoteApiConfig, isLocalRemoteRequest, isRemoteDevMode } from "@/lib/remote-api-config";
 
 function isAssetPath(pathname: string) {
   return (
@@ -61,6 +62,29 @@ export default async function middleware(request: Request & { nextUrl: URL; cook
   const { nextUrl, method } = request;
   const pathname = withoutBasePath(nextUrl.pathname);
   const hasJobId = Boolean(nextUrl.searchParams.get("jobId")?.trim());
+
+  if (isRemoteDevMode()) {
+    if (!isLocalRemoteRequest(request)) {
+      return NextResponse.json({ error: "Remote development accepts same-origin loopback requests only" }, { status: 403 });
+    }
+    try {
+      getRemoteApiConfig();
+    } catch {
+      return NextResponse.json({ error: "Invalid remote API configuration; start with npm run dev:remote" }, { status: 503 });
+    }
+    if (pathname === "/login" || pathname.startsWith("/api/auth/")) {
+      return NextResponse.redirect(new URL(withBasePath("/po"), nextUrl));
+    }
+    if (isRemoteApiPath(pathname)) {
+      const proxyUrl = new URL(nextUrl);
+      proxyUrl.pathname = withBasePath(`/api/remote/${pathname.slice(5)}`);
+      return NextResponse.rewrite(proxyUrl);
+    }
+    if (pathname.startsWith("/api/") && !pathname.startsWith("/api/remote/") && pathname !== "/api/system/health") {
+      return NextResponse.json({ error: "Endpoint is unavailable in remote development" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
 
   if (pathname === "/api/system/health" && (method === "GET" || method === "HEAD")) {
     return NextResponse.next();
