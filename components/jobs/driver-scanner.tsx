@@ -19,7 +19,6 @@ import {
   MapPin,
   QrCode,
   ScanLine,
-  Search,
   Square,
   Truck,
   UserRound,
@@ -31,6 +30,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DriverRoomHeader, DriverRoomSummary } from "@/components/jobs/driver-room-header";
+import { DriverScanItemList } from "@/components/jobs/driver-scan-item-list";
 import { checkInJobDestination, checkInJobOrigin, clearUnusedDestinationCheckIn, getJob, getJobs, submitJobScan } from "@/lib/job-db";
 import { type JobSummaryRecord, type ScanMode } from "@/lib/jobs";
 import { createScanHints, MIN_SCAN_CODE_LENGTH, SUPPORTED_SCAN_FORMAT_LABEL } from "@/lib/scanner-formats";
@@ -253,7 +254,6 @@ export function DriverScanner({
   const [isSwitchingDestination, setIsSwitchingDestination] = useState(false);
   const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
   const [isDriverItemListOpen, setIsDriverItemListOpen] = useState(false);
-  const [driverItemSearch, setDriverItemSearch] = useState("");
   const autoStartAttemptRef = useRef("");
 
   useEffect(() => {
@@ -360,12 +360,10 @@ export function DriverScanner({
         ? "สแกนส่งของ"
         : "กดเช็กอินปลายทาง";
   const isDedicatedJobUnavailable = Boolean(initialJobId) && !isLoading && !job;
-  const driverVisibleItems = useMemo(() => {
+  const driverScanItems = useMemo(() => {
     if (!job) {
       return [];
     }
-
-    const normalizedSearch = driverItemSearch.trim().toLowerCase();
 
     return job.items
       .filter((item) => mode !== "deliver" || item.destinationId === currentDestination?.id)
@@ -377,21 +375,12 @@ export function DriverScanner({
           remainingQty: Math.max(item.orderQty - completedQty, 0),
         };
       })
-      .filter((item) => {
-        if (!normalizedSearch) {
-          return true;
-        }
-
-        return [item.poSapNo, item.poSapItem, item.materialCode, item.materialName]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(normalizedSearch));
-      })
       .sort((a, b) => {
         if (a.remainingQty > 0 && b.remainingQty === 0) return -1;
         if (a.remainingQty === 0 && b.remainingQty > 0) return 1;
         return String(a.poSapNo || a.registryKey).localeCompare(String(b.poSapNo || b.registryKey));
       });
-  }, [currentDestination?.id, driverItemSearch, job, mode]);
+  }, [currentDestination?.id, job, mode]);
 
   useEffect(() => {
     if (isJobCompleted) {
@@ -954,76 +943,19 @@ export function DriverScanner({
       mode === "deliver" ? currentDestinationItems.reduce((sum, item) => sum + item.deliveredQty, 0) : loadedTotal;
     const remainingTotal = Math.max(activeRequiredTotal - activeTotal, 0);
     const activeLabel = mode === "deliver" ? "ส่งของ" : "ขึ้นรถ";
+    const scanTitle = mode === "deliver" ? "สแกนส่งสินค้า" : "สแกนสินค้าขึ้นรถ";
     const activeLocation = mode === "deliver" ? currentDestination?.name || "เลือกปลายทาง" : job?.origin || "ต้นทาง";
 
     return (
-      <div className="min-h-[100dvh] bg-[#f5f6f8]">
+      <div className="min-h-[100dvh] bg-gradient-to-br from-[#eef5fc] via-[#f5f8fc] to-[#edf5fa]">
         {isDriverItemListOpen ? (
-          <div className="fixed inset-0 z-[80] flex flex-col bg-[#f5f6f8]">
-            <header className="border-b border-slate-200 bg-white px-3 py-3">
-              <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">รายการที่ต้องสแกน</h2>
-                  <p className="text-xs text-slate-500">{mode === "deliver" ? currentDestination?.name || "ปลายทาง" : "สินค้าขึ้นรถ"}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDriverItemListOpen(false)}
-                  className="grid size-11 place-items-center rounded-full border border-slate-300 bg-white text-slate-700"
-                  aria-label="ปิดรายการสินค้า"
-                >
-                  <X className="size-5" />
-                </button>
-              </div>
-            </header>
-            <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 p-3">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={driverItemSearch}
-                  onChange={(event) => setDriverItemSearch(event.target.value)}
-                  className="h-12 bg-white pl-10 text-base"
-                  placeholder="ค้นหา PO หรือชื่อสินค้า"
-                  autoFocus
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-                <span>{driverVisibleItems.length.toLocaleString("th-TH")} รายการ</span>
-                <span>รายการคงเหลืออยู่ด้านบน</span>
-              </div>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
-                {driverVisibleItems.length ? (
-                  driverVisibleItems.map((item) => (
-                    <div
-                      key={item.registryKey}
-                      className={item.remainingQty > 0 ? "rounded-lg border border-slate-200 bg-white p-3" : "rounded-lg border border-emerald-200 bg-emerald-50 p-3"}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="break-words text-base font-bold text-slate-950">
-                            PO {item.poSapNo || item.registryKey}
-                            {item.poSapItem ? ` · Item ${item.poSapItem}` : ""}
-                          </p>
-                          <p className="mt-1 break-words text-sm text-slate-600">{item.materialName || item.materialCode || "-"}</p>
-                        </div>
-                        <div className={item.remainingQty > 0 ? "shrink-0 rounded-md bg-amber-100 px-3 py-2 text-center text-amber-950" : "shrink-0 rounded-md bg-emerald-600 px-3 py-2 text-center text-white"}>
-                          <p className="text-[10px] font-medium">{item.remainingQty > 0 ? "เหลือ" : "ครบแล้ว"}</p>
-                          <p className="text-xl font-bold tabular-nums">{item.remainingQty.toLocaleString("th-TH")}</p>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-xs text-slate-500">
-                        สแกนแล้ว {item.completedQty.toLocaleString("th-TH")} / {item.orderQty.toLocaleString("th-TH")}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-sm text-slate-500">
-                    ไม่พบรายการที่ค้นหา
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <DriverScanItemList
+            job={job}
+            items={driverScanItems}
+            mode={mode}
+            location={activeLocation}
+            onClose={() => setIsDriverItemListOpen(false)}
+          />
         ) : null}
 
         {driverNotice ? (
@@ -1053,28 +985,16 @@ export function DriverScanner({
           </div>
         ) : null}
 
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-950">{roomTitle}</p>
-              <p className="truncate text-xs text-slate-500">
-                รถ {job?.vehicle || "-"} · {job?.driver || "-"}
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-medium uppercase text-slate-500">คงเหลือ</p>
-              <p className="text-xl font-bold tabular-nums text-slate-950">{remainingTotal.toLocaleString("th-TH")}</p>
-            </div>
-          </div>
-        </header>
+        <DriverRoomHeader />
 
-        <main className="mx-auto max-w-3xl p-3">
+        <main className="mx-auto max-w-6xl space-y-4 px-3 py-4 sm:px-6 sm:py-6">
+          {job && !isLoading ? <DriverRoomSummary job={job} /> : null}
           {isLoading ? (
             <div className="grid min-h-[70dvh] place-items-center text-sm font-medium text-slate-500">กำลังเปิดห้องงาน</div>
           ) : null}
 
           {isDedicatedJobUnavailable ? (
-            <div className="grid min-h-[75dvh] place-items-center text-center">
+            <div className="surface-panel grid min-h-80 place-items-center p-6 text-center">
               <div>
                 <CheckCircle2 className="mx-auto size-16 text-emerald-600" />
                 <h2 className="mt-4 text-2xl font-bold text-slate-950">งานนี้ปิดแล้ว</h2>
@@ -1084,7 +1004,7 @@ export function DriverScanner({
           ) : null}
 
           {isJobCompleted && job ? (
-            <div className="grid min-h-[75dvh] place-items-center text-center">
+            <div className="surface-panel grid min-h-80 place-items-center p-6 text-center">
               <div className="w-full max-w-sm">
                 <CheckCircle2 className="mx-auto size-20 text-emerald-600" />
                 <h2 className="mt-4 text-3xl font-bold text-slate-950">จบงานแล้ว</h2>
@@ -1097,25 +1017,28 @@ export function DriverScanner({
           ) : null}
 
           {!isJobCompleted && isOriginGpsRequired && job ? (
-            <div className="grid min-h-[calc(100dvh-84px)] place-items-center">
+            <section className="surface-panel grid min-h-80 place-items-center p-5 sm:p-8" aria-label="เช็กอินต้นทาง">
               <div className="w-full max-w-sm text-center">
                 <div className="mx-auto grid size-20 place-items-center rounded-full bg-sky-100 text-sky-700">
                   <MapPin className="size-10" />
                 </div>
                 <p className="mt-5 text-sm font-medium text-slate-500">เริ่มงานที่</p>
                 <h2 className="mt-1 break-words text-2xl font-bold text-slate-950">{job.origin || "ต้นทาง"}</h2>
-                <Button type="button" className="mt-7 h-16 w-full gap-2 text-lg" onClick={captureOriginGps} disabled={isFetchingOriginGps}>
+                <p className="mt-2 text-sm leading-6 text-slate-500">เช็กอิน GPS เมื่อถึงต้นทาง เพื่อเริ่มสแกนสินค้าขึ้นรถ</p>
+                <Button type="button" className="mt-5 h-12 w-full gap-2 text-base" onClick={captureOriginGps} disabled={isFetchingOriginGps}>
                   <MapPin className="size-6" />
                   {isFetchingOriginGps ? "กำลังเช็กตำแหน่ง" : "เช็กอินและเริ่มงาน"}
                 </Button>
               </div>
-            </div>
+            </section>
           ) : null}
 
           {!isJobCompleted && !isOriginGpsRequired && shouldShowDestinationOnly && isDestinationGpsRequired ? (
-            <div className="grid min-h-[calc(100dvh-84px)] place-items-center">
+            <section className="surface-panel grid min-h-80 place-items-center p-5 sm:p-8" aria-label="เช็กอินปลายทาง">
               <div className="w-full max-w-md">
-                <p className="text-center text-sm font-medium text-slate-500">เลือกจุดส่งของ</p>
+                <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-sky-50 text-primary"><MapPin className="size-6" /></div>
+                <h2 className="text-center text-lg font-semibold text-slate-900">เช็กอินปลายทาง</h2>
+                <p className="mt-1 text-center text-sm text-slate-500">เลือกจุดส่งและเช็กอิน GPS ก่อนสแกนส่งสินค้า</p>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger
                     className="mt-3 flex min-h-16 w-full items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-4 text-left text-base font-bold shadow-sm"
@@ -1140,7 +1063,7 @@ export function DriverScanner({
                 </DropdownMenu.Root>
                 <Button
                   type="button"
-                  className="mt-4 h-16 w-full gap-2 text-lg"
+                  className="mt-4 h-12 w-full gap-2 text-base"
                   onClick={captureDestinationGps}
                   disabled={!currentDestination || isFetchingDestinationGps}
                 >
@@ -1149,89 +1072,130 @@ export function DriverScanner({
                 </Button>
                 <p className="mt-4 text-center text-xs leading-5 text-slate-500">เลือกผิดสามารถเปลี่ยนจุดส่งก่อนเริ่มสแกนได้</p>
               </div>
-            </div>
+            </section>
           ) : null}
 
           {shouldShowScanPanel ? (
-            <div className="space-y-3">
-              <section className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg bg-white px-3 py-3 shadow-sm">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-500">{activeLabel} · {activeTotal.toLocaleString("th-TH")}/{activeRequiredTotal.toLocaleString("th-TH")}</p>
-                  <p className="truncate text-base font-bold text-slate-950">{activeLocation}</p>
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <section className="surface-panel overflow-hidden" aria-labelledby="driver-camera-title">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 id="driver-camera-title" className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ScanLine className="size-4 shrink-0 text-primary" />{scanTitle}</h2>
+                    <p className="mt-1 break-words text-xs text-slate-500">{activeLocation}</p>
+                  </div>
+                  <Badge variant={isCameraScanning ? "success" : "secondary"}>
+                    <span className={`size-1.5 rounded-full ${isCameraScanning ? "bg-emerald-500" : "bg-slate-400"}`} />
+                    {isCameraScanning ? "กล้องกำลังทำงาน" : "พร้อมสแกน"}
+                  </Badge>
                 </div>
-                <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full bg-emerald-500" style={{ width: `${activeRequiredTotal ? Math.min((activeTotal / activeRequiredTotal) * 100, 100) : 0}%` }} />
-                </div>
-              </section>
+                <div className="p-3">
+                  <div
+                    className={
+                      isCameraScanning
+                        ? "fixed inset-0 z-50 h-dvh overflow-hidden bg-black lg:relative lg:inset-auto lg:z-auto lg:h-[400px] lg:rounded-xl"
+                        : "relative h-[300px] overflow-hidden rounded-xl bg-gradient-to-br from-[#0b2e55] via-[#0b2444] to-[#071426] sm:h-[400px]"
+                    }
+                  >
+                    <video ref={videoRef} className={`h-full w-full object-cover ${isCameraScanning ? "" : "invisible"}`} playsInline muted />
 
-              <Button type="button" variant="outline" className="h-12 w-full gap-2 bg-white text-base" onClick={() => setIsDriverItemListOpen(true)}>
-                <List className="size-5" />
-                ดูรายการ PO และสินค้าที่ต้องสแกน
-              </Button>
+                    {isCameraScanning ? (
+                      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                        <div className="relative h-[42%] w-[88%] max-w-xl rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]">
+                          <div className="absolute left-0 right-0 h-0.5 bg-cyan-300 motion-safe:animate-[scanLine_2s_linear_infinite]" style={{ top: "50%" }} />
+                        </div>
+                      </div>
+                    ) : null}
 
-              <div
-                className={
-                  isCameraScanning
-                    ? "fixed inset-0 z-50 bg-black"
-                    : "relative h-[calc(100dvh-190px)] min-h-[440px] overflow-hidden rounded-lg bg-slate-950"
-                }
-              >
-                <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
-
-                <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                  <div className="relative h-[42%] w-[88%] max-w-xl rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]">
-                    {isCameraScanning ? <div className="absolute left-0 right-0 h-0.5 bg-emerald-400" style={{ animation: "scanLine 2s linear infinite", top: "50%" }} /> : null}
+                    {isCameraScanning ? (
+                      <>
+                        <div className="absolute left-0 right-0 top-0 z-10 flex items-start justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent px-4 pb-12 pt-4 text-white">
+                          <div className="min-w-0">
+                            <p className="text-xs text-white/70">{activeLabel}</p>
+                            <p className="truncate text-base font-bold">{activeLocation}</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-xs text-white/70">คงเหลือ</p>
+                            <p className="text-2xl font-bold tabular-nums">{remainingTotal.toLocaleString("th-TH")}</p>
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 z-[5]" onPointerDown={handleTapToFocus} role="button" aria-label="แตะเพื่อโฟกัสกล้อง" tabIndex={-1}>
+                          {tapIndicator ? (
+                            <div className="pointer-events-none absolute size-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300" style={{ left: tapIndicator.x, top: tapIndicator.y }} />
+                          ) : null}
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 bg-gradient-to-t from-black/90 to-transparent px-4 pb-6 pt-16">
+                          {torchSupported ? (
+                            <button type="button" onClick={() => void toggleTorch()} className="grid size-14 place-items-center rounded-full bg-white/15 text-white backdrop-blur" aria-label={torchOn ? "ปิดไฟฉาย" : "เปิดไฟฉาย"}>
+                              {torchOn ? <Flashlight className="size-6" /> : <FlashlightOff className="size-6" />}
+                            </button>
+                          ) : null}
+                          <button type="button" onClick={stopCamera} className="grid size-16 place-items-center rounded-full border-4 border-white bg-red-600 text-white" aria-label="หยุดสแกน">
+                            <Square className="size-6 fill-current" />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => void startCamera()} className="group absolute inset-0 z-10 grid place-items-center px-5 text-center text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300">
+                        <span className="block max-w-sm">
+                          <span className="mx-auto grid size-20 place-items-center rounded-2xl border border-sky-300/30 bg-sky-400/10 text-sky-200 ring-8 ring-sky-400/5 transition-colors group-hover:bg-sky-400/20">
+                            <ScanLine className="size-10" />
+                          </span>
+                          <span className="mt-6 block text-xl font-semibold">พร้อม{scanTitle}</span>
+                          <span className="mt-2 block text-xs leading-5 text-slate-300">เล็งกล้องไปที่ QR Code หรือ Barcode ของ PO</span>
+                          <span className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-[#104c88] shadow-lg transition-colors group-hover:bg-sky-50"><Camera className="size-4" />เปิดกล้องสแกน</span>
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
+                <p className="border-t border-slate-100 px-4 py-3 text-xs leading-5 text-slate-500">{isCameraScanning ? cameraMessage : "สแกนต่อเนื่องได้ ระบบบันทึกความคืบหน้าให้อัตโนมัติ"}</p>
+              </section>
 
-                {isCameraScanning ? (
-                  <>
-                    <div className="absolute left-0 right-0 top-0 z-10 flex items-start justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent px-4 pb-12 pt-4 text-white">
-                      <div className="min-w-0">
-                        <p className="text-xs text-white/70">{activeLabel}</p>
-                        <p className="truncate text-base font-bold">{activeLocation}</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs text-white/70">คงเหลือ</p>
-                        <p className="text-2xl font-bold tabular-nums">{remainingTotal.toLocaleString("th-TH")}</p>
-                      </div>
+              <aside className="space-y-4" aria-label="ข้อมูลและเครื่องมือสแกน">
+                <section className="surface-panel p-4 sm:p-5" aria-labelledby="driver-active-location-title">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-primary"><MapPin className="size-5" /></span>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-500">{mode === "deliver" ? "จุดส่งสินค้าปัจจุบัน" : "จุดรับสินค้าต้นทาง"}</p>
+                      <h2 id="driver-active-location-title" className="mt-1 break-words text-base font-semibold text-slate-900">{activeLocation}</h2>
                     </div>
-                    <div className="absolute inset-0 z-[5]" onPointerDown={handleTapToFocus} role="button" aria-label="แตะเพื่อโฟกัสกล้อง" tabIndex={-1}>
-                      {tapIndicator ? (
-                        <div className="pointer-events-none absolute size-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300" style={{ left: tapIndicator.x, top: tapIndicator.y }} />
-                      ) : null}
+                  </div>
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-medium text-sky-800">คงเหลือที่ต้องสแกน{activeLabel}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">เฉพาะ{mode === "deliver" ? "ปลายทางนี้" : "ขั้นตอนขึ้นรถ"}</p>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-4 bg-gradient-to-t from-black/90 to-transparent px-4 pb-6 pt-16">
-                      {torchSupported ? (
-                        <button type="button" onClick={() => void toggleTorch()} className="grid size-14 place-items-center rounded-full bg-white/15 text-white backdrop-blur" aria-label={torchOn ? "ปิดไฟฉาย" : "เปิดไฟฉาย"}>
-                          {torchOn ? <Flashlight className="size-6" /> : <FlashlightOff className="size-6" />}
-                        </button>
-                      ) : null}
-                      <button type="button" onClick={stopCamera} className="grid size-16 place-items-center rounded-full border-4 border-white bg-red-600 text-white" aria-label="หยุดสแกน">
-                        <Square className="size-6 fill-current" />
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <button type="button" onClick={() => void startCamera()} className="absolute inset-0 z-10 grid place-items-center px-4 text-center text-white">
-                    <span>
-                      <span className="mx-auto grid size-20 place-items-center rounded-full bg-white text-slate-950 shadow-xl">
-                        <Camera className="size-9" />
-                      </span>
-                      <span className="mt-4 block text-xl font-bold">เปิดกล้องสแกน</span>
-                      <span className="mt-1 block text-sm text-white/70">สแกนต่อเนื่อง ไม่ต้องเปิดดูรายการ PO</span>
-                    </span>
-                  </button>
-                )}
-              </div>
+                    <p className="shrink-0 text-3xl font-bold tabular-nums text-primary">{remainingTotal.toLocaleString("th-TH")}<span className="ml-1 text-xs font-normal text-slate-500">รอบ</span></p>
+                  </div>
+                  <div className="mt-4 flex justify-between gap-2 text-xs text-slate-500">
+                    <span>สแกน{activeLabel}แล้ว</span><span className="font-semibold tabular-nums text-slate-700">{activeTotal.toLocaleString("th-TH")} / {activeRequiredTotal.toLocaleString("th-TH")}</span>
+                  </div>
+                  <div role="progressbar" aria-label={`ความคืบหน้าสแกน${activeLabel}`} aria-valuemin={0} aria-valuemax={activeRequiredTotal || 1} aria-valuenow={Math.min(activeTotal, activeRequiredTotal)} className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-[width] motion-reduce:transition-none" style={{ width: `${activeRequiredTotal ? Math.min((activeTotal / activeRequiredTotal) * 100, 100) : 0}%` }} />
+                  </div>
+                  <Button type="button" variant="outline" className="mt-5 h-auto min-h-11 w-full gap-2 whitespace-normal py-2.5 text-left text-sm" onClick={() => setIsDriverItemListOpen(true)}>
+                    <List className="size-4 shrink-0" />ดูรายการ PO และสินค้า<ChevronRight className="ml-auto size-4 shrink-0 text-slate-400" />
+                  </Button>
+                </section>
 
-              <details className="rounded-lg bg-white shadow-sm">
-                <summary className="cursor-pointer px-4 py-3 text-center text-sm font-semibold text-slate-600">กรอกรหัสแทนกล้อง</summary>
-                <div className="flex gap-2 border-t p-3">
-                  <Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="PO SAP No." />
-                  <Button type="button" onClick={handleScanSubmit} disabled={isSubmitting || !code.trim()}>บันทึก</Button>
-                </div>
-              </details>
+                <section className="surface-panel p-4 sm:p-5" aria-labelledby="driver-manual-scan-title">
+                  <h2 id="driver-manual-scan-title" className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode className="size-4 text-primary" />กรอกรหัสแทนกล้อง</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">ใช้เมื่อไม่สะดวกเปิดกล้อง หรืออ่านรหัสไม่สำเร็จ</p>
+                  <form className="mt-4" onSubmit={(event) => { event.preventDefault(); if (!isSubmitting && code.trim()) void handleScanSubmit(); }}>
+                    <Label htmlFor="dedicated-driver-scan-code" className="text-xs text-slate-600">รหัส PO SAP No.</Label>
+                    <div className="mt-1.5 flex gap-2">
+                      <Input id="dedicated-driver-scan-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="กรอกหรือวางรหัส PO" className="h-11 min-w-0" />
+                      <Button type="submit" className="h-11 shrink-0" disabled={isSubmitting || !code.trim()}>{isSubmitting ? "กำลังบันทึก" : "บันทึก"}</Button>
+                    </div>
+                  </form>
+                </section>
+                {message ? (
+                  <div role="status" aria-live="polite" className={`flex items-start gap-2 rounded-xl border p-3 text-xs leading-5 ${scanResult === "alert" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                    {scanResult === "alert" ? <AlertTriangle className="mt-0.5 size-4 shrink-0" /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0" />}
+                    <p className="min-w-0 whitespace-pre-line break-words">{message}</p>
+                  </div>
+                ) : null}
+              </aside>
             </div>
           ) : null}
         </main>

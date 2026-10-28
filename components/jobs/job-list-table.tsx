@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SyncDropMascot } from "@/components/brand/syncdrop-mascot";
 import { JobDeleteButton } from "@/components/jobs/job-delete-button";
 import { JobDriverAccessCard } from "@/components/jobs/job-driver-access-card";
+import { JobPoSummary } from "@/components/jobs/job-po-summary";
 import { getJobStatusLabel } from "@/lib/job-labels";
 import { buildDriverRoomPath, buildDriverRoomUrl } from "@/lib/driver-room";
 import { deleteJob } from "@/lib/job-db";
@@ -223,10 +224,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
                 </td>
                 <td className="break-words px-3 py-2 align-top text-[12.5px]">
                   {job.route}
-                  <br />
-                  <span className="text-[11px] text-slate-400">
-                    {Array.from(new Set(job.items.map((item) => item.poSapNo))).join(", ")}
-                  </span>
+                  <JobPoSummary job={job} />
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 align-top text-[12.5px]">
                   {job.driver || "-"}
@@ -267,9 +265,7 @@ export function JobListTable({ jobs }: { jobs: JobSummaryRecord[] }) {
             <div>
               <p className="text-xs text-muted-foreground">เส้นทาง / PO</p>
               <p className="break-words">{job.route}</p>
-              <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                {Array.from(new Set(job.items.map((item) => item.poSapNo))).join(", ")}
-              </p>
+              <JobPoSummary job={job} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
